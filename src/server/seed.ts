@@ -1,0 +1,285 @@
+import { hashSync } from "bcryptjs";
+import type { DatabaseState } from "@/lib/domain";
+import { slugify } from "@/lib/utils";
+
+const now = new Date().toISOString();
+
+export function createSeedState(): DatabaseState {
+  const categories = [
+    { id: "cat-1", name: "Men's Wear", slug: "mens-wear", description: "Shirts, polos and essentials for the shop floor.", isActive: true },
+    { id: "cat-2", name: "Women", slug: "women", description: "Lifestyle pieces with strong conversion appeal.", isActive: true },
+    { id: "cat-3", name: "Accessories", slug: "accessories", description: "Bundles, giftables, and add-on items.", isActive: true },
+  ];
+
+  const brands = [
+    { id: "brand-1", name: "Easy Thread", slug: "easy-thread", description: "House apparel label.", isActive: true },
+    { id: "brand-2", name: "Green Drop", slug: "green-drop", description: "Self-care and home goods.", isActive: true },
+    { id: "brand-3", name: "Nova Gear", slug: "nova-gear", description: "Practical accessories.", isActive: true },
+  ];
+
+  const products = [
+    {
+      id: "prod-1",
+      name: "Everyday Cotton Shirt",
+      slug: "everyday-cotton-shirt",
+      sku: "ET-SHIRT-001",
+      description: "A breathable cotton shirt with a clean silhouette, ideal for bundle offers and landing pages.",
+      price: 1290,
+      compareAtPrice: 1590,
+      stock: 48,
+      categoryId: categories[0].id,
+      brandId: brands[0].id,
+      isActive: true,
+      featured: true,
+      weightGrams: 300,
+      tags: ["top-seller", "bundle"],
+      createdAt: now,
+    },
+    {
+      id: "prod-2",
+      name: "Glow Serum",
+      slug: "glow-serum",
+      sku: "GD-SERUM-004",
+      description: "A lightweight serum for high-conversion beauty campaigns.",
+      price: 890,
+      compareAtPrice: 1090,
+      stock: 62,
+      categoryId: categories[1].id,
+      brandId: brands[1].id,
+      isActive: true,
+      featured: true,
+      weightGrams: 120,
+      tags: ["beauty", "landing-page"],
+      createdAt: now,
+    },
+    {
+      id: "prod-3",
+      name: "All Day Tote",
+      slug: "all-day-tote",
+      sku: "NG-TOTE-008",
+      description: "A roomy tote designed for repeat customers and fast shipping campaigns.",
+      price: 1490,
+      stock: 34,
+      categoryId: categories[2].id,
+      brandId: brands[2].id,
+      isActive: true,
+      featured: false,
+      weightGrams: 450,
+      tags: ["new-arrival"],
+      createdAt: now,
+    },
+  ];
+
+  return {
+    users: [
+      {
+        id: "user-admin",
+        name: "Admin User",
+        email: "admin@easy-ecom.test",
+        passwordHash: hashSync("admin1234", 10),
+        role: "admin",
+        phone: "01700000000",
+        createdAt: now,
+      },
+      {
+        id: "user-customer",
+        name: "Amina Rahman",
+        email: "amina@example.com",
+        passwordHash: hashSync("customer1234", 10),
+        role: "customer",
+        phone: "01811111111",
+        createdAt: now,
+      },
+    ],
+    categories,
+    brands,
+    products,
+    productImages: [
+      {
+        id: "img-1",
+        productId: products[0].id,
+        url: "/hero-products.png",
+        alt: "Easy e-commerce hero products",
+        sortOrder: 1,
+      },
+      {
+        id: "img-2",
+        productId: products[1].id,
+        url: "/hero-products.png",
+        alt: "Beauty product hero",
+        sortOrder: 1,
+      },
+      {
+        id: "img-3",
+        productId: products[2].id,
+        url: "/hero-products.png",
+        alt: "Lifestyle product",
+        sortOrder: 1,
+      },
+    ],
+    carts: [
+      {
+        id: "cart-demo",
+        ownerId: "user-customer",
+        guestKey: "demo",
+        items: [{ id: "cart-item-1", productId: products[0].id, quantity: 1 }],
+        updatedAt: now,
+      },
+    ],
+    orders: [
+      {
+        id: "order-1",
+        orderCode: "EE-240621-1001",
+        customerId: "user-customer",
+        customerName: "Amina Rahman",
+        customerPhone: "01811111111",
+        customerEmail: "amina@example.com",
+        shippingAddress: "House 22, Road 4, Dhanmondi, Dhaka",
+        deliveryCharge: 80,
+        discountAmount: 90,
+        subtotal: 2180,
+        total: 2170,
+        paymentStatus: "processing",
+        deliveryStatus: "courier_created",
+        paymentProvider: "bkash",
+        notes: "Ring before delivery",
+        createdAt: now,
+        updatedAt: now,
+        items: [
+          { id: "order-item-1", productId: products[0].id, quantity: 1, unitPrice: 1290, lineTotal: 1290 },
+          { id: "order-item-2", productId: products[1].id, quantity: 1, unitPrice: 890, lineTotal: 890 },
+        ],
+      },
+    ],
+    payments: [
+      {
+        id: "pay-1",
+        orderId: "order-1",
+        provider: "bkash",
+        transactionId: "TXN-EE-1001",
+        amount: 2170,
+        status: "processing",
+        rawResponse: { status: "processing", gateway: "demo" },
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    paymentLogs: [],
+    couriers: [
+      {
+        id: "courier-1",
+        key: "pathao",
+        name: "Pathao Courier",
+        enabled: true,
+        description: "Fast last-mile coverage for paid and COD shipments.",
+      },
+      {
+        id: "courier-2",
+        key: "steadfast",
+        name: "Steadfast Courier",
+        enabled: true,
+        description: "Reliable nationwide parcel coverage.",
+      },
+    ],
+    deliveryShipments: [
+      {
+        id: "ship-1",
+        orderId: "order-1",
+        courierKey: "pathao",
+        trackingId: "PT-778899",
+        consignmentId: "CON-778899",
+        status: "in_transit",
+        customerName: "Amina Rahman",
+        customerPhone: "01811111111",
+        customerAddress: "House 22, Road 4, Dhanmondi, Dhaka",
+        rawResponse: { status: "accepted" },
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    landingPages: [
+      {
+        id: "lp-1",
+        slug: "ramadan-collection",
+        title: "Ramadan Collection",
+        metaDescription: "Curated offers for your campaign landing page.",
+        heroTitle: "Big bundles, same-day conversion",
+        heroSubtitle: "Custom landing pages, attached products, and direct wallet checkout for Bangladesh.",
+        bannerImageUrl: "/hero-products.png",
+        published: true,
+        attachedProductIds: [products[0].id, products[1].id],
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
+    landingPageSections: [
+      {
+        id: "lp-section-1",
+        landingPageId: "lp-1",
+        type: "banner",
+        title: "Ramadan Sale",
+        subtitle: "Fast deals for mobile shoppers",
+        body: "Highlight urgency, benefits, and direct payment.",
+        imageUrl: "/hero-products.png",
+        productIds: [products[0].id],
+        items: [],
+        ctaLabel: "Shop now",
+        ctaHref: "/checkout",
+        sortOrder: 1,
+      },
+      {
+        id: "lp-section-2",
+        landingPageId: "lp-1",
+        type: "faq",
+        title: "Frequently asked",
+        subtitle: "Clear objections before checkout",
+        body: "",
+        productIds: [],
+        items: [
+          { title: "Do you support bKash?", body: "Yes, direct merchant checkout is built in." },
+          { title: "Can I assign courier after payment?", body: "Yes, Pathao and Steadfast shipments can be created from admin." },
+        ],
+        sortOrder: 2,
+      },
+    ],
+    coupons: [
+      {
+        id: "coupon-1",
+        code: "BD10",
+        description: "10% off for campaign traffic",
+        type: "percentage",
+        value: 10,
+        minOrderAmount: 1000,
+        isActive: true,
+      },
+    ],
+    inventoryLogs: [],
+    settings: {
+      storeName: "Easy Ecom BD",
+      logoText: "Easy Ecom",
+      contactNumber: "01700 123 456",
+      deliveryCharge: 80,
+      freeDeliveryThreshold: 1990,
+      bkashEnabled: true,
+      nagadEnabled: true,
+      pathaoEnabled: true,
+      steadfastEnabled: true,
+    },
+    auditLogs: [
+      {
+        id: "audit-1",
+        actorEmail: "admin@easy-ecom.test",
+        action: "seed",
+        entity: "system",
+        entityId: "seed",
+        note: "Initial demo content created",
+        createdAt: now,
+      },
+    ],
+  };
+}
+
+export function defaultLandingSlug(title: string) {
+  return slugify(title);
+}
+

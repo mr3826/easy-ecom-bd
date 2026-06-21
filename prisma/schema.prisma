@@ -1,0 +1,355 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  manager
+  customer
+}
+
+enum PaymentProviderKey {
+  bkash
+  nagad
+}
+
+enum PaymentStatus {
+  pending
+  processing
+  paid
+  failed
+  cancelled
+  refunded
+}
+
+enum DeliveryStatus {
+  pending
+  courier_created
+  picked_up
+  in_transit
+  delivered
+  returned
+  cancelled
+}
+
+enum CourierKey {
+  pathao
+  steadfast
+}
+
+enum LandingSectionType {
+  banner
+  title
+  subtitle
+  product_section
+  faq
+  testimonials
+  cta
+}
+
+enum CouponType {
+  percentage
+  fixed
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         UserRole  @default(customer)
+  phone        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  carts         Cart[]
+  orders        Order[]
+
+  @@map("users")
+}
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+
+  @@map("categories")
+}
+
+model Brand {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
+
+  @@map("brands")
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  name           String
+  slug           String          @unique
+  sku            String          @unique
+  description    String
+  price          Int
+  compareAtPrice Int?
+  stock          Int             @default(0)
+  categoryId     String
+  brandId        String
+  isActive       Boolean         @default(true)
+  featured       Boolean         @default(false)
+  weightGrams    Int             @default(0)
+  tags           String[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  category       Category        @relation(fields: [categoryId], references: [id])
+  brand          Brand           @relation(fields: [brandId], references: [id])
+  images         ProductImage[]
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+  inventoryLogs  InventoryLog[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id         String   @id @default(cuid())
+  productId  String
+  url        String
+  alt        String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+model Cart {
+  id         String    @id @default(cuid())
+  ownerId    String?
+  guestKey   String    @unique
+  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+
+  owner      User?     @relation(fields: [ownerId], references: [id])
+  items      CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id         String   @id @default(cuid())
+  cartId     String
+  productId  String
+  quantity   Int      @default(1)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id])
+
+  @@map("cart_items")
+}
+
+model Order {
+  id               String         @id @default(cuid())
+  orderCode        String         @unique
+  customerId       String?
+  customerName     String
+  customerPhone    String
+  customerEmail    String?
+  shippingAddress  String
+  deliveryCharge   Int            @default(0)
+  discountAmount   Int            @default(0)
+  subtotal         Int
+  total            Int
+  paymentStatus    PaymentStatus  @default(pending)
+  deliveryStatus   DeliveryStatus @default(pending)
+  paymentProvider  PaymentProviderKey?
+  notes            String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  customer         User?          @relation(fields: [customerId], references: [id])
+  items            OrderItem[]
+  payments         Payment[]
+  shipments        DeliveryShipment[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  productId  String
+  quantity   Int
+  unitPrice  Int
+  lineTotal  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id            String         @id @default(cuid())
+  orderId       String
+  provider      PaymentProviderKey
+  transactionId String
+  amount        Int
+  status        PaymentStatus  @default(pending)
+  rawResponse   Json
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  logs          PaymentLog[]
+
+  @@map("payments")
+}
+
+model PaymentLog {
+  id         String   @id @default(cuid())
+  paymentId  String
+  stage      String
+  payload    Json
+  createdAt  DateTime @default(now())
+
+  payment    Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("payment_logs")
+}
+
+model Courier {
+  id          String      @id @default(cuid())
+  key         CourierKey  @unique
+  name        String
+  enabled     Boolean     @default(true)
+  description String
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  shipments   DeliveryShipment[]
+
+  @@map("couriers")
+}
+
+model DeliveryShipment {
+  id              String         @id @default(cuid())
+  orderId         String
+  courierKey      CourierKey
+  trackingId      String         @unique
+  consignmentId   String?
+  status          DeliveryStatus @default(courier_created)
+  customerName    String
+  customerPhone   String
+  customerAddress  String
+  rawResponse     Json
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("delivery_shipments")
+}
+
+model LandingPage {
+  id                String               @id @default(cuid())
+  slug              String               @unique
+  title             String
+  metaDescription   String
+  heroTitle         String
+  heroSubtitle      String
+  bannerImageUrl    String?
+  published         Boolean              @default(false)
+  attachedProductIds String[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  sections          LandingPageSection[]
+
+  @@map("landing_pages")
+}
+
+model LandingPageSection {
+  id             String            @id @default(cuid())
+  landingPageId  String
+  type           LandingSectionType
+  title          String?
+  subtitle       String?
+  body           String?
+  imageUrl       String?
+  productIds     String[]
+  items          Json
+  ctaLabel       String?
+  ctaHref        String?
+  sortOrder      Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  landingPage    LandingPage       @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+
+  @@map("landing_page_sections")
+}
+
+model Coupon {
+  id             String      @id @default(cuid())
+  code           String      @unique
+  description    String
+  type           CouponType
+  value          Int
+  minOrderAmount Int         @default(0)
+  isActive       Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("coupons")
+}
+
+model InventoryLog {
+  id         String   @id @default(cuid())
+  productId  String
+  change     Int
+  reason     String
+  createdAt  DateTime @default(now())
+
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_logs")
+}
+
+model Setting {
+  id                    String   @id @default(cuid())
+  storeName             String
+  logoText              String
+  contactNumber         String
+  deliveryCharge        Int
+  freeDeliveryThreshold  Int
+  bkashEnabled          Boolean  @default(true)
+  nagadEnabled          Boolean  @default(true)
+  pathaoEnabled         Boolean  @default(true)
+  steadfastEnabled      Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("settings")
+}
