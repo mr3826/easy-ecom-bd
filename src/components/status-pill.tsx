@@ -4,6 +4,8 @@ const toneMap: Record<string, string> = {
   active: "bg-emerald-100 text-emerald-800 ring-emerald-200",
   inactive: "bg-slate-100 text-slate-700 ring-slate-200",
   pending: "bg-amber-100 text-amber-800 ring-amber-200",
+  draft: "bg-slate-100 text-slate-700 ring-slate-200",
+  confirmed: "bg-blue-100 text-blue-800 ring-blue-200",
   processing: "bg-sky-100 text-sky-800 ring-sky-200",
   paid: "bg-emerald-100 text-emerald-800 ring-emerald-200",
   failed: "bg-rose-100 text-rose-800 ring-rose-200",
@@ -34,4 +36,3 @@ export function StatusPill({
     </span>
   );
 }
-

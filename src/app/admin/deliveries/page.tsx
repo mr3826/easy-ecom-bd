@@ -1,16 +1,58 @@
 import { syncShipmentStatusAction } from "@/app/admin/actions";
-import { listDeliveryShipments } from "@/server/store";
-import { deliveryStatuses } from "@/lib/domain";
+import { getSettings, listDeliveryShipments } from "@/server/store";
+import { courierOptions, deliveryStatuses, deliveryZones } from "@/lib/domain";
 import { StatusPill } from "@/components/status-pill";
+import { money } from "@/lib/utils";
 
-export default function AdminDeliveriesPage() {
-  const shipments = listDeliveryShipments();
+export default async function AdminDeliveriesPage() {
+  const [shipments, settings] = await Promise.all([listDeliveryShipments(), getSettings()]);
+  const zoneRows = [
+    { key: "inside_dhaka", charge: settings.insideDhakaDeliveryCharge, cod: settings.insideDhakaCodEnabled },
+    { key: "sub_dhaka", charge: settings.subDhakaDeliveryCharge, cod: settings.subDhakaCodEnabled },
+    { key: "outside_dhaka", charge: settings.outsideDhakaDeliveryCharge, cod: settings.outsideDhakaCodEnabled },
+  ];
+  const providerRows = [
+    { key: "pathao", enabled: settings.pathaoEnabled },
+    { key: "steadfast", enabled: settings.steadfastEnabled },
+    { key: "redx", enabled: settings.redxEnabled },
+  ];
 
   return (
     <div className="space-y-6 text-slate-100">
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Deliveries</p>
         <h1 className="mt-2 text-3xl font-semibold text-white">Delivery status management</h1>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <section className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+          <h2 className="text-xl font-semibold text-white">Zone charges</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {zoneRows.map((row) => {
+              const zone = deliveryZones.find((item) => item.key === row.key);
+              return (
+                <div key={row.key} className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+                  <p className="font-semibold text-white">{zone?.name}</p>
+                  <p className="mt-2 text-sm text-slate-400">{money(row.charge)}</p>
+                  <StatusPill label={row.cod ? "COD allowed" : "COD off"} tone={row.cod ? "active" : "inactive"} />
+                </div>
+              );
+            })}
+          </div>
+        </section>
+        <section className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+          <h2 className="text-xl font-semibold text-white">Courier readiness</h2>
+          <div className="mt-4 space-y-3">
+            {providerRows.map((row) => {
+              const provider = courierOptions.find((item) => item.key === row.key);
+              return (
+                <div key={row.key} className="flex items-center justify-between gap-3 rounded-3xl border border-white/10 bg-slate-950/70 p-4">
+                  <p className="font-semibold text-white">{provider?.name}</p>
+                  <StatusPill label={row.enabled ? "enabled" : "disabled"} tone={row.enabled ? "active" : "inactive"} />
+                </div>
+              );
+            })}
+          </div>
+        </section>
       </div>
       <div className="space-y-4">
         {shipments.map((shipment) => (
@@ -39,4 +81,3 @@ export default function AdminDeliveriesPage() {
     </div>
   );
 }
-

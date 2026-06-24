@@ -2,10 +2,8 @@ import { listPayments, listOrders, getState } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
 import { money, shortDate } from "@/lib/utils";
 
-export default function AdminPaymentsPage() {
-  const payments = listPayments();
-  const orders = listOrders();
-  const state = getState();
+export default async function AdminPaymentsPage() {
+  const [payments, orders, state] = await Promise.all([listPayments(), listOrders(), getState()]);
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -34,10 +32,23 @@ export default function AdminPaymentsPage() {
           );
         })}
       </div>
-      <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5 text-sm text-slate-300">
-        Active gateways: bKash {state.settings.bkashEnabled ? "on" : "off"}, Nagad {state.settings.nagadEnabled ? "on" : "off"}.
+      <div className="grid gap-4 rounded-[2rem] border border-white/10 bg-white/5 p-5 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          { name: "COD", enabled: state.settings.codEnabled, account: "Zone controlled", instructions: "Collected during delivery" },
+          { name: "bKash", enabled: state.settings.bkashEnabled, account: state.settings.bkashAccountNumber, instructions: state.settings.bkashInstructions },
+          { name: "Nagad", enabled: state.settings.nagadEnabled, account: state.settings.nagadAccountNumber, instructions: state.settings.nagadInstructions },
+          { name: "Rocket", enabled: state.settings.rocketEnabled, account: state.settings.rocketAccountNumber, instructions: state.settings.rocketInstructions },
+        ].map((method) => (
+          <div key={method.name} className="rounded-3xl border border-white/10 bg-slate-950/70 p-4 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-semibold text-white">{method.name}</p>
+              <StatusPill label={method.enabled ? "visible" : "hidden"} tone={method.enabled ? "active" : "inactive"} />
+            </div>
+            <p className="mt-3 text-slate-400">{method.account || "No account number set"}</p>
+            <p className="mt-2 text-slate-500">{method.instructions || "No instructions set"}</p>
+          </div>
+        ))}
       </div>
     </div>
   );
 }
-

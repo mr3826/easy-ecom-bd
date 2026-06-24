@@ -1,6 +1,8 @@
 import { PublicShell } from "@/components/public-shell";
 import { loginAction } from "@/app/actions";
 
+export const dynamic = "force-dynamic";
+
 export default function LoginPage() {
   return (
     <PublicShell>
@@ -35,4 +37,3 @@ export default function LoginPage() {
     </PublicShell>
   );
 }
-

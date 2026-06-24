@@ -1,6 +1,8 @@
 import { PublicShell } from "@/components/public-shell";
 import { registerAction } from "@/app/actions";
 
+export const dynamic = "force-dynamic";
+
 export default function RegisterPage() {
   return (
     <PublicShell>
@@ -34,4 +36,3 @@ export default function RegisterPage() {
     </PublicShell>
   );
 }
-

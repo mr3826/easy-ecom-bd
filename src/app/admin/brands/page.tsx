@@ -9,7 +9,7 @@ export default async function AdminBrandsPage({
   searchParams: Promise<{ edit?: string }>;
 }) {
   const { edit } = await searchParams;
-  const brands = listBrands();
+  const brands = await listBrands();
   const selected = brands.find((item) => item.id === edit);
 
   return (
@@ -61,4 +61,3 @@ export default async function AdminBrandsPage({
     </div>
   );
 }
-

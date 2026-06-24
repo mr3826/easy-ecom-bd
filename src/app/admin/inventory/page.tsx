@@ -2,9 +2,8 @@ import { adjustInventoryAction } from "@/app/admin/actions";
 import { listProducts, getState } from "@/server/store";
 import { money } from "@/lib/utils";
 
-export default function AdminInventoryPage() {
-  const products = listProducts();
-  const state = getState();
+export default async function AdminInventoryPage() {
+  const [products, state] = await Promise.all([listProducts(), getState()]);
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -59,4 +58,3 @@ export default function AdminInventoryPage() {
     </div>
   );
 }
-

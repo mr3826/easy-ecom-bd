@@ -1,8 +1,8 @@
 import { listUsers } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
 
-export default function AdminCustomersPage() {
-  const users = listUsers();
+export default async function AdminCustomersPage() {
+  const users = await listUsers();
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -27,4 +27,3 @@ export default function AdminCustomersPage() {
     </div>
   );
 }
-

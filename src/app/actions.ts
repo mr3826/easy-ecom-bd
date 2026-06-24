@@ -42,7 +42,7 @@ export async function addToCartAction(formData: FormData) {
   const quantity = asNumber(formData.get("quantity"), 1);
   const user = await getCurrentUser();
   const guestKey = await getGuestKey();
-  addToCart(guestKey, productId, quantity, user?.id);
+  await addToCart(guestKey, productId, quantity, user?.id, user ?? null);
   revalidatePath("/cart");
   revalidatePath("/checkout");
 }
@@ -52,7 +52,7 @@ export async function updateCartQuantityAction(formData: FormData) {
   const quantity = asNumber(formData.get("quantity"), 1);
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
-  updateCartQuantity(guestKey, productId, quantity, user?.id);
+  await updateCartQuantity(guestKey, productId, quantity, user?.id, user ?? null);
   revalidatePath("/cart");
   revalidatePath("/checkout");
 }
@@ -61,7 +61,7 @@ export async function removeCartItemAction(formData: FormData) {
   const productId = asString(formData.get("productId"));
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
-  removeCartItem(guestKey, productId, user?.id);
+  await removeCartItem(guestKey, productId, user?.id, user ?? null);
   revalidatePath("/cart");
   revalidatePath("/checkout");
 }
@@ -85,12 +85,12 @@ export async function registerAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message || "Invalid registration details");
   }
 
-  const existing = findUserByEmail(parsed.data.email);
+  const existing = await findUserByEmail(parsed.data.email);
   if (existing) {
     throw new Error("An account already exists for this email address");
   }
 
-  const user = createUser({
+  const user = await createUser({
     name: parsed.data.name,
     email: parsed.data.email,
     passwordHash: hashSync(parsed.data.password, 10),
@@ -105,7 +105,7 @@ export async function registerAction(formData: FormData) {
 export async function loginAction(formData: FormData) {
   const email = asString(formData.get("email"));
   const password = asString(formData.get("password"));
-  const user = findUserByEmail(email);
+  const user = await findUserByEmail(email);
 
   if (!user || !compareSync(password, user.passwordHash)) {
     throw new Error("The email or password is not correct");
@@ -122,47 +122,58 @@ export async function logoutAction() {
 }
 
 export async function checkoutAction(formData: FormData) {
-  const paymentProvider = asString(formData.get("paymentProvider")) as "bkash" | "nagad";
+  const paymentMethod = (asString(formData.get("paymentMethod")) || "cod") as "cod" | "bkash" | "nagad" | "rocket";
+  const wantsBkash = paymentMethod === "bkash";
+  const wantsNagad = paymentMethod === "nagad";
   const customerName = asString(formData.get("customerName"));
   const customerPhone = asString(formData.get("customerPhone"));
   const customerEmail = asString(formData.get("customerEmail")) || undefined;
+  const district = asString(formData.get("district"));
   const shippingAddress = asString(formData.get("shippingAddress"));
   const notes = asString(formData.get("notes")) || undefined;
   const couponCode = asString(formData.get("couponCode")) || undefined;
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
-  const cart = getOrCreateCart(guestKey, user?.id);
+  const cart = await getOrCreateCart(guestKey, user?.id);
   const summary = getCartSummary(cart);
+  const resolvedSummary = await summary;
 
-  if (!summary.items.length) {
+  if (!resolvedSummary.items.length) {
     throw new Error("Your cart is empty");
   }
 
-  const order = createOrderFromCart({
+  const order = await createOrderFromCart({
     cart,
     customerName,
     customerPhone,
     customerEmail,
+    district,
     shippingAddress,
     notes,
-    paymentProvider,
+    paymentProvider: paymentMethod,
     couponCode,
   });
 
-  const providerReady =
-    paymentProvider === "bkash"
-      ? await initiateBkashPayment({
-          orderId: order.id,
-          amount: order.total,
-          customerName,
-          customerPhone,
-        })
-      : await initiateNagadPayment({
-          orderId: order.id,
-          amount: order.total,
-          customerName,
-          customerPhone,
-        });
+  if (!wantsBkash && !wantsNagad) {
+    revalidatePath("/cart");
+    revalidatePath("/checkout");
+    revalidatePath("/admin");
+    redirect(`/track?code=${order.orderCode}`);
+  }
+
+  const providerReady = wantsNagad
+    ? await initiateNagadPayment({
+        orderId: order.id,
+        amount: order.total,
+        customerName,
+        customerPhone,
+      })
+    : await initiateBkashPayment({
+        orderId: order.id,
+        amount: order.total,
+        customerName,
+        customerPhone,
+      });
 
   revalidatePath("/cart");
   revalidatePath("/checkout");

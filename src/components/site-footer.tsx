@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { getSettings } from "@/server/store";
 
-export function SiteFooter() {
-  const settings = getSettings();
+export async function SiteFooter() {
+  const settings = await getSettings();
 
   return (
     <footer className="border-t border-black/5 bg-slate-950 text-slate-300">
@@ -10,7 +10,7 @@ export function SiteFooter() {
         <div>
           <p className="text-lg font-semibold text-white">{settings.storeName}</p>
           <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
-            Full ecommerce stack for Bangladesh with bKash, Nagad, courier sync, and landing pages built in.
+            Full ecommerce stack for Bangladesh with COD, bKash, courier sync, and landing pages built in.
           </p>
         </div>
         <div className="grid grid-cols-2 gap-4 text-sm">
@@ -37,4 +37,3 @@ export function SiteFooter() {
     </footer>
   );
 }
-

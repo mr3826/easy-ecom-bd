@@ -8,13 +8,23 @@ datasource db {
 
 enum UserRole {
   admin
-  manager
+  super_admin
   customer
 }
 
 enum PaymentProviderKey {
+  cod
   bkash
   nagad
+  rocket
+}
+
+enum OrderStatus {
+  draft
+  pending
+  confirmed
+  cancelled
+  delivered
 }
 
 enum PaymentStatus {
@@ -39,6 +49,13 @@ enum DeliveryStatus {
 enum CourierKey {
   pathao
   steadfast
+  redx
+}
+
+enum DeliveryZone {
+  inside_dhaka
+  sub_dhaka
+  outside_dhaka
 }
 
 enum LandingSectionType {
@@ -57,17 +74,20 @@ enum CouponType {
 }
 
 model User {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   name         String
-  email        String    @unique
+  email        String   @unique
   passwordHash String
-  role         UserRole  @default(customer)
+  role         UserRole @default(customer)
   phone        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   carts         Cart[]
   orders        Order[]
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  inventoryLogs InventoryLog[]
 
   @@map("users")
 }
@@ -90,6 +110,7 @@ model Brand {
   name        String
   slug        String    @unique
   description String
+  logoUrl     String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -99,156 +120,185 @@ model Brand {
 }
 
 model Product {
-  id             String          @id @default(cuid())
-  name           String
-  slug           String          @unique
-  sku            String          @unique
-  description    String
-  price          Int
-  compareAtPrice Int?
-  stock          Int             @default(0)
-  categoryId     String
-  brandId        String
-  isActive       Boolean         @default(true)
-  featured       Boolean         @default(false)
-  weightGrams    Int             @default(0)
-  tags           String[]
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id                String    @id @default(cuid())
+  name              String
+  slug              String    @unique
+  sku               String    @unique
+  description       String
+  price             Int
+  compareAtPrice    Int?
+  stock             Int       @default(0)
+  lowStockThreshold Int       @default(5)
+  categoryId        String
+  brandId           String
+  isActive          Boolean   @default(true)
+  featured          Boolean   @default(false)
+  archivedAt        DateTime?
+  weightGrams       Int       @default(0)
+  tags              String[]
+  searchKeywords    String[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  category       Category        @relation(fields: [categoryId], references: [id])
-  brand          Brand           @relation(fields: [brandId], references: [id])
-  images         ProductImage[]
-  cartItems      CartItem[]
-  orderItems     OrderItem[]
-  inventoryLogs  InventoryLog[]
+  category      Category       @relation(fields: [categoryId], references: [id])
+  brand         Brand          @relation(fields: [brandId], references: [id])
+  images        ProductImage[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  inventoryLogs InventoryLog[]
 
   @@map("products")
 }
 
 model ProductImage {
-  id         String   @id @default(cuid())
-  productId  String
-  url        String
-  alt        String
-  sortOrder  Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  productId String
+  url       String
+  alt       String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_images")
 }
 
 model Cart {
-  id         String    @id @default(cuid())
+  id         String   @id @default(cuid())
   ownerId    String?
-  guestKey   String    @unique
-  updatedAt  DateTime  @updatedAt
-  createdAt  DateTime  @default(now())
+  guestKey   String   @unique
+  couponCode String?
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
 
-  owner      User?     @relation(fields: [ownerId], references: [id])
-  items      CartItem[]
+  owner User?      @relation(fields: [ownerId], references: [id])
+  items CartItem[]
 
   @@map("carts")
 }
 
 model CartItem {
-  id         String   @id @default(cuid())
-  cartId     String
-  productId  String
-  quantity   Int      @default(1)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  cartId    String
+  productId String
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  cart       Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product    Product  @relation(fields: [productId], references: [id])
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
 
   @@map("cart_items")
 }
 
 model Order {
-  id               String         @id @default(cuid())
-  orderCode        String         @unique
-  customerId       String?
-  customerName     String
-  customerPhone    String
-  customerEmail    String?
-  shippingAddress  String
-  deliveryCharge   Int            @default(0)
-  discountAmount   Int            @default(0)
-  subtotal         Int
-  total            Int
-  paymentStatus    PaymentStatus  @default(pending)
-  deliveryStatus   DeliveryStatus @default(pending)
-  paymentProvider  PaymentProviderKey?
-  notes            String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+  id                  String              @id @default(cuid())
+  orderCode           String              @unique
+  customerId          String?
+  customerName        String
+  customerPhone       String
+  customerEmail       String?
+  district            String
+  shippingAddress     String
+  deliveryCharge      Int                 @default(0)
+  discountAmount      Int                 @default(0)
+  couponCode          String?
+  subtotal            Int
+  total               Int
+  status              OrderStatus         @default(pending)
+  paymentStatus       PaymentStatus       @default(pending)
+  deliveryStatus      DeliveryStatus      @default(pending)
+  paymentProvider     PaymentProviderKey?
+  deliveryZone        DeliveryZone        @default(inside_dhaka)
+  deliveryProvider    CourierKey?
+  trackingId          String?
+  consignmentId       String?
+  notes               String?
+  adminNotes          String?
+  inventoryReservedAt DateTime?
+  inventoryReleasedAt DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
 
-  customer         User?          @relation(fields: [customerId], references: [id])
-  items            OrderItem[]
-  payments         Payment[]
-  shipments        DeliveryShipment[]
+  customer      User?                @relation(fields: [customerId], references: [id])
+  items         OrderItem[]
+  payments      Payment[]
+  shipments     DeliveryShipment[]
+  inventoryLogs InventoryLog[]
+  statusHistory OrderStatusHistory[]
 
   @@map("orders")
 }
 
-model OrderItem {
-  id         String   @id @default(cuid())
+model OrderStatusHistory {
+  id         String       @id @default(cuid())
   orderId    String
-  productId  String
-  quantity   Int
-  unitPrice  Int
-  lineTotal  Int
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  actorId    String?
+  actorEmail String?
+  note       String?
+  createdAt  DateTime     @default(now())
 
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product    Product  @relation(fields: [productId], references: [id])
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("order_status_history")
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  unitPrice Int
+  lineTotal Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
 
   @@map("order_items")
 }
 
 model Payment {
-  id            String         @id @default(cuid())
+  id            String             @id @default(cuid())
   orderId       String
   provider      PaymentProviderKey
   transactionId String
   amount        Int
-  status        PaymentStatus  @default(pending)
+  status        PaymentStatus      @default(pending)
   rawResponse   Json
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
-  order         Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  logs          PaymentLog[]
+  order Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  logs  PaymentLog[]
 
   @@map("payments")
 }
 
 model PaymentLog {
-  id         String   @id @default(cuid())
-  paymentId  String
-  stage      String
-  payload    Json
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  paymentId String
+  stage     String
+  payload   Json
+  createdAt DateTime @default(now())
 
-  payment    Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@map("payment_logs")
 }
 
 model Courier {
-  id          String      @id @default(cuid())
-  key         CourierKey  @unique
+  id          String     @id @default(cuid())
+  key         CourierKey @unique
   name        String
-  enabled     Boolean     @default(true)
+  enabled     Boolean    @default(true)
   description String
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  shipments   DeliveryShipment[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   @@map("couriers")
 }
@@ -262,94 +312,156 @@ model DeliveryShipment {
   status          DeliveryStatus @default(courier_created)
   customerName    String
   customerPhone   String
-  customerAddress  String
+  customerAddress String
   rawResponse     Json
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
-  order           Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("delivery_shipments")
 }
 
 model LandingPage {
-  id                String               @id @default(cuid())
-  slug              String               @unique
-  title             String
-  metaDescription   String
-  heroTitle         String
-  heroSubtitle      String
-  bannerImageUrl    String?
-  published         Boolean              @default(false)
+  id                 String    @id @default(cuid())
+  slug               String    @unique
+  title              String
+  metaDescription    String
+  heroTitle          String
+  heroSubtitle       String
+  bannerImageUrl     String?
+  published          Boolean   @default(false)
+  publishedAt        DateTime?
   attachedProductIds String[]
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  sections          LandingPageSection[]
+  sections LandingPageSection[]
 
   @@map("landing_pages")
 }
 
 model LandingPageSection {
-  id             String            @id @default(cuid())
-  landingPageId  String
-  type           LandingSectionType
-  title          String?
-  subtitle       String?
-  body           String?
-  imageUrl       String?
-  productIds     String[]
-  items          Json
-  ctaLabel       String?
-  ctaHref        String?
-  sortOrder      Int               @default(0)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  id            String             @id @default(cuid())
+  landingPageId String
+  type          LandingSectionType
+  title         String?
+  subtitle      String?
+  body          String?
+  imageUrl      String?
+  productIds    String[]
+  items         Json
+  ctaLabel      String?
+  ctaHref       String?
+  sortOrder     Int                @default(0)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
-  landingPage    LandingPage       @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
+  landingPage LandingPage @relation(fields: [landingPageId], references: [id], onDelete: Cascade)
 
   @@map("landing_page_sections")
 }
 
 model Coupon {
-  id             String      @id @default(cuid())
-  code           String      @unique
+  id             String     @id @default(cuid())
+  code           String     @unique
   description    String
   type           CouponType
   value          Int
-  minOrderAmount Int         @default(0)
-  isActive       Boolean     @default(true)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  minOrderAmount Int        @default(0)
+  isActive       Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@map("coupons")
 }
 
 model InventoryLog {
-  id         String   @id @default(cuid())
-  productId  String
-  change     Int
-  reason     String
-  createdAt  DateTime @default(now())
+  id            String   @id @default(cuid())
+  productId     String
+  orderId       String?
+  actorId       String?
+  change        Int
+  oldStock      Int
+  newStock      Int
+  reason        String
+  referenceType String?
+  referenceId   String?
+  createdAt     DateTime @default(now())
 
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@map("inventory_logs")
 }
 
 model Setting {
-  id                    String   @id @default(cuid())
-  storeName             String
-  logoText              String
-  contactNumber         String
-  deliveryCharge        Int
-  freeDeliveryThreshold  Int
-  bkashEnabled          Boolean  @default(true)
-  nagadEnabled          Boolean  @default(true)
-  pathaoEnabled         Boolean  @default(true)
-  steadfastEnabled      Boolean  @default(true)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                          String   @id @default(cuid())
+  storeName                   String
+  logoText                    String
+  logoUrl                     String?
+  supportEmail                String?
+  contactNumber               String
+  address                     String   @default("")
+  businessHours               String   @default("")
+  deliveryAreas               String[]
+  returnRefundPolicy          String   @default("")
+  confirmationMessageTemplate String   @default("")
+  metaPixelId                 String?
+  gtmContainerId              String?
+  deliveryCharge              Int
+  freeDeliveryThreshold       Int
+  codEnabled                  Boolean  @default(true)
+  bkashEnabled                Boolean  @default(true)
+  bkashAccountNumber          String?
+  bkashInstructions           String   @default("")
+  nagadEnabled                Boolean  @default(false)
+  nagadAccountNumber          String?
+  nagadInstructions           String   @default("")
+  rocketEnabled               Boolean  @default(false)
+  rocketAccountNumber         String?
+  rocketInstructions          String   @default("")
+  insideDhakaDeliveryCharge   Int      @default(80)
+  subDhakaDeliveryCharge      Int      @default(100)
+  outsideDhakaDeliveryCharge  Int      @default(130)
+  insideDhakaCodEnabled       Boolean  @default(true)
+  subDhakaCodEnabled          Boolean  @default(true)
+  outsideDhakaCodEnabled      Boolean  @default(true)
+  pathaoEnabled               Boolean  @default(true)
+  steadfastEnabled            Boolean  @default(true)
+  redxEnabled                 Boolean  @default(false)
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 
   @@map("settings")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  action     String
+  entity     String
+  entityId   String
+  oldValue   Json?
+  newValue   Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
 }

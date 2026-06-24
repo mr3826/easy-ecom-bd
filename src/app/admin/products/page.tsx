@@ -1,19 +1,35 @@
 import Link from "next/link";
 import { saveProductAction, deleteProductAction } from "@/app/admin/actions";
-import { listBrands, listCategories, listProducts } from "@/server/store";
+import { listBrands, listCategories, listProductImages, listProducts } from "@/server/store";
 import { money } from "@/lib/utils";
 import { StatusPill } from "@/components/status-pill";
 
 export default async function AdminProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ edit?: string }>;
+  searchParams: Promise<{ edit?: string; q?: string; status?: string }>;
 }) {
-  const { edit } = await searchParams;
-  const products = listProducts();
-  const categories = listCategories();
-  const brands = listBrands();
-  const selected = products.find((item) => item.id === edit);
+  const { edit, q = "", status = "all" } = await searchParams;
+  const [allProducts, categories, brands, productImages] = await Promise.all([
+    listProducts(),
+    listCategories(),
+    listBrands(),
+    listProductImages(),
+  ]);
+  const query = q.trim().toLowerCase();
+  const products = allProducts.filter((product) => {
+    const matchesQuery =
+      !query ||
+      [product.name, product.sku, product.description, ...product.tags, ...(product.searchKeywords ?? [])]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    const matchesStatus =
+      status === "all" || (status === "active" && product.isActive) || (status === "inactive" && !product.isActive);
+    return matchesQuery && matchesStatus;
+  });
+  const selected = allProducts.find((item) => item.id === edit);
+  const selectedImages = selected ? productImages.filter((image) => image.productId === selected.id) : [];
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -21,6 +37,25 @@ export default async function AdminProductsPage({
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Products</p>
         <h1 className="mt-2 text-3xl font-semibold text-white">{selected ? "Edit product" : "Product CRUD"}</h1>
       </div>
+
+      <form className="grid gap-3 rounded-[2rem] border border-white/10 bg-white/5 p-4 md:grid-cols-[1fr_180px_auto]">
+        <input
+          name="q"
+          defaultValue={q}
+          placeholder="Search product, SKU, tag, keyword"
+          className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white"
+        />
+        <select
+          name="status"
+          defaultValue={status}
+          className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white"
+        >
+          <option value="all">All statuses</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+        <button className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950">Filter</button>
+      </form>
 
       <form action={saveProductAction} className="grid gap-4 rounded-[2rem] border border-white/10 bg-white/5 p-6">
         <input type="hidden" name="id" value={selected?.id ?? ""} />
@@ -54,6 +89,10 @@ export default async function AdminProductsPage({
             <input name="stock" type="number" defaultValue={selected?.stock ?? 0} className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white" />
           </label>
           <label className="grid gap-2 text-sm">
+            <span>Low-stock threshold</span>
+            <input name="lowStockThreshold" type="number" defaultValue={selected?.lowStockThreshold ?? 5} className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white" />
+          </label>
+          <label className="grid gap-2 text-sm">
             <span>Weight grams</span>
             <input name="weightGrams" type="number" defaultValue={selected?.weightGrams ?? 0} className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white" />
           </label>
@@ -72,6 +111,19 @@ export default async function AdminProductsPage({
           <label className="grid gap-2 text-sm">
             <span>Tags comma separated</span>
             <input name="tags" defaultValue={selected?.tags.join(", ") ?? ""} className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white" />
+          </label>
+          <label className="grid gap-2 text-sm md:col-span-2">
+            <span>Search keywords comma separated</span>
+            <input name="searchKeywords" defaultValue={selected?.searchKeywords?.join(", ") ?? ""} className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white" />
+          </label>
+          <label className="grid gap-2 text-sm md:col-span-2 xl:col-span-3">
+            <span>Image URLs, one per line</span>
+            <textarea
+              name="imageUrls"
+              rows={3}
+              defaultValue={selectedImages.map((image) => image.url).join("\n")}
+              className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white"
+            />
           </label>
           <label className="grid gap-2 text-sm">
             <span>Featured</span>
@@ -99,10 +151,22 @@ export default async function AdminProductsPage({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-lg font-semibold text-white">{product.name}</h2>
-                  <p className="mt-1 text-sm text-slate-400">{category?.name} · {money(product.price)} · stock {product.stock}</p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {category?.name} · {money(product.price)} · stock {product.stock} · low at {product.lowStockThreshold}
+                  </p>
                 </div>
-                <StatusPill label={product.isActive ? "active" : "hidden"} tone={product.isActive ? "active" : "inactive"} />
+                <div className="flex flex-wrap justify-end gap-2">
+                  {product.stock <= product.lowStockThreshold && (
+                    <StatusPill label="low stock" tone="processing" />
+                  )}
+                  <StatusPill label={product.isActive ? "active" : "hidden"} tone={product.isActive ? "active" : "inactive"} />
+                </div>
               </div>
+              {productImages.some((image) => image.productId === product.id) && (
+                <p className="mt-3 text-xs uppercase tracking-[0.2em] text-slate-500">
+                  {productImages.filter((image) => image.productId === product.id).length} images
+                </p>
+              )}
               <div className="mt-4 flex gap-3">
                 <Link href={`/admin/products?edit=${product.id}`} className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950">Edit</Link>
                 <form action={deleteProductAction}>
@@ -117,4 +181,3 @@ export default async function AdminProductsPage({
     </div>
   );
 }
-

@@ -9,8 +9,8 @@ const navLinks = [
   { href: "/admin", label: "Admin" },
 ];
 
-export function SiteHeader() {
-  const settings = getSettings();
+export async function SiteHeader() {
+  const settings = await getSettings();
 
   return (
     <header className="border-b border-black/5 bg-white/85 backdrop-blur">

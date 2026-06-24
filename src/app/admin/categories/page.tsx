@@ -9,7 +9,7 @@ export default async function AdminCategoriesPage({
   searchParams: Promise<{ edit?: string }>;
 }) {
   const { edit } = await searchParams;
-  const categories = listCategories();
+  const categories = await listCategories();
   const selected = categories.find((item) => item.id === edit);
 
   return (
@@ -61,4 +61,3 @@ export default async function AdminCategoriesPage({
     </div>
   );
 }
-

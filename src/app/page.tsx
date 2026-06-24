@@ -6,11 +6,18 @@ import { MetricCard } from "@/components/metric-card";
 import { getSettings, listCategories, listProducts, listLandingPages } from "@/server/store";
 import { ArrowRight, BadgeCheck, LayoutTemplate, ShieldCheck, Truck } from "lucide-react";
 
-export default function HomePage() {
-  const settings = getSettings();
-  const products = listProducts().filter((product) => product.featured);
-  const categories = listCategories();
-  const landingPages = listLandingPages().filter((page) => page.published);
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const [settings, products, categories, landingPages] = await Promise.all([
+    getSettings(),
+    listProducts(),
+    listCategories(),
+    listLandingPages(),
+  ]);
+  const featuredProducts = products.filter((product) => product.featured);
+  const publishedLandingPages = landingPages.filter((page) => page.published);
+  const supportDigits = settings.contactNumber.replace(/\D/g, "");
 
   return (
     <PublicShell>
@@ -21,7 +28,7 @@ export default function HomePage() {
             Built for Bangladesh ecommerce
           </p>
           <h1 className="mt-6 max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-            Launch storefronts, landing pages, and direct bKash or Nagad checkout from one codebase.
+            Launch storefronts, landing pages, and COD-first checkout with bKash from one codebase.
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
             {settings.storeName} ships with a customer site, protected admin, product and order workflows,
@@ -42,10 +49,25 @@ export default function HomePage() {
               Open admin
             </Link>
           </div>
+          <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-2">COD first</span>
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-2">bKash ready</span>
+            <a href={`tel:${supportDigits}`} className="rounded-full border border-slate-200 bg-white px-3 py-2 hover:text-slate-900">
+              Call support
+            </a>
+            <a
+              href={`https://wa.me/${supportDigits}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-full border border-slate-200 bg-white px-3 py-2 hover:text-slate-900"
+            >
+              WhatsApp
+            </a>
+          </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
-            <MetricCard label="Wallets" value="bKash + Nagad" delta="Direct merchant flow" tone="emerald" />
+            <MetricCard label="Payments" value="COD + bKash" delta="Direct merchant flow" tone="emerald" />
             <MetricCard label="Couriers" value="2 integrations" delta="Pathao + Steadfast" tone="sky" />
-            <MetricCard label="Landing pages" value={`${landingPages.length}`} delta="Custom slugs" tone="amber" />
+            <MetricCard label="Landing pages" value={`${publishedLandingPages.length}`} delta="Custom slugs" tone="amber" />
           </div>
         </div>
 
@@ -63,7 +85,7 @@ export default function HomePage() {
             <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-2xl bg-slate-950 px-4 py-3 text-white">
                 <p className="font-medium">Wallet checkout</p>
-                <p className="mt-1 text-slate-300">Verify server-side before marking paid.</p>
+                <p className="mt-1 text-slate-300">bKash verifies server-side. COD stays the default.</p>
               </div>
               <div className="rounded-2xl bg-slate-100 px-4 py-3 text-slate-800">
                 <p className="font-medium">Courier sync</p>
@@ -111,7 +133,7 @@ export default function HomePage() {
           </Link>
         </div>
         <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {products.map((product) => {
+          {featuredProducts.map((product) => {
             const category = categories.find((entry) => entry.id === product.categoryId);
             const image = product.id === "prod-1" ? "/hero-products.png" : "/hero-products.png";
             return <ProductCard key={product.id} product={product} categoryName={category?.name ?? "Category"} imageUrl={image} />;
@@ -131,7 +153,7 @@ export default function HomePage() {
             </Link>
           </div>
           <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {landingPages.map((page) => (
+            {publishedLandingPages.map((page) => (
               <Link
                 key={page.id}
                 href={`/l/${page.slug}`}
@@ -148,4 +170,3 @@ export default function HomePage() {
     </PublicShell>
   );
 }
-

@@ -1,43 +1,84 @@
-import { SignJWT, jwtVerify } from "jose";
+import { randomBytes, createHash } from "crypto";
 import { cookies } from "next/headers";
-import { findUserByEmail, findUserById } from "@/server/store";
+import { getPrisma } from "@/server/db";
 
 const COOKIE_NAME = "easy_ecom_session";
-const encoder = new TextEncoder();
-
-function secretKey() {
-  return encoder.encode(process.env.AUTH_SECRET || "dev-secret-change-me");
-}
+const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 
 export interface SessionUser {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "manager" | "customer";
+  role: "customer" | "admin" | "super_admin";
+  phone?: string | null;
+  createdAt: Date;
 }
 
-export async function createSessionToken(userId: string) {
-  return new SignJWT({ sub: userId })
-    .setProtectedHeader({ alg: "HS256" })
-    .setIssuedAt()
-    .setExpirationTime("7d")
-    .sign(secretKey());
+function tokenHash(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function makeToken() {
+  return randomBytes(32).toString("hex");
+}
+
+async function getSessionUserByToken(token: string) {
+  const prisma = getPrisma();
+  const session = await prisma.session.findUnique({
+    where: { tokenHash: tokenHash(token) },
+    include: { user: true },
+  });
+
+  if (!session || session.expiresAt.getTime() < Date.now()) {
+    if (session) {
+      await prisma.session.delete({ where: { id: session.id } }).catch(() => {});
+    }
+    return null;
+  }
+
+  const user = session.user;
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    phone: user.phone,
+    createdAt: user.createdAt,
+  } satisfies SessionUser;
+}
+
+export async function createSession(userId: string) {
+  const prisma = getPrisma();
+  const token = makeToken();
+  await prisma.session.create({
+    data: {
+      userId,
+      tokenHash: tokenHash(token),
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+    },
+  });
+  return token;
 }
 
 export async function setSessionCookie(userId: string) {
-  const token = await createSessionToken(userId);
+  const token = await createSession(userId);
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: SESSION_TTL_MS / 1000,
   });
 }
 
 export async function clearSessionCookie() {
   const cookieStore = await cookies();
+  const token = cookieStore.get(COOKIE_NAME)?.value;
+  if (token) {
+    const prisma = getPrisma();
+    await prisma.session.deleteMany({ where: { tokenHash: tokenHash(token) } });
+  }
   cookieStore.delete(COOKIE_NAME);
 }
 
@@ -45,34 +86,25 @@ export async function getCurrentUser() {
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return null;
-
-  try {
-    const { payload } = await jwtVerify(token, secretKey());
-    const userId = payload.sub;
-    if (!userId) return null;
-    const user = findUserById(userId);
-    if (!user) return null;
-    return {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      createdAt: user.createdAt,
-    };
-  } catch {
-    return null;
-  }
+  return getSessionUserByToken(token);
 }
 
-export async function requireAdmin() {
+export async function getUserFromToken(token: string | null | undefined) {
+  if (!token) return null;
+  return getSessionUserByToken(token);
+}
+
+export async function requireAuth(roles?: Array<SessionUser["role"]>) {
   const user = await getCurrentUser();
-  if (!user || (user.role !== "admin" && user.role !== "manager")) {
+  if (!user) {
     throw new Error("Unauthorized");
+  }
+  if (roles && !roles.includes(user.role)) {
+    throw new Error("Forbidden");
   }
   return user;
 }
 
-export function findDemoCredentials(email: string) {
-  return findUserByEmail(email);
+export async function requireAdmin() {
+  return requireAuth(["admin", "super_admin"]);
 }

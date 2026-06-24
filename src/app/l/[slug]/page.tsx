@@ -4,6 +4,8 @@ import { PublicShell } from "@/components/public-shell";
 import { ProductCard } from "@/components/product-card";
 import { getLandingPage, getLandingPageSections, listCategories, listProducts } from "@/server/store";
 
+export const dynamic = "force-dynamic";
+
 export async function generateStaticParams() {
   return [];
 }
@@ -14,12 +16,14 @@ export default async function LandingPagePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const landingPage = getLandingPage(slug);
+  const landingPage = await getLandingPage(slug);
   if (!landingPage) notFound();
 
-  const sections = getLandingPageSections(landingPage.id);
-  const products = listProducts();
-  const categories = listCategories();
+  const [sections, products, categories] = await Promise.all([
+    getLandingPageSections(landingPage.id),
+    listProducts(),
+    listCategories(),
+  ]);
 
   return (
     <PublicShell>
@@ -87,4 +91,3 @@ export default async function LandingPagePage({
     </PublicShell>
   );
 }
-

@@ -4,9 +4,13 @@ import { getCurrentUser } from "@/server/auth";
 import { listOrders } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
 
+export const dynamic = "force-dynamic";
+
 export default async function AccountPage() {
   const user = await getCurrentUser();
-  const orders = user ? listOrders().filter((order) => order.customerEmail === user.email || order.customerId === user.id) : [];
+  const orders = user
+    ? (await listOrders()).filter((order) => order.customerEmail === user.email || order.customerId === user.id)
+    : [];
 
   return (
     <PublicShell>
@@ -42,4 +46,3 @@ export default async function AccountPage() {
     </PublicShell>
   );
 }
-

@@ -4,8 +4,9 @@ import { listPayments } from "@/server/store";
 
 const providerNames: Record<string, string> = {
   bkash: "bKash",
-  nagad: "Nagad",
 };
+
+export const dynamic = "force-dynamic";
 
 export default async function PaymentSimPage({
   params,
@@ -16,8 +17,9 @@ export default async function PaymentSimPage({
 }) {
   const { provider } = await params;
   const { paymentId } = await searchParams;
-  const payment = paymentId ? listPayments().find((item) => item.id === paymentId) : undefined;
-  if (!providerNames[provider]) notFound();
+  const payments = await listPayments();
+  const payment = paymentId ? payments.find((item) => item.id === paymentId) : undefined;
+  if (provider !== "bkash") notFound();
 
   return (
     <main className="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-12">
@@ -52,4 +54,3 @@ export default async function PaymentSimPage({
     </main>
   );
 }
-

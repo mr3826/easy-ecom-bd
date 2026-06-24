@@ -7,13 +7,17 @@ import { getCartSummary, getOrCreateCart, getSettings } from "@/server/store";
 import { money } from "@/lib/utils";
 import { removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function CartPage() {
   const cookieStore = await cookies();
   const guestKey = cookieStore.get("easy_ecom_guest")?.value ?? "guest-preview";
   const user = await getCurrentUser();
-  const cart = getOrCreateCart(guestKey, user?.id);
-  const summary = getCartSummary(cart);
-  const settings = getSettings();
+  const [cart, settings] = await Promise.all([
+    getOrCreateCart(guestKey, user?.id),
+    getSettings(),
+  ]);
+  const summary = await getCartSummary(cart);
 
   return (
     <PublicShell>
@@ -90,4 +94,3 @@ export default async function CartPage() {
     </PublicShell>
   );
 }
-

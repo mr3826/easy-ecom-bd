@@ -3,9 +3,10 @@ import { PublicShell } from "@/components/public-shell";
 import { ProductCard } from "@/components/product-card";
 import { listCategories, listProducts } from "@/server/store";
 
-export default function ProductsPage() {
-  const products = listProducts();
-  const categories = listCategories();
+export const dynamic = "force-dynamic";
+
+export default async function ProductsPage() {
+  const [products, categories] = await Promise.all([listProducts(), listCategories()]);
 
   return (
     <PublicShell>
@@ -45,4 +46,3 @@ export default function ProductsPage() {
     </PublicShell>
   );
 }
-

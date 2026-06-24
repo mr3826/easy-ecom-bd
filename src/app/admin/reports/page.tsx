@@ -1,8 +1,8 @@
 import { getState } from "@/server/store";
 import { money } from "@/lib/utils";
 
-export default function AdminReportsPage() {
-  const state = getState();
+export default async function AdminReportsPage() {
+  const state = await getState();
   const paidRevenue = state.orders.filter((order) => order.paymentStatus === "paid").reduce((sum, order) => sum + order.total, 0);
   const conversion = state.orders.length ? Math.round((state.orders.filter((order) => order.paymentStatus === "paid").length / state.orders.length) * 100) : 0;
 
@@ -28,4 +28,3 @@ export default function AdminReportsPage() {
     </div>
   );
 }
-

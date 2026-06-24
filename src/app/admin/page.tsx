@@ -4,14 +4,18 @@ import { StatusPill } from "@/components/status-pill";
 import { getState, listOrders, listProducts, listPayments, listDeliveryShipments } from "@/server/store";
 import { money } from "@/lib/utils";
 
-export default function AdminDashboardPage() {
-  const state = getState();
-  const orders = listOrders();
-  const products = listProducts();
-  const payments = listPayments();
-  const shipments = listDeliveryShipments();
+export default async function AdminDashboardPage() {
+  const [state, orders, products, payments, shipments] = await Promise.all([
+    getState(),
+    listOrders(),
+    listProducts(),
+    listPayments(),
+    listDeliveryShipments(),
+  ]);
   const grossSales = orders.reduce((sum, order) => sum + order.total, 0);
-  const paidOrders = orders.filter((order) => order.paymentStatus === "paid").length;
+  const pendingOrders = orders.filter((order) => order.status === "pending").length;
+  const confirmedOrders = orders.filter((order) => order.status === "confirmed").length;
+  const lowStockProducts = products.filter((product) => product.stock <= product.lowStockThreshold).length;
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -27,9 +31,9 @@ export default function AdminDashboardPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Products" value={`${products.length}`} delta="Live catalog" tone="slate" />
-        <MetricCard label="Orders" value={`${orders.length}`} delta={`${paidOrders} paid`} tone="emerald" />
+        <MetricCard label="Orders" value={`${orders.length}`} delta={`${pendingOrders} pending, ${confirmedOrders} confirmed`} tone="emerald" />
         <MetricCard label="Revenue" value={money(grossSales)} delta="Gross sales" tone="amber" />
-        <MetricCard label="Payments" value={`${payments.length}`} delta={`${shipments.length} shipments`} tone="sky" />
+        <MetricCard label="Stock risk" value={`${lowStockProducts}`} delta={`${payments.length} payments, ${shipments.length} shipments`} tone="sky" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -50,6 +54,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusPill label={order.paymentStatus} tone={order.paymentStatus} />
+                    <StatusPill label={order.status} tone={order.status} />
                     <StatusPill label={order.deliveryStatus} tone={order.deliveryStatus} />
                   </div>
                 </div>
@@ -63,12 +68,14 @@ export default function AdminDashboardPage() {
           <div className="mt-5 space-y-3 text-sm text-slate-300">
             <p>bKash: {state.settings.bkashEnabled ? "enabled" : "disabled"}</p>
             <p>Nagad: {state.settings.nagadEnabled ? "enabled" : "disabled"}</p>
+            <p>Rocket: {state.settings.rocketEnabled ? "enabled" : "disabled"}</p>
+            <p>COD: {state.settings.codEnabled ? "enabled" : "disabled"}</p>
             <p>Pathao: {state.settings.pathaoEnabled ? "enabled" : "disabled"}</p>
             <p>Steadfast: {state.settings.steadfastEnabled ? "enabled" : "disabled"}</p>
+            <p>RedX: {state.settings.redxEnabled ? "enabled" : "disabled"}</p>
           </div>
         </section>
       </div>
     </div>
   );
 }
-

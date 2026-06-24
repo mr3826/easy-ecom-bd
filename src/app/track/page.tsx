@@ -1,6 +1,8 @@
 import { PublicShell } from "@/components/public-shell";
-import { getOrderByCode, listOrders, listDeliveryShipments } from "@/server/store";
+import { getOrderByCode, listDeliveryShipments } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
+
+export const dynamic = "force-dynamic";
 
 export default async function TrackPage({
   searchParams,
@@ -8,8 +10,11 @@ export default async function TrackPage({
   searchParams: Promise<{ code?: string }>;
 }) {
   const { code } = await searchParams;
-  const order = code ? getOrderByCode(code) : listOrders()[0];
-  const shipment = order ? listDeliveryShipments().find((item) => item.orderId === order.id) : undefined;
+  const [shipments, order] = await Promise.all([
+    listDeliveryShipments(),
+    code ? getOrderByCode(code) : Promise.resolve(null),
+  ]);
+  const shipment = order ? shipments.find((item) => item.orderId === order.id) : undefined;
 
   return (
     <PublicShell>
@@ -32,7 +37,9 @@ export default async function TrackPage({
               <div className="rounded-3xl bg-slate-950 p-5 text-white">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Order</p>
                 <h2 className="mt-2 text-2xl font-semibold">{order.orderCode}</h2>
-                <p className="mt-3 text-sm text-slate-300">{order.customerName} · {order.customerPhone}</p>
+                <p className="mt-3 text-sm text-slate-300">
+                  {order.customerName} · {order.customerPhone} · {order.district}
+                </p>
               </div>
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
                 <p className="text-xs uppercase tracking-[0.22em] text-slate-500">Payment</p>
@@ -41,16 +48,22 @@ export default async function TrackPage({
                   <StatusPill label={order.deliveryStatus} tone={order.deliveryStatus} />
                 </div>
                 <p className="mt-4 text-sm text-slate-600">
-                  {shipment ? `Courier: ${shipment.courierKey} · Tracking: ${shipment.trackingId}` : "No shipment created yet."}
+                  Payment type: {order.paymentProvider ?? "cod"}
+                </p>
+                <p className="mt-2 text-sm text-slate-600">
+                  {shipment
+                    ? `Courier: ${shipment.courierKey} · Tracking: ${shipment.trackingId}`
+                    : "No shipment created yet."}
                 </p>
               </div>
             </div>
           ) : (
-            <p className="mt-6 text-sm text-slate-600">No order found yet. Use a valid order code to load tracking.</p>
+            <div className="mt-6 rounded-3xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+              Enter your order code to see payment and delivery progress.
+            </div>
           )}
         </div>
       </section>
     </PublicShell>
   );
 }
-

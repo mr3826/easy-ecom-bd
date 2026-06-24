@@ -33,12 +33,12 @@ const nav = [
   { href: "/admin/settings", label: "Settings", icon: Settings2 },
 ];
 
-export function AdminShell({
+export async function AdminShell({
   children,
 }: {
   children: ReactNode;
 }) {
-  const settings = getSettings();
+  const settings = await getSettings();
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="grid min-h-screen lg:grid-cols-[280px_minmax(0,1fr)]">

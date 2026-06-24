@@ -9,7 +9,7 @@ export default async function AdminCouponsPage({
   searchParams: Promise<{ edit?: string }>;
 }) {
   const { edit } = await searchParams;
-  const coupons = listCoupons();
+  const coupons = await listCoupons();
   const selected = coupons.find((item) => item.id === edit);
 
   return (
@@ -70,4 +70,3 @@ export default async function AdminCouponsPage({
     </div>
   );
 }
-

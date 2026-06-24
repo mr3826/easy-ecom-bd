@@ -9,10 +9,10 @@ export default async function AdminLandingPagesPage({
   searchParams: Promise<{ edit?: string }>;
 }) {
   const { edit } = await searchParams;
-  const pages = listLandingPages();
+  const pages = await listLandingPages();
   const selected = pages.find((item) => item.id === edit) ?? pages[0];
-  const sections = selected ? getLandingPageSections(selected.id) : [];
-  const products = listProducts();
+  const sections = selected ? await getLandingPageSections(selected.id) : [];
+  const products = await listProducts();
 
   return (
     <div className="space-y-6 text-slate-100">
@@ -147,4 +147,3 @@ export default async function AdminLandingPagesPage({
     </div>
   );
 }
-
