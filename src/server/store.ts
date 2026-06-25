@@ -26,8 +26,11 @@ import { getPrisma } from "@/server/db";
 import { recordAuditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/auth";
 import { money, slugify } from "@/lib/utils";
+import { createSeedState } from "@/server/seed";
 
 type Actor = Pick<SessionUser, "id" | "email"> | null | undefined;
+
+const demoState = createSeedState();
 
 function now() {
   return new Date();
@@ -55,41 +58,9 @@ async function getSettingsRow() {
   if (!process.env.DATABASE_URL) {
     return {
       id: "settings-default",
-      storeName: "Easy Ecom BD",
-      logoText: "Easy Ecom",
-      logoUrl: null,
-      supportEmail: "support@example.com",
-      contactNumber: "01700 123 456",
-      address: "Dhaka, Bangladesh",
-      businessHours: "10:00 AM - 8:00 PM",
-      deliveryAreas: ["Inside Dhaka", "Sub-Dhaka", "Outside Dhaka"],
-      returnRefundPolicy: "Return requests are reviewed within 3 days of delivery.",
-      confirmationMessageTemplate: "Thanks for your order. We will confirm it shortly.",
-      metaPixelId: null,
-      gtmContainerId: null,
-      deliveryCharge: 80,
-      freeDeliveryThreshold: 1990,
-      codEnabled: true,
-      bkashEnabled: true,
-      bkashAccountNumber: null,
-      bkashInstructions: "Send payment to the published bKash merchant number and share the transaction ID.",
-      nagadEnabled: false,
-      nagadAccountNumber: null,
-      nagadInstructions: "",
-      rocketEnabled: false,
-      rocketAccountNumber: null,
-      rocketInstructions: "",
-      insideDhakaDeliveryCharge: 80,
-      subDhakaDeliveryCharge: 100,
-      outsideDhakaDeliveryCharge: 130,
-      insideDhakaCodEnabled: true,
-      subDhakaCodEnabled: true,
-      outsideDhakaCodEnabled: true,
-      pathaoEnabled: true,
-      steadfastEnabled: true,
-      redxEnabled: false,
       createdAt: now(),
       updatedAt: now(),
+      ...demoState.settings,
     };
   }
   const prisma = getPrisma();
@@ -135,6 +106,9 @@ async function getSettingsRow() {
 }
 
 export async function getState(): Promise<DatabaseState> {
+  if (!process.env.DATABASE_URL) {
+    return demoState;
+  }
   const prisma = getPrisma();
   const [
     users,
@@ -202,6 +176,9 @@ export async function getState(): Promise<DatabaseState> {
 }
 
 export async function listCategories() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.categories as unknown as Category[];
+  }
   const prisma = getPrisma();
   return prisma.category.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Category[];
 }
@@ -263,6 +240,9 @@ export async function deleteCategory(id: string, actor?: Actor) {
 }
 
 export async function listBrands() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.brands as unknown as Brand[];
+  }
   const prisma = getPrisma();
   return prisma.brand.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Brand[];
 }
@@ -324,6 +304,9 @@ export async function deleteBrand(id: string, actor?: Actor) {
 }
 
 export async function listProducts() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.products as unknown as Product[];
+  }
   const prisma = getPrisma();
   return prisma.product.findMany({ orderBy: [{ featured: "desc" }, { createdAt: "desc" }] }) as unknown as Product[];
 }
@@ -337,11 +320,17 @@ export async function listProductImages(productId?: string) {
 }
 
 export async function getProductBySlug(slug: string) {
+  if (!process.env.DATABASE_URL) {
+    return (demoState.products.find((product) => product.slug === slug) ?? null) as unknown as Product | null;
+  }
   const prisma = getPrisma();
   return prisma.product.findUnique({ where: { slug } }) as unknown as Product | null;
 }
 
 export async function getProduct(id: string) {
+  if (!process.env.DATABASE_URL) {
+    return (demoState.products.find((product) => product.id === id) ?? null) as unknown as Product | null;
+  }
   const prisma = getPrisma();
   return prisma.product.findUnique({ where: { id } }) as unknown as Product | null;
 }
@@ -593,6 +582,9 @@ export async function deleteCoupon(id: string, actor?: Actor) {
 }
 
 export async function listUsers() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.users as unknown as Array<Pick<User, "id" | "name" | "email" | "role" | "phone" | "createdAt" | "updatedAt">>;
+  }
   const prisma = getPrisma();
   return prisma.user.findMany({
     orderBy: { createdAt: "desc" },
@@ -1310,6 +1302,9 @@ export async function updateOrderStatus(
 }
 
 export async function listOrderStatusHistory(orderId?: string) {
+  if (!process.env.DATABASE_URL) {
+    return demoState.orderStatusHistory.filter((history) => (orderId ? history.orderId === orderId : true)) as unknown as OrderStatusHistory[];
+  }
   const prisma = getPrisma();
   return prisma.orderStatusHistory.findMany({
     where: orderId ? { orderId } : undefined,
@@ -1375,11 +1370,17 @@ export async function updateOrderDelivery(orderId: string, deliveryStatus: Deliv
 }
 
 export async function listPayments() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.payments as unknown as Payment[];
+  }
   const prisma = getPrisma();
   return prisma.payment.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Payment[];
 }
 
 export async function getPaymentById(paymentId: string) {
+  if (!process.env.DATABASE_URL) {
+    return (demoState.payments.find((payment) => payment.id === paymentId) ?? null) as unknown as Payment | null;
+  }
   const prisma = getPrisma();
   return prisma.payment.findUnique({ where: { id: paymentId } }) as unknown as Payment | null;
 }
@@ -1442,21 +1443,33 @@ export async function addPaymentLog(paymentId: string, stage: PaymentLog["stage"
 }
 
 export async function listDeliveryShipments() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.deliveryShipments as unknown as DeliveryShipment[];
+  }
   const prisma = getPrisma();
   return prisma.deliveryShipment.findMany({ orderBy: { createdAt: "desc" } }) as unknown as DeliveryShipment[];
 }
 
 export async function getShipmentById(shipmentId: string) {
+  if (!process.env.DATABASE_URL) {
+    return (demoState.deliveryShipments.find((shipment) => shipment.id === shipmentId) ?? null) as unknown as DeliveryShipment | null;
+  }
   const prisma = getPrisma();
   return prisma.deliveryShipment.findUnique({ where: { id: shipmentId } }) as unknown as DeliveryShipment | null;
 }
 
 export async function getShipmentByTrackingId(trackingId: string) {
+  if (!process.env.DATABASE_URL) {
+    return (demoState.deliveryShipments.find((shipment) => shipment.trackingId === trackingId) ?? null) as unknown as DeliveryShipment | null;
+  }
   const prisma = getPrisma();
   return prisma.deliveryShipment.findFirst({ where: { trackingId } }) as unknown as DeliveryShipment | null;
 }
 
 export async function getShipmentByConsignmentId(consignmentId: string) {
+  if (!process.env.DATABASE_URL) {
+    return (demoState.deliveryShipments.find((shipment) => shipment.consignmentId === consignmentId) ?? null) as unknown as DeliveryShipment | null;
+  }
   const prisma = getPrisma();
   return prisma.deliveryShipment.findFirst({ where: { consignmentId } }) as unknown as DeliveryShipment | null;
 }
@@ -1547,16 +1560,25 @@ export async function updateShipmentStatus(
 }
 
 export async function listLandingPages() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.landingPages as unknown as LandingPage[];
+  }
   const prisma = getPrisma();
   return prisma.landingPage.findMany({ orderBy: { createdAt: "desc" } }) as unknown as LandingPage[];
 }
 
 export async function getLandingPage(slug: string) {
+  if (!process.env.DATABASE_URL) {
+    return (demoState.landingPages.find((page) => page.slug === slug) ?? null) as unknown as LandingPage | null;
+  }
   const prisma = getPrisma();
   return prisma.landingPage.findUnique({ where: { slug } }) as unknown as LandingPage | null;
 }
 
 export async function getLandingPageSections(landingPageId: string) {
+  if (!process.env.DATABASE_URL) {
+    return demoState.landingPageSections.filter((section) => section.landingPageId === landingPageId) as unknown as LandingPageSection[];
+  }
   const prisma = getPrisma();
   return prisma.landingPageSection.findMany({
     where: { landingPageId },
@@ -1664,21 +1686,33 @@ export async function upsertLandingPageSection(
 }
 
 export async function listPaymentsForOrder(orderId: string) {
+  if (!process.env.DATABASE_URL) {
+    return demoState.payments.filter((payment) => payment.orderId === orderId) as unknown as Payment[];
+  }
   const prisma = getPrisma();
   return prisma.payment.findMany({ where: { orderId }, orderBy: { createdAt: "desc" } }) as unknown as Payment[];
 }
 
 export async function listAuditLogs() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.auditLogs as unknown as DatabaseState["auditLogs"];
+  }
   const prisma = getPrisma();
   return prisma.auditLog.findMany({ orderBy: { createdAt: "desc" } });
 }
 
 export async function listInventoryLogs() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.inventoryLogs as unknown as InventoryLog[];
+  }
   const prisma = getPrisma();
   return prisma.inventoryLog.findMany({ orderBy: { createdAt: "desc" } });
 }
 
 export async function listCouriers() {
+  if (!process.env.DATABASE_URL) {
+    return demoState.couriers as unknown as Array<{ id: string; key: "pathao" | "steadfast" | "redx"; name: string; enabled: boolean; description: string }>;
+  }
   const prisma = getPrisma();
   return prisma.courier.findMany({ orderBy: { createdAt: "asc" } });
 }
