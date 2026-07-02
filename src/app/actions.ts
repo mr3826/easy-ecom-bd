@@ -158,7 +158,7 @@ export async function checkoutAction(formData: FormData) {
     revalidatePath("/cart");
     revalidatePath("/checkout");
     revalidatePath("/admin");
-    redirect(`/track?code=${order.orderCode}`);
+    redirect(`/track-order?code=${order.orderCode}`);
   }
 
   const providerReady = wantsNagad

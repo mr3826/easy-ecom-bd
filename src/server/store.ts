@@ -27,6 +27,7 @@ import { recordAuditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/auth";
 import { money, slugify } from "@/lib/utils";
 import { createSeedState } from "@/server/seed";
+import { siteBrand } from "@/lib/site-brand";
 
 type Actor = Pick<SessionUser, "id" | "email"> | null | undefined;
 
@@ -61,6 +62,9 @@ async function getSettingsRow() {
       createdAt: now(),
       updatedAt: now(),
       ...demoState.settings,
+      storeName: siteBrand.name,
+      logoText: siteBrand.name,
+      supportEmail: siteBrand.supportEmail,
     };
   }
   const prisma = getPrisma();
@@ -68,10 +72,10 @@ async function getSettingsRow() {
   if (settings) return settings;
   return prisma.setting.create({
     data: {
-      storeName: "Easy Ecom BD",
-      logoText: "Easy Ecom",
+      storeName: siteBrand.name,
+      logoText: siteBrand.name,
       logoUrl: null,
-      supportEmail: "support@example.com",
+      supportEmail: siteBrand.supportEmail,
       contactNumber: "01700 123 456",
       metaPixelId: null,
       gtmContainerId: null,
@@ -701,16 +705,28 @@ export async function getCartByKey(guestKey: string, ownerId?: string | null) {
 
 export async function getOrCreateCart(guestKey: string, ownerId?: string | null) {
   const prisma = getPrisma();
+  const cartWhere = ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey };
   const existing = await prisma.cart.findFirst({
-    where: ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey },
+    where: cartWhere,
     include: { items: { include: { product: true } } },
   });
   if (existing) return existing as unknown as Cart & { items: Array<CartItem & { product: Product }> };
-  const created = await prisma.cart.create({
-    data: { guestKey, ownerId: ownerId ?? null },
-    include: { items: { include: { product: true } } },
-  });
-  return created as unknown as Cart & { items: Array<CartItem & { product: Product }> };
+  try {
+    const created = await prisma.cart.create({
+      data: { guestKey, ownerId: ownerId ?? null },
+      include: { items: { include: { product: true } } },
+    });
+    return created as unknown as Cart & { items: Array<CartItem & { product: Product }> };
+  } catch (error) {
+    if (error instanceof Error && "code" in error && (error as { code?: string }).code === "P2002") {
+      const retry = await prisma.cart.findFirst({
+        where: cartWhere,
+        include: { items: { include: { product: true } } },
+      });
+      if (retry) return retry as unknown as Cart & { items: Array<CartItem & { product: Product }> };
+    }
+    throw error;
+  }
 }
 
 export async function clearCart(guestKey: string, ownerId?: string | null, actor?: Actor) {
