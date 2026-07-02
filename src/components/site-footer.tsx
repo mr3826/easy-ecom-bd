@@ -1,38 +1,122 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getSettings } from "@/server/store";
+import { storefrontCollections, storefrontPrimaryNav } from "@/lib/mokkah-storefront";
+import { siteBrand } from "@/lib/site-brand";
 
 export async function SiteFooter() {
   const settings = await getSettings();
+  const categoryLinks = storefrontCollections.slice(0, 6);
 
   return (
-    <footer className="border-t border-black/5 bg-slate-950 text-slate-300">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:px-6 lg:grid-cols-3 lg:px-8">
+    <footer className="border-t border-[color:var(--border)] bg-[#111111] text-[#d9d6d1]">
+      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.9fr_0.9fr] lg:px-8">
         <div>
-          <p className="text-lg font-semibold text-white">{settings.storeName}</p>
-          <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">
-            Full ecommerce stack for Bangladesh with COD, bKash, courier sync, and landing pages built in.
+          <div className="flex items-center gap-4">
+            <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white p-2 shadow-[0_16px_34px_rgba(0,0,0,0.16)]">
+              <Image src={siteBrand.logoPath} alt="" width={128} height={128} className="h-full w-full object-contain" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-white">{settings.storeName}</p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-[0.34em] text-[#b8b2aa]">{siteBrand.tagline}</p>
+            </div>
+          </div>
+          <p className="mt-4 max-w-md text-sm leading-7 text-[#b8b2aa]">
+            Discover premium quality with {settings.storeName}. We bring you the finest collection of trending styles and comfortable wear, designed to make you stand out.
           </p>
+          <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]">
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">COD ready</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Mobile-first</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Courier aware</span>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <Link href="/products" className="hover:text-white">
-            Products
-          </Link>
-          <Link href="/track" className="hover:text-white">
-            Track order
-          </Link>
-          <Link href="/login" className="hover:text-white">
-            Login
-          </Link>
-          <Link href="/admin" className="hover:text-white">
-            Admin
-          </Link>
+
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Quick Links</h2>
+          <div className="mt-4 grid gap-3 text-sm text-[#cfc9c1]">
+            {storefrontPrimaryNav.map((link) => (
+              <Link key={link.href} href={link.href} className="transition hover:text-white">
+                {link.label}
+              </Link>
+            ))}
+            <Link href="/login" className="transition hover:text-white">
+              Login
+            </Link>
+            <Link href="/account" className="transition hover:text-white">
+              Account
+            </Link>
+          </div>
         </div>
-        <div className="text-sm text-slate-400">
-          <p>Contact: {settings.contactNumber}</p>
-          <p className="mt-2">
-            Delivery charge: {settings.deliveryCharge} BDT, free over {settings.freeDeliveryThreshold} BDT.
-          </p>
+
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Categories</h2>
+          <div className="mt-4 grid gap-3 text-sm text-[#cfc9c1]">
+            {categoryLinks.map((collection) => (
+              <Link key={collection.slug} href={`/shop?category=${collection.slug}`} className="transition hover:text-white">
+                {collection.title}
+              </Link>
+            ))}
+          </div>
         </div>
+      </div>
+
+      <div className="border-t border-white/10">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm text-[#b8b2aa] sm:px-6 lg:grid-cols-[1fr_auto] lg:px-8">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Get In Touch</h2>
+            <p className="mt-3 max-w-2xl leading-7">{settings.address}</p>
+            <div className="mt-3 flex flex-wrap gap-4">
+              <a href={`tel:${settings.contactNumber.replace(/\D/g, "")}`} className="transition hover:text-white">
+                {settings.contactNumber}
+              </a>
+              <a href={`mailto:${settings.supportEmail ?? siteBrand.supportEmail}`} className="transition hover:text-white">
+                {settings.supportEmail ?? siteBrand.supportEmail}
+              </a>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-white">{settings.storeName}</p>
+            <p className="mt-3">© 2026 {settings.storeName}. All rights reserved.</p>
+            <p className="mt-2">
+              Developed by{" "}
+              <a href={siteBrand.techProvider.url} target="_blank" rel="noreferrer" className="font-semibold text-white transition hover:underline">
+                {siteBrand.techProvider.name}
+              </a>
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-3 text-xs uppercase tracking-[0.22em]">
+              <Link href="/privacy" className="transition hover:text-white">
+                Privacy Policy
+              </Link>
+              <Link href="/terms" className="transition hover:text-white">
+                Terms of Service
+              </Link>
+              <Link href="/cookie-policy" className="transition hover:text-white">
+                Cookie Policy
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-white/10 bg-[#171717] sm:hidden">
+        <nav className="grid grid-cols-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#e8e4df]">
+          <Link href="tel:09639279024" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
+            <span className="text-[10px]">Phone</span>
+          </Link>
+          <a href={siteBrand.messengerUrl} className="flex flex-col items-center gap-2 px-2 py-3 text-center">
+            <span className="text-[10px]">Messenger</span>
+          </a>
+          <Link href="/" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
+            <span className="text-[10px]">Home</span>
+          </Link>
+          <Link href="/shop" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
+            <span className="text-[10px]">Shop</span>
+          </Link>
+          <Link href="/cart" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
+            <span className="text-[10px]">Cart</span>
+          </Link>
+        </nav>
       </div>
     </footer>
   );

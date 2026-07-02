@@ -1,6 +1,7 @@
 import { hashSync } from "bcryptjs";
 import type { DatabaseState } from "@/lib/domain";
 import { slugify } from "@/lib/utils";
+import { siteBrand } from "@/lib/site-brand";
 
 const now = new Date().toISOString();
 
@@ -287,10 +288,10 @@ export function createSeedState(): DatabaseState {
     ],
     inventoryLogs: [],
     settings: {
-      storeName: "Easy Ecom BD",
-      logoText: "Easy Ecom",
+      storeName: siteBrand.name,
+      logoText: siteBrand.name,
       logoUrl: null,
-      supportEmail: "support@easy-ecom.test",
+      supportEmail: siteBrand.supportEmail,
       contactNumber: "01700 123 456",
       address: "Dhanmondi, Dhaka, Bangladesh",
       businessHours: "10:00 AM - 8:00 PM",
