@@ -47,11 +47,11 @@ export function HomeHeroSlider({ slides }: { slides: HomeHeroSlide[] }) {
   return (
     <section className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
       <div
-        className="relative overflow-hidden rounded-[2.5rem] border border-[color:var(--border)] bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]"
+        className="relative overflow-hidden rounded-[2.5rem] border border-[color:var(--border)] bg-white shadow-[0_18px_50px_rgba(139,0,0,0.08)]"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(false)}
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(107,78,245,0.08),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(216,154,71,0.1),transparent_28%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(139,0,0,0.08),transparent_32%),radial-gradient(circle_at_bottom_right,rgba(212,175,55,0.12),transparent_28%)]" />
 
         <div
           className="relative flex transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -76,7 +76,7 @@ export function HomeHeroSlider({ slides }: { slides: HomeHeroSlide[] }) {
                   <div className="mt-7 flex flex-wrap gap-3">
                     <Link
                       href={slide.primaryCta.href}
-                      className="inline-flex items-center gap-2 rounded-full bg-[color:var(--brand)] px-5 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-white shadow-[0_14px_28px_rgba(107,78,245,0.2)] transition hover:bg-[color:var(--accent)]"
+                      className="inline-flex items-center gap-2 rounded-full bg-[color:var(--brand)] px-5 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-white shadow-[0_14px_28px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
                     >
                       {slide.primaryCta.label}
                       <ArrowRight className="h-4 w-4" />

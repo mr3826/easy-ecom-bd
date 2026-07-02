@@ -9,7 +9,7 @@ export async function SiteFooter() {
   const categoryLinks = storefrontCollections.slice(0, 6);
 
   return (
-    <footer className="border-t border-[color:var(--border)] bg-[#111111] text-[#d9d6d1]">
+    <footer className="border-t border-[color:var(--border)] bg-[color:var(--footer-background)] text-[color:var(--footer-foreground)]">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-[1.2fr_0.9fr_0.9fr] lg:px-8">
         <div>
           <div className="flex items-center gap-4">
@@ -18,10 +18,10 @@ export async function SiteFooter() {
             </span>
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.28em] text-white">{settings.storeName}</p>
-              <p className="mt-1 text-xs font-medium uppercase tracking-[0.34em] text-[#b8b2aa]">{siteBrand.tagline}</p>
+              <p className="mt-1 text-xs font-medium uppercase tracking-[0.34em] text-[color:var(--footer-muted)]">{siteBrand.tagline}</p>
             </div>
           </div>
-          <p className="mt-4 max-w-md text-sm leading-7 text-[#b8b2aa]">
+          <p className="mt-4 max-w-md text-sm leading-7 text-[color:var(--footer-muted)]">
             Discover premium quality with {settings.storeName}. We bring you the finest collection of trending styles and comfortable wear, designed to make you stand out.
           </p>
           <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]">
@@ -33,7 +33,7 @@ export async function SiteFooter() {
 
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Quick Links</h2>
-          <div className="mt-4 grid gap-3 text-sm text-[#cfc9c1]">
+          <div className="mt-4 grid gap-3 text-sm text-[color:var(--footer-muted)]">
             {storefrontPrimaryNav.map((link) => (
               <Link key={link.href} href={link.href} className="transition hover:text-white">
                 {link.label}
@@ -50,7 +50,7 @@ export async function SiteFooter() {
 
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Categories</h2>
-          <div className="mt-4 grid gap-3 text-sm text-[#cfc9c1]">
+          <div className="mt-4 grid gap-3 text-sm text-[color:var(--footer-muted)]">
             {categoryLinks.map((collection) => (
               <Link key={collection.slug} href={`/shop?category=${collection.slug}`} className="transition hover:text-white">
                 {collection.title}
@@ -61,7 +61,7 @@ export async function SiteFooter() {
       </div>
 
       <div className="border-t border-white/10">
-        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm text-[#b8b2aa] sm:px-6 lg:grid-cols-[1fr_auto] lg:px-8">
+        <div className="mx-auto grid max-w-7xl gap-6 px-4 py-8 text-sm text-[color:var(--footer-muted)] sm:px-6 lg:grid-cols-[1fr_auto] lg:px-8">
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Get In Touch</h2>
             <p className="mt-3 max-w-2xl leading-7">{settings.address}</p>
@@ -99,8 +99,8 @@ export async function SiteFooter() {
         </div>
       </div>
 
-      <div className="border-t border-white/10 bg-[#171717] sm:hidden">
-        <nav className="grid grid-cols-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#e8e4df]">
+      <div className="border-t border-white/10 bg-[color:var(--footer-background)] sm:hidden">
+        <nav className="grid grid-cols-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--footer-foreground)]">
           <Link href="tel:09639279024" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
             <span className="text-[10px]">Phone</span>
           </Link>

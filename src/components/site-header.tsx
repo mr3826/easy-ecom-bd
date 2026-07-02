@@ -95,16 +95,16 @@ export function SiteHeader({
     <header className="sticky top-0 z-40 border-b border-[color:var(--border)] bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-4 sm:gap-4 sm:px-6 lg:px-8">
         <Link href="/" aria-label={storeName} className="flex min-w-0 items-center gap-2 sm:gap-3">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#ece7e0] bg-white p-1.5 shadow-[0_12px_24px_rgba(15,23,42,0.08)] sm:h-14 sm:w-14 sm:rounded-[1.15rem]">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#ece7e0] bg-white p-1.5 shadow-[0_12px_24px_rgba(139,0,0,0.08)] sm:h-14 sm:w-14 sm:rounded-[1.15rem]">
             <Image src={siteBrand.logoPath} alt="" width={96} height={96} className="h-full w-full object-contain" />
           </span>
           <span className="hidden min-w-0 leading-tight sm:block">
             <span className="block truncate text-[1.05rem] font-black tracking-[0.02em] text-[color:var(--brand)]">{storeName}</span>
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.42em] text-[#b7accb]">{siteBrand.tagline}</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.42em] text-[color:var(--muted)]">{siteBrand.tagline}</span>
           </span>
         </Link>
 
-        <form onSubmit={submitSearch} className="hidden flex-1 items-stretch overflow-hidden rounded-full border-2 border-[color:var(--brand)] bg-white shadow-[0_8px_24px_rgba(107,78,245,0.08)] lg:flex">
+        <form onSubmit={submitSearch} className="hidden flex-1 items-stretch overflow-hidden rounded-full border-2 border-[color:var(--brand)] bg-white shadow-[0_8px_24px_rgba(139,0,0,0.08)] lg:flex">
           <label className="flex min-w-0 flex-1 items-center">
             <span className="sr-only">Search products</span>
             <input
@@ -200,7 +200,7 @@ export function SiteHeader({
             role="dialog"
             aria-modal="true"
             aria-label="Account options"
-            className="absolute right-4 top-28 w-[min(92vw,20rem)] rounded-[1.5rem] border border-[color:var(--border)] bg-white p-3 shadow-[0_24px_80px_rgba(0,0,0,0.14)] lg:right-8 lg:top-24"
+            className="absolute right-4 top-28 w-[min(92vw,20rem)] rounded-[1.5rem] border border-[color:var(--border)] bg-white p-3 shadow-[0_24px_80px_rgba(139,0,0,0.14)] lg:right-8 lg:top-24"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="grid gap-3">
@@ -213,7 +213,7 @@ export function SiteHeader({
               </Link>
               <Link
                 href="/register"
-                className="inline-flex items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-3 text-base font-semibold text-white shadow-[0_12px_24px_rgba(107,78,245,0.2)] transition hover:bg-[color:var(--accent)]"
+                className="inline-flex items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-3 text-base font-semibold text-white shadow-[0_12px_24px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
                 onClick={() => setAccountOpen(false)}
               >
                 Create Account
@@ -244,14 +244,14 @@ export function SiteHeader({
       {activePanel === "cart" ? (
         <aside
           id="cart-drawer"
-          className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-[min(100vw,26rem)] flex-col border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+          className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-[min(100vw,26rem)] flex-col border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
           role="dialog"
           aria-modal="true"
           aria-label="Shopping cart"
         >
           <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-4">
             <div className="flex items-center gap-3">
-              <span className="text-2xl text-[#d06b62]">🛒</span>
+              <span className="text-2xl text-[color:var(--brand)]">🛒</span>
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">Shopping Cart ({cartSummary.itemCount})</p>
                 <h2 className="mt-1 text-xl font-semibold text-[color:var(--foreground)]">Shopping Cart</h2>
@@ -272,12 +272,12 @@ export function SiteHeader({
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ffe7a8] text-xl">🎁</div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-[#9f6b14]">আর মাত্র 2টি প্রোডাক্ট নিলে পাচ্ছেন ফ্রি ডেলিভারি!</p>
+                  <p className="text-sm font-semibold text-[color:var(--foreground)]">আর মাত্র 2টি প্রোডাক্ট নিলে পাচ্ছেন ফ্রি ডেলিভারি!</p>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/60">
-                    <div className="h-full w-1/3 rounded-full bg-[#f7a800]" />
+                    <div className="h-full w-1/3 rounded-full bg-[color:var(--accent)]" />
                   </div>
                 </div>
-                <span className="text-sm font-semibold text-[#c06a2e]">1/3</span>
+                <span className="text-sm font-semibold text-[color:var(--accent)]">1/3</span>
               </div>
             </div>
 
@@ -296,7 +296,7 @@ export function SiteHeader({
                             <p className="mt-1 text-sm text-[color:var(--muted)]">SKU: {item.product.sku}</p>
                             <p className="mt-1 text-sm text-[color:var(--muted)]">Color: Black</p>
                           </div>
-                          <p className="text-lg font-semibold text-[#d06b62]">{money(item.lineTotal)}</p>
+                          <p className="text-lg font-semibold text-[color:var(--brand)]">{money(item.lineTotal)}</p>
                         </div>
                         <div className="mt-4 flex items-center gap-3">
                           <button
@@ -316,7 +316,7 @@ export function SiteHeader({
                           </button>
                           <button
                             type="button"
-                            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-[#e53935] transition hover:bg-[#fff0ef]"
+                            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
                             aria-label={`Remove ${item.product.name} from cart`}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -338,16 +338,16 @@ export function SiteHeader({
             <dl className="space-y-4 text-sm">
               <div className="flex items-center justify-between">
                 <dt className="text-[color:var(--muted)]">Subtotal:</dt>
-                <dd className="text-base font-medium text-[#d06b62]">{money(cartSummary.subtotal)}</dd>
+                <dd className="text-base font-medium text-[color:var(--brand)]">{money(cartSummary.subtotal)}</dd>
               </div>
               <div className="flex items-center justify-between">
                 <dt className="text-[color:var(--muted)]">Delivery:</dt>
-                <dd className="text-base font-medium text-[#d06b62]">৳70 - ৳150</dd>
+                <dd className="text-base font-medium text-[color:var(--brand)]">৳70 - ৳150</dd>
               </div>
               <div className="border-t border-[color:var(--border)] pt-4">
                 <div className="flex items-center justify-between">
                   <dt className="text-base font-semibold text-[color:var(--foreground)]">Total:</dt>
-                  <dd className="text-2xl font-bold text-[#d06b62]">{money(cartSummary.subtotal)}</dd>
+                  <dd className="text-2xl font-bold text-[color:var(--brand)]">{money(cartSummary.subtotal)}</dd>
                 </div>
               </div>
             </dl>
@@ -355,7 +355,7 @@ export function SiteHeader({
             <Link
               href="/checkout"
               onClick={closeAllOverlays}
-              className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-[color:var(--accent)] px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(79,54,215,0.18)] transition hover:bg-[color:var(--brand)]"
+              className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-[color:var(--accent)] px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(184,134,11,0.18)] transition hover:bg-[color:var(--brand)]"
             >
               Proceed to Checkout
             </Link>
@@ -373,14 +373,14 @@ export function SiteHeader({
       {activePanel === "wishlist" ? (
         <aside
           id="wishlist-drawer"
-          className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-[min(100vw,30rem)] flex-col border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+          className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-[min(100vw,30rem)] flex-col border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
           role="dialog"
           aria-modal="true"
           aria-label="Wishlist"
         >
           <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-4">
             <div className="flex items-center gap-3">
-              <Heart className="h-6 w-6 text-[#ff4d4f]" />
+              <Heart className="h-6 w-6 text-[color:var(--brand)]" />
               <div>
                 <h2 className="text-xl font-semibold text-[color:var(--foreground)]">My Wishlist ({wishlistItems.length})</h2>
               </div>
@@ -417,7 +417,7 @@ export function SiteHeader({
                     </div>
                     <button
                       type="button"
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[#ff4d4f] transition hover:bg-[#fff0ef]"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
                       aria-label={`Remove ${item.name} from wishlist`}
                     >
                       <Trash2 className="h-4 w-4" />
@@ -432,7 +432,7 @@ export function SiteHeader({
             <Link
               href="/shop"
               onClick={closeAllOverlays}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(107,78,245,0.2)] transition hover:bg-[color:var(--accent)]"
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
             >
               Continue Shopping
             </Link>
@@ -443,7 +443,7 @@ export function SiteHeader({
       {mobileOpen ? (
         <div className="fixed inset-0 z-50 bg-black/45 lg:hidden" role="presentation" onClick={closeAllOverlays}>
           <div
-            className="ml-auto flex h-full w-[min(92vw,24rem)] flex-col overflow-y-auto bg-white shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+            className="ml-auto flex h-full w-[min(92vw,24rem)] flex-col overflow-y-auto bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
             role="dialog"
             aria-modal="true"
             aria-label="Mobile navigation"
@@ -510,7 +510,7 @@ export function SiteHeader({
       {searchOpen ? (
         <div className="fixed inset-0 z-50 bg-black/45" role="presentation" onClick={() => setSearchOpen(false)}>
           <div
-            className="mx-auto mt-20 w-[min(92vw,42rem)] rounded-[2rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+                className="mx-auto mt-20 w-[min(92vw,42rem)] rounded-[2rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
             role="dialog"
             aria-modal="true"
             aria-label="Search products"
