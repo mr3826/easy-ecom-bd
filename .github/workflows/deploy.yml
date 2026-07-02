@@ -21,7 +21,6 @@ jobs:
       DEPLOY_USER: ${{ secrets.CPANEL_SSH_USER }}
       DEPLOY_PORT: ${{ secrets.CPANEL_SSH_PORT }}
       DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/ecommerce' }}
       NEXT_TELEMETRY_DISABLED: "1"
 
     steps:
