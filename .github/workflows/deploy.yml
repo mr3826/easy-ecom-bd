@@ -21,7 +21,7 @@ jobs:
       DEPLOY_USER: ${{ secrets.CPANEL_SSH_USER }}
       DEPLOY_PORT: ${{ secrets.CPANEL_SSH_PORT }}
       DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@127.0.0.1:5432/ecommerce' }}
       NEXT_TELEMETRY_DISABLED: "1"
 
     steps:
@@ -55,18 +55,50 @@ jobs:
           cp -R .next/static deploy-package/.next/static
           cp -R public deploy-package/public
 
+      - name: Check cPanel deploy secrets
+        id: cpanel-secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          [ -n "${DEPLOY_HOST:-}" ] || missing+=("CPANEL_SSH_HOST")
+          [ -n "${DEPLOY_USER:-}" ] || missing+=("CPANEL_SSH_USER")
+          [ -n "${DEPLOY_PATH:-}" ] || missing+=("CPANEL_DEPLOY_PATH")
+          [ -n "${DEPLOY_KEY:-}" ] || missing+=("CPANEL_SSH_KEY")
+
+          if [ "${#missing[@]}" -eq 0 ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+          printf 'missing=%s\n' "${missing[*]}" >> "$GITHUB_OUTPUT"
+        env:
+          DEPLOY_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          DEPLOY_USER: ${{ secrets.CPANEL_SSH_USER }}
+          DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
+          DEPLOY_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+
+      - name: Skip cPanel deploy
+        if: steps.cpanel-secrets.outputs.enabled != 'true'
+        run: |
+          echo "::warning::Skipping cPanel deploy because these secrets are not configured: ${{ steps.cpanel-secrets.outputs.missing }}"
+
       - name: Load SSH key
+        if: steps.cpanel-secrets.outputs.enabled == 'true'
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.CPANEL_SSH_KEY }}
 
       - name: Trust deploy host
+        if: steps.cpanel-secrets.outputs.enabled == 'true'
         run: |
           set -euo pipefail
           : "${DEPLOY_PORT:=22}"
           ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
       - name: Sync bundle to cPanel
+        if: steps.cpanel-secrets.outputs.enabled == 'true'
         run: |
           set -euo pipefail
           : "${DEPLOY_PORT:=22}"
@@ -74,6 +106,7 @@ jobs:
           rsync -az --delete --exclude 'tmp/' -e "ssh -p $DEPLOY_PORT" deploy-package/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
 
       - name: Restart Passenger app
+        if: steps.cpanel-secrets.outputs.enabled == 'true'
         run: |
           set -euo pipefail
           : "${DEPLOY_PORT:=22}"
