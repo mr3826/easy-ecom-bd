@@ -1,0 +1,81 @@
+name: Deploy to cPanel
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cpanel
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      DEPLOY_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+      DEPLOY_USER: ${{ secrets.CPANEL_SSH_USER }}
+      DEPLOY_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+      DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build standalone app
+        run: npm run build
+
+      - name: Prepare deploy bundle
+        run: |
+          set -euo pipefail
+          rm -rf deploy-package
+          mkdir -p deploy-package/.next
+          cp -R .next/standalone/. deploy-package/
+          cp -R .next/static deploy-package/.next/static
+          cp -R public deploy-package/public
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.CPANEL_SSH_KEY }}
+
+      - name: Trust deploy host
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_PORT:=22}"
+          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Sync bundle to cPanel
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_PORT:=22}"
+          : "${DEPLOY_PATH:?Set CPANEL_DEPLOY_PATH}"
+          rsync -az --delete --exclude 'tmp/' -e "ssh -p $DEPLOY_PORT" deploy-package/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+
+      - name: Restart Passenger app
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_PORT:=22}"
+          : "${DEPLOY_PATH:?Set CPANEL_DEPLOY_PATH}"
+          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && mkdir -p tmp && touch tmp/restart.txt"

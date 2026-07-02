@@ -244,30 +244,32 @@ export function SiteHeader({
       {activePanel === "cart" ? (
         <aside
           id="cart-drawer"
-          className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-[min(100vw,26rem)] flex-col border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
+          className="fixed inset-y-0 right-0 z-[60] flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)] sm:w-[min(100vw,26rem)] sm:max-w-[26rem]"
           role="dialog"
           aria-modal="true"
           aria-label="Shopping cart"
         >
-          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-4">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl text-[color:var(--brand)]">🛒</span>
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">Shopping Cart ({cartSummary.itemCount})</p>
-                <h2 className="mt-1 text-xl font-semibold text-[color:var(--foreground)]">Shopping Cart</h2>
+          <div className="shrink-0 border-b border-[color:var(--border)] px-4 py-4 sm:px-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="text-2xl text-[color:var(--brand)]">🛒</span>
+                <div className="min-w-0">
+                  <p className="truncate text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">Shopping Cart ({cartSummary.itemCount})</p>
+                  <h2 className="mt-1 truncate text-xl font-semibold text-[color:var(--foreground)]">Shopping Cart</h2>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={closeAllOverlays}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
+                aria-label="Close cart drawer"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={closeAllOverlays}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
-              aria-label="Close cart drawer"
-            >
-              <X className="h-5 w-5" />
-            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5 sm:py-6">
             <div className="rounded-[1.5rem] border border-[#f2d37a] bg-gradient-to-r from-[#fff3cc] to-[#fff7df] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.04)]">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ffe7a8] text-xl">🎁</div>
@@ -334,7 +336,7 @@ export function SiteHeader({
             </div>
           </div>
 
-          <div className="border-t border-[color:var(--border)] bg-white px-5 py-5">
+          <div className="shrink-0 border-t border-[color:var(--border)] bg-white px-4 py-5 sm:px-5">
             <dl className="space-y-4 text-sm">
               <div className="flex items-center justify-between">
                 <dt className="text-[color:var(--muted)]">Subtotal:</dt>
@@ -373,38 +375,40 @@ export function SiteHeader({
       {activePanel === "wishlist" ? (
         <aside
           id="wishlist-drawer"
-          className="fixed inset-y-0 right-0 z-[60] flex w-full max-w-[min(100vw,30rem)] flex-col border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
+          className="fixed inset-y-0 right-0 z-[60] flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)] sm:w-[min(100vw,30rem)] sm:max-w-[30rem]"
           role="dialog"
           aria-modal="true"
           aria-label="Wishlist"
         >
-          <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-4">
-            <div className="flex items-center gap-3">
-              <Heart className="h-6 w-6 text-[color:var(--brand)]" />
-              <div>
-                <h2 className="text-xl font-semibold text-[color:var(--foreground)]">My Wishlist ({wishlistItems.length})</h2>
+          <div className="shrink-0 border-b border-[color:var(--border)] px-4 py-4 sm:px-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <Heart className="h-6 w-6 shrink-0 text-[color:var(--brand)]" />
+                <div className="min-w-0">
+                  <h2 className="truncate text-xl font-semibold text-[color:var(--foreground)]">My Wishlist ({wishlistItems.length})</h2>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={closeAllOverlays}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
+                aria-label="Close wishlist drawer"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={closeAllOverlays}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
-              aria-label="Close wishlist drawer"
-            >
-              <X className="h-5 w-5" />
-            </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-6">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5 sm:py-6">
             <div className="space-y-4">
               {wishlistItems.map((item) => (
                 <article key={item.id} className="rounded-[1.5rem] border border-[color:var(--border)] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
                   <div className="flex items-center gap-4">
-                    <div className={`flex h-28 w-28 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-center text-xs font-semibold uppercase tracking-[0.24em] text-white`}>
+                    <div className={`flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white sm:h-28 sm:w-28 sm:text-xs sm:tracking-[0.24em]`}>
                       {item.name}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-semibold text-[color:var(--foreground)]">{item.name}</h3>
+                      <h3 className="text-base font-semibold text-[color:var(--foreground)] sm:text-lg">{item.name}</h3>
                       <p className="mt-1 text-sm text-[color:var(--muted)]">SKU: {item.sku}</p>
                       <Link
                         href="/cart"
@@ -428,7 +432,7 @@ export function SiteHeader({
             </div>
           </div>
 
-          <div className="border-t border-[color:var(--border)] bg-white px-5 py-5">
+          <div className="shrink-0 border-t border-[color:var(--border)] bg-white px-4 py-5 sm:px-5">
             <Link
               href="/shop"
               onClick={closeAllOverlays}
