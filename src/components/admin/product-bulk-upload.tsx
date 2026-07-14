@@ -16,7 +16,7 @@ export function ProductBulkUploadButton({
     <div className="grid justify-items-end gap-2">
       <label
         htmlFor={inputId}
-        className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(79,70,229,0.24)] transition hover:bg-indigo-500"
+        className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[color:var(--brand)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
       >
         <Upload className="h-4 w-4" />
         Upload Product File
@@ -35,11 +35,10 @@ export function ProductBulkUploadButton({
           }
         }}
       />
-      <p className="text-xs text-slate-400">{fileName ? `Selected: ${fileName}` : "CSV import uses the fixed template structure."}</p>
-      <Link href={templateHref} className="text-xs font-medium text-sky-300 transition hover:text-sky-200">
+      <p className="text-xs text-[color:var(--muted)]">{fileName ? `Selected: ${fileName}` : "CSV import uses the fixed template structure."}</p>
+      <Link href={templateHref} className="text-xs font-medium text-[color:var(--brand)] transition hover:text-[color:var(--accent)]">
         Download Upload Template
       </Link>
     </div>
   );
 }
-

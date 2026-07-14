@@ -12,10 +12,10 @@ import {
 } from "@/lib/product-admin";
 
 const fieldClass =
-  "w-full rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-sky-400/60";
+  "w-full rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60";
 const textareaClass = `${fieldClass} min-h-[7rem] resize-y`;
 const selectClass = `${fieldClass} appearance-none`;
-const cardClass = "rounded-[1.75rem] border border-white/10 bg-white/5 p-5 shadow-[0_24px_80px_rgba(2,6,23,0.22)]";
+const cardClass = "rounded-[1.75rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_18px_40px_rgba(61,39,35,0.06)]";
 
 function SectionCard({
   title,
@@ -31,8 +31,8 @@ function SectionCard({
   return (
     <section className={`${cardClass} ${className}`.trim()}>
       <div className="mb-5">
-        <h2 className="text-lg font-semibold text-white">{title}</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-400">{description}</p>
+        <h2 className="text-lg font-semibold text-[color:var(--foreground)]">{title}</h2>
+        <p className="mt-1 text-sm leading-6 text-[color:var(--muted)]">{description}</p>
       </div>
       {children}
     </section>
@@ -51,10 +51,10 @@ function FieldLabel({
   className?: string;
 }) {
   return (
-    <label className={`grid gap-2 text-sm text-slate-200 ${className}`.trim()}>
+    <label className={`grid gap-2 text-sm text-[color:var(--foreground)] ${className}`.trim()}>
       <div className="flex items-center justify-between gap-3">
-        <span className="font-medium text-slate-100">{label}</span>
-        {hint ? <span className="text-xs text-slate-500">{hint}</span> : null}
+        <span className="font-medium text-[color:var(--foreground)]">{label}</span>
+        {hint ? <span className="text-xs text-[color:var(--muted)]">{hint}</span> : null}
       </div>
       {children}
     </label>
@@ -73,16 +73,16 @@ function ToggleField({
   defaultChecked: boolean;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+    <label className="flex items-start gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4">
       <input
         type="checkbox"
         name={name}
         defaultChecked={defaultChecked}
-        className="mt-1 h-4 w-4 rounded border-white/20 bg-slate-950 text-sky-400 focus:ring-sky-400/40"
+        className="mt-1 h-4 w-4 rounded border-[color:var(--border)] bg-white text-[color:var(--brand)] focus:ring-[color:var(--brand)]/40"
       />
       <span className="grid gap-1">
-        <span className="text-sm font-medium text-white">{label}</span>
-        {hint ? <span className="text-xs leading-5 text-slate-400">{hint}</span> : null}
+        <span className="text-sm font-medium text-[color:var(--foreground)]">{label}</span>
+        {hint ? <span className="text-xs leading-5 text-[color:var(--muted)]">{hint}</span> : null}
       </span>
     </label>
   );
@@ -109,58 +109,51 @@ export function ProductEditorForm({
   const isEditing = Boolean(product);
 
   return (
-    <div className="space-y-8 text-slate-100">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <Link href={listHref} className="text-sm font-medium text-sky-300 transition hover:text-sky-200">
-          ← Back to Products & Inventory
-        </Link>
-        <div className="flex flex-col items-start gap-3 sm:items-end">
-          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{isEditing ? "Edit Product" : "Add A Product"}</p>
-          {!isEditing ? (
-            <button
-              type="submit"
-              className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
-            >
-              Create product
-            </button>
-          ) : null}
-        </div>
-      </div>
+    <div className="space-y-8 text-[color:var(--foreground)]">
+      <Link href={listHref} className="text-sm font-medium text-[color:var(--brand)] transition hover:text-[color:var(--accent)]">
+        ← Back to Products & Inventory
+      </Link>
 
       <form action={saveProductAction} className="space-y-6 scroll-mt-24">
         <input type="hidden" name="id" value={product?.id ?? ""} />
 
-        <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-[0_24px_80px_rgba(2,6,23,0.22)]">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-[2rem] border border-[color:var(--border)] bg-white p-6 shadow-[0_24px_80px_rgba(61,39,35,0.06)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-sky-200/80">Product editor</p>
-              <h2 className="mt-2 text-2xl font-semibold text-white">{product ? "Edit product" : "Add A Product"}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.32em] text-[color:var(--brand)]">Product editor</p>
+              <h2 className="mt-2 text-2xl font-semibold text-[color:var(--foreground)]">{isEditing ? "Edit product" : "Add A Product"}</h2>
+              <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
                 Keep Bornohin branding intact while editing structured product, shipping, and inventory fields.
               </p>
             </div>
-            {product ? (
-              <div className="rounded-2xl border border-sky-400/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
-                Editing <span className="font-semibold text-white">{product.name}</span>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">New product mode</div>
-            )}
+            <div className="flex flex-col items-start gap-3 lg:items-end">
+              <p className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+                {isEditing ? `Editing ${product?.name ?? "product"}` : "New product mode"}
+              </p>
+              {!isEditing ? (
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center rounded-full bg-[color:var(--brand)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
+                >
+                  Create product
+                </button>
+              ) : null}
+            </div>
           </div>
         </section>
 
-        {product ? (
-          <div className="rounded-[2rem] border border-sky-400/20 bg-sky-500/10 p-5 text-sky-50 shadow-[0_20px_60px_rgba(14,165,233,0.12)]">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {isEditing ? (
+          <div className="rounded-[2rem] border border-[color:var(--brand)]/20 bg-[color:var(--brand-soft)] p-5 shadow-[0_20px_60px_rgba(139,0,0,0.08)]">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-sky-100/70">Editing mode</p>
-                <p className="mt-2 text-sm leading-6 text-sky-50/90">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--brand)]">Editing mode</p>
+                <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
                   Changes will overwrite the selected product record and keep the public storefront stable for now.
                 </p>
               </div>
               <Link
                 href={createHref}
-                className="inline-flex w-fit items-center justify-center rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white/15"
+                className="inline-flex w-fit items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
               >
                 Create new product
               </Link>
@@ -226,7 +219,7 @@ export function ProductEditorForm({
                   </FieldLabel>
                 </div>
 
-                <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/60 p-4">
+                <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4">
                   <ProductImageUploader productName={product?.name ?? "New product"} existingImages={existingImages} />
                 </div>
               </div>
@@ -353,7 +346,7 @@ export function ProductEditorForm({
                     )}
                   </select>
                 </FieldLabel>
-                <p className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-xs leading-5 text-slate-400">
+                <p className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4 text-xs leading-5 text-[color:var(--muted)]">
                   This pass keeps one primary category and one brand record per product. Multi-category support can be added later if the storefront needs it.
                 </p>
               </div>
@@ -552,17 +545,20 @@ export function ProductEditorForm({
         </div>
 
         {isEditing ? (
-          <div className="flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-white/5 p-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-slate-400">
+          <div className="flex flex-col gap-3 rounded-[2rem] border border-[color:var(--border)] bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-[color:var(--muted)]">
               Images are saved locally, metadata is persisted in the product record, and storefront changes stay untouched until the follow-up integration pass.
             </p>
             <div className="flex flex-wrap gap-3">
-              <button type="submit" className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100">
+              <button
+                type="submit"
+                className="rounded-full bg-[color:var(--brand)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
+              >
                 Update product
               </button>
               <Link
                 href={createHref}
-                className="rounded-full border border-white/10 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:text-white"
+                className="rounded-full border border-[color:var(--border)] px-6 py-3 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
               >
                 Reset form
               </Link>

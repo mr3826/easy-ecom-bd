@@ -7,22 +7,22 @@ export default async function AdminReportsPage() {
   const conversion = state.orders.length ? Math.round((state.orders.filter((order) => order.paymentStatus === "paid").length / state.orders.length) * 100) : 0;
 
   return (
-    <div className="space-y-6 text-slate-100">
+    <div className="space-y-6 text-[color:var(--foreground)]">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Reports</p>
-        <h1 className="mt-2 text-3xl font-semibold text-white">Basic sales report</h1>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Reports</p>
+        <h1 className="mt-2 text-3xl font-semibold text-[color:var(--foreground)]">Basic sales report</h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
-          <p className="text-sm text-slate-400">Paid revenue</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{money(paidRevenue)}</p>
+        <div className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5">
+          <p className="text-sm text-[color:var(--muted)]">Paid revenue</p>
+          <p className="mt-3 text-3xl font-semibold text-[color:var(--foreground)]">{money(paidRevenue)}</p>
         </div>
-        <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
-          <p className="text-sm text-slate-400">Paid order rate</p>
-          <p className="mt-3 text-3xl font-semibold text-white">{conversion}%</p>
+        <div className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5">
+          <p className="text-sm text-[color:var(--muted)]">Paid order rate</p>
+          <p className="mt-3 text-3xl font-semibold text-[color:var(--foreground)]">{conversion}%</p>
         </div>
       </div>
-      <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5 text-sm text-slate-300">
+      <div className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5 text-sm text-[color:var(--muted)]">
         Sales report uses the same order status fields that drive payment and delivery tracking.
       </div>
     </div>

@@ -61,15 +61,15 @@ export function ProductVariantEditor({
     <div className="grid gap-4">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-white">Variant groups</p>
-          <p className="mt-1 text-xs text-slate-400">
+          <p className="text-sm font-semibold text-[color:var(--foreground)]">Variant groups</p>
+          <p className="mt-1 text-xs text-[color:var(--muted)]">
             Capture size, color, or bundle options now. The storefront can stay unchanged until variant pricing is needed.
           </p>
         </div>
         <button
           type="button"
           onClick={addGroup}
-          className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-sky-200 transition hover:border-sky-400/60 hover:bg-sky-500/20"
+          className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand)]/20 bg-[color:var(--brand-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)] transition hover:border-[color:var(--brand)]/40 hover:bg-[#efd7d1]"
         >
           <Plus className="h-4 w-4" />
           Add group
@@ -78,17 +78,17 @@ export function ProductVariantEditor({
 
       <div className="grid gap-4">
         {groups.map((group, index) => (
-          <section key={group.id} className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-4">
+          <section key={group.id} className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Variant group {index + 1}</p>
-                <h3 className="mt-1 text-base font-semibold text-white">{group.name.trim() || "Untitled group"}</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Variant group {index + 1}</p>
+                <h3 className="mt-1 text-base font-semibold text-[color:var(--foreground)]">{group.name.trim() || "Untitled group"}</h3>
               </div>
               {groups.length > 1 ? (
                 <button
                   type="button"
                   onClick={() => removeGroup(group.id)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-slate-300 transition hover:border-rose-400/60 hover:text-rose-300"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/60 hover:text-rose-500"
                   aria-label={`Remove variant group ${index + 1}`}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -97,43 +97,43 @@ export function ProductVariantEditor({
             </div>
 
             <div className="mt-4 grid gap-3">
-              <label className="grid gap-2 text-sm">
+              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
                 <span>Variant name</span>
                 <input
                   value={group.name}
                   onChange={(event) => updateGroup(group.id, { name: event.target.value })}
                   placeholder="Size, Color, Material"
-                  className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-0 placeholder:text-slate-500 focus:border-sky-400/60"
+                  className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] outline-none ring-0 placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60"
                 />
               </label>
-              <label className="grid gap-2 text-sm">
+              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
                 <span>Options</span>
                 <textarea
                   value={group.optionsText}
                   onChange={(event) => updateGroup(group.id, { optionsText: event.target.value })}
                   rows={3}
                   placeholder="Small, Medium, Large"
-                  className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-0 placeholder:text-slate-500 focus:border-sky-400/60"
+                  className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] outline-none ring-0 placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60"
                 />
               </label>
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="grid gap-2 text-sm">
+                <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
                   <span>Price adjustment</span>
                   <input
                     type="number"
                     value={group.priceAdjustment}
                     onChange={(event) => updateGroup(group.id, { priceAdjustment: event.target.value })}
                     placeholder="0"
-                    className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-0 placeholder:text-slate-500 focus:border-sky-400/60"
+                    className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] outline-none ring-0 placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60"
                   />
                 </label>
-                <label className="grid gap-2 text-sm">
+                <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
                   <span>Variant SKU</span>
                   <input
                     value={group.sku}
                     onChange={(event) => updateGroup(group.id, { sku: event.target.value })}
                     placeholder="Optional SKU"
-                    className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white outline-none ring-0 placeholder:text-slate-500 focus:border-sky-400/60"
+                    className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] outline-none ring-0 placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60"
                   />
                 </label>
               </div>
