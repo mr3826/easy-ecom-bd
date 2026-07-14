@@ -106,6 +106,7 @@ export function ProductEditorForm({
   const selectedMetadata = normalizeProductMetadata(product?.metadata ?? null);
   const categoryId = product?.categoryId ?? categories[0]?.id ?? "";
   const brandId = product?.brandId ?? brands[0]?.id ?? "";
+  const isEditing = Boolean(product);
 
   return (
     <div className="space-y-8 text-slate-100">
@@ -113,7 +114,17 @@ export function ProductEditorForm({
         <Link href={listHref} className="text-sm font-medium text-sky-300 transition hover:text-sky-200">
           ← Back to Products & Inventory
         </Link>
-        <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Add A Product</p>
+        <div className="flex flex-col items-start gap-3 sm:items-end">
+          <p className="text-xs uppercase tracking-[0.24em] text-slate-500">{isEditing ? "Edit Product" : "Add A Product"}</p>
+          {!isEditing ? (
+            <button
+              type="submit"
+              className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100"
+            >
+              Create product
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <form action={saveProductAction} className="space-y-6 scroll-mt-24">
@@ -540,24 +551,24 @@ export function ProductEditorForm({
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-white/5 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm leading-6 text-slate-400">
-            Images are saved locally, metadata is persisted in the product record, and storefront changes stay untouched until the follow-up integration pass.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button type="submit" className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100">
-              {product ? "Update product" : "Create product"}
-            </button>
-            {product ? (
+        {isEditing ? (
+          <div className="flex flex-col gap-3 rounded-[2rem] border border-white/10 bg-white/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-slate-400">
+              Images are saved locally, metadata is persisted in the product record, and storefront changes stay untouched until the follow-up integration pass.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button type="submit" className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-100">
+                Update product
+              </button>
               <Link
                 href={createHref}
                 className="rounded-full border border-white/10 px-6 py-3 text-sm font-semibold text-slate-200 transition hover:border-white/20 hover:text-white"
               >
                 Reset form
               </Link>
-            ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
       </form>
     </div>
   );
