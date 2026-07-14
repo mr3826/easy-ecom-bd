@@ -15,6 +15,11 @@ import {
   deleteProduct,
   createManualOrder,
   getOrder,
+  getProduct,
+  listBrands,
+  listCategories,
+  listProducts,
+  listProductImages,
   setProductStock,
   upsertBrand,
   upsertCategory,
@@ -22,6 +27,7 @@ import {
   upsertLandingPage,
   upsertLandingPageSection,
   upsertProduct,
+  replaceProductImages,
   updateOrderDelivery,
   updateOrderPayment,
   updateOrderStatus,
@@ -29,10 +35,155 @@ import {
   getSettings,
   assertDeliveryProviderAvailable,
 } from "@/server/store";
+import { getFileStorage } from "@/server/storage";
 import { asNumber, asString } from "@/lib/utils";
+import type { ProductVariantGroup } from "@/lib/domain";
+import { parseProductUploadCsv } from "@/lib/product-import";
+import {
+  normalizeProductMetadata,
+  normalizeProductVariantGroup,
+  productConditionOptions,
+  productDimensionUnitOptions,
+  productWeightUnitOptions,
+} from "@/lib/product-admin";
 
 async function guard() {
   return requireAdmin();
+}
+
+function readTrimmedString(formData: FormData, name: string) {
+  return asString(formData.get(name)).trim();
+}
+
+function parseRequiredString(formData: FormData, name: string, label: string) {
+  const value = readTrimmedString(formData, name);
+  if (!value) {
+    throw new Error(`${label} is required`);
+  }
+  return value;
+}
+
+function parseBooleanValue(value: FormDataEntryValue | null, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value !== "string") return fallback;
+  return ["true", "1", "on", "yes"].includes(value.toLowerCase());
+}
+
+function parseNumberField(
+  formData: FormData,
+  name: string,
+  label: string,
+  options: { required?: boolean; integer?: boolean; min?: number; max?: number; fallback?: number | null } = {},
+) {
+  const raw = readTrimmedString(formData, name);
+  if (!raw) {
+    if (options.required) {
+      throw new Error(`${label} is required`);
+    }
+    return options.fallback ?? null;
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`${label} must be a valid number`);
+  }
+  const normalized = options.integer ? Math.trunc(parsed) : parsed;
+  if (options.min !== undefined && normalized < options.min) {
+    throw new Error(`${label} must be at least ${options.min}`);
+  }
+  if (options.max !== undefined && normalized > options.max) {
+    throw new Error(`${label} must be at most ${options.max}`);
+  }
+  return normalized;
+}
+
+function parseOptionalDateString(formData: FormData, name: string, label: string) {
+  const value = readTrimmedString(formData, name);
+  if (!value) return null;
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) {
+    throw new Error(`${label} must be a valid date`);
+  }
+  return value;
+}
+
+function parseSelectValue<T extends string>(
+  formData: FormData,
+  name: string,
+  label: string,
+  allowed: readonly T[],
+  fallback: T,
+) {
+  const value = readTrimmedString(formData, name);
+  if (!value) return fallback;
+  if (!allowed.includes(value as T)) {
+    throw new Error(`${label} is invalid`);
+  }
+  return value as T;
+}
+
+function parseCsvList(value: FormDataEntryValue | null) {
+  return asString(value)
+    .split(/[\r\n,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseVariantGroups(formData: FormData): ProductVariantGroup[] {
+  const raw = readTrimmedString(formData, "variantGroupsJson");
+  if (!raw) return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Variant groups must be valid JSON");
+  }
+  if (!Array.isArray(parsed)) {
+    throw new Error("Variant groups must be an array");
+  }
+  return parsed
+    .map((group, index) => {
+      if (!group || typeof group !== "object" || Array.isArray(group)) {
+        throw new Error(`Variant group ${index + 1} is invalid`);
+      }
+      const source = group as Record<string, unknown>;
+      const priceAdjustmentValue = source.priceAdjustment;
+      const priceAdjustment =
+        priceAdjustmentValue === null || priceAdjustmentValue === undefined || priceAdjustmentValue === ""
+          ? 0
+          : Number(priceAdjustmentValue);
+      if (!Number.isFinite(priceAdjustment)) {
+        throw new Error(`Variant group ${index + 1} price adjustment must be a valid number`);
+      }
+      const normalized = normalizeProductVariantGroup({ ...source, priceAdjustment });
+      const hasContent = Boolean(normalized.name || normalized.options.length || normalized.priceAdjustment || normalized.sku);
+      if (!hasContent) {
+        return null;
+      }
+      if (!normalized.name) {
+        throw new Error(`Variant group ${index + 1} needs a name`);
+      }
+      if (!normalized.options.length) {
+        throw new Error(`Variant group ${index + 1} needs at least one option`);
+      }
+      return normalized;
+  })
+    .filter(Boolean) as ProductVariantGroup[];
+}
+
+function normalizeLookupKey(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function buildLookupMap<T extends { id: string; name: string; slug?: string }>(items: T[]) {
+  const lookup = new Map<string, T>();
+  for (const item of items) {
+    lookup.set(normalizeLookupKey(item.id), item);
+    lookup.set(normalizeLookupKey(item.name), item);
+    if (item.slug) {
+      lookup.set(normalizeLookupKey(item.slug), item);
+    }
+  }
+  return lookup;
 }
 
 export async function saveCategoryAction(formData: FormData) {
@@ -76,40 +227,221 @@ export async function deleteBrandAction(formData: FormData) {
 
 export async function saveProductAction(formData: FormData) {
   const actor = await guard();
-  const tags = asString(formData.get("tags"))
-    .split(",")
-    .map((item) => item.trim())
+  const productId = readTrimmedString(formData, "id");
+  const existingProduct = productId ? await getProduct(productId) : null;
+  const existingMetadata = normalizeProductMetadata(existingProduct?.metadata ?? null);
+  const tags = parseCsvList(formData.get("tags"));
+  const searchKeywords = parseCsvList(formData.get("searchKeywords")).map((item) => item.toLowerCase());
+  const compareAtPrice = parseNumberField(formData, "compareAtPrice", "Compare at price", { integer: true, min: 0 });
+  const product = await upsertProduct(
+    {
+      id: productId || undefined,
+      name: parseRequiredString(formData, "name", "Product name"),
+      slug: readTrimmedString(formData, "slug") || undefined,
+      sku: readTrimmedString(formData, "sku") || undefined,
+      description: parseRequiredString(formData, "description", "Product description"),
+      price: parseNumberField(formData, "price", "Price", { required: true, integer: true, min: 0 }) as number,
+      compareAtPrice:
+        compareAtPrice === null || compareAtPrice === 0 ? undefined : (compareAtPrice as number),
+      stock: parseNumberField(formData, "stock", "Stock", { required: true, integer: true, min: 0 }) as number,
+      lowStockThreshold: (parseNumberField(formData, "lowStockThreshold", "Low stock threshold", {
+        integer: true,
+        min: 0,
+        fallback: 5,
+      }) ?? 5) as number,
+      categoryId: parseRequiredString(formData, "categoryId", "Category"),
+      brandId: parseRequiredString(formData, "brandId", "Brand"),
+      isActive: parseBooleanValue(formData.get("isActive"), true),
+      featured: parseBooleanValue(formData.get("featured"), false),
+      weightGrams: (parseNumberField(formData, "weightGrams", "Weight grams", {
+        integer: true,
+        min: 0,
+        fallback: 0,
+      }) ?? 0) as number,
+      tags,
+      searchKeywords,
+      metadata: {
+        ...existingMetadata,
+        condition: parseSelectValue(
+          formData,
+          "condition",
+          "Condition",
+          productConditionOptions.map((option) => option.value),
+          "new",
+        ),
+        isPhysical: parseBooleanValue(formData.get("isPhysical"), true),
+        minOrderQuantity: (parseNumberField(formData, "minOrderQuantity", "Minimum order quantity", {
+          required: true,
+          integer: true,
+          min: 1,
+        }) ?? 1) as number,
+        maxOrderQuantity: parseNumberField(formData, "maxOrderQuantity", "Maximum order quantity", {
+          integer: true,
+          min: 1,
+        }),
+        returnable: parseBooleanValue(formData.get("returnable"), true),
+        returnWindowDays: parseNumberField(formData, "returnWindowDays", "Return window", {
+          integer: true,
+          min: 0,
+        }),
+        warrantyText: readTrimmedString(formData, "warrantyText") || null,
+        expiryDate: parseOptionalDateString(formData, "expiryDate", "Expiry date"),
+        handlingTimeDays: parseNumberField(formData, "handlingTimeDays", "Handling time", {
+          integer: true,
+          min: 0,
+        }),
+        shippingClass: readTrimmedString(formData, "shippingClass") || null,
+        packageWeight: parseNumberField(formData, "packageWeight", "Package weight", {
+          min: 0,
+        }),
+        packageWeightUnit: parseSelectValue(
+          formData,
+          "packageWeightUnit",
+          "Package weight unit",
+          productWeightUnitOptions.map((option) => option.value),
+          "kg",
+        ),
+        packageLength: parseNumberField(formData, "packageLength", "Package length", { min: 0 }),
+        packageWidth: parseNumberField(formData, "packageWidth", "Package width", { min: 0 }),
+        packageHeight: parseNumberField(formData, "packageHeight", "Package height", { min: 0 }),
+        packageDimensionsUnit: parseSelectValue(
+          formData,
+          "packageDimensionsUnit",
+          "Package dimensions unit",
+          productDimensionUnitOptions.map((option) => option.value),
+          "cm",
+        ),
+        taxEnabled: parseBooleanValue(formData.get("taxEnabled"), true),
+        discountEnabled: parseBooleanValue(formData.get("discountEnabled"), true),
+        variantGroups: parseVariantGroups(formData),
+      },
+    },
+    actor,
+  );
+
+  const existingImageUrls = formData
+    .getAll("retainedImageUrls")
+    .map((item) => asString(item).trim())
     .filter(Boolean);
-  const searchKeywords = asString(formData.get("searchKeywords"))
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-  const imageUrls = asString(formData.get("imageUrls"))
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  await upsertProduct({
-    id: asString(formData.get("id")) || undefined,
-    name: asString(formData.get("name")),
-    slug: asString(formData.get("slug")) || undefined,
-    sku: asString(formData.get("sku")) || undefined,
-    description: asString(formData.get("description")),
-    price: asNumber(formData.get("price")),
-    compareAtPrice: asNumber(formData.get("compareAtPrice"), 0) || undefined,
-    stock: asNumber(formData.get("stock")),
-    lowStockThreshold: asNumber(formData.get("lowStockThreshold"), 5),
-    categoryId: asString(formData.get("categoryId")),
-    brandId: asString(formData.get("brandId")),
-    isActive: asString(formData.get("isActive")) !== "false",
-    featured: asString(formData.get("featured")) === "true",
-    weightGrams: asNumber(formData.get("weightGrams")),
-    tags,
-    searchKeywords,
-    imageUrls,
-  }, actor);
-  revalidatePath("/products");
+  const imageEditorTouched = asString(formData.get("productImagesTouched")) === "1";
+  const uploadedFiles = formData
+    .getAll("productImages")
+    .filter((item): item is File => item instanceof File && item.size > 0);
+  for (const file of uploadedFiles) {
+    if (file.type && !file.type.startsWith("image/")) {
+      throw new Error(`Product image ${file.name || "upload"} must be an image`);
+    }
+  }
+  const storage = getFileStorage();
+  const uploadedImageUrls = uploadedFiles.length
+    ? (
+        await Promise.all(
+          uploadedFiles.map(async (file) => {
+            const stored = await storage.save(file, `products/${product.id}`);
+            return stored.url;
+          }),
+        )
+      )
+    : [];
+  const currentImageUrls = imageEditorTouched
+    ? existingImageUrls
+    : (await listProductImages(product.id)).map((image) => image.url);
+  const nextImageUrls = [...currentImageUrls, ...uploadedImageUrls];
+  if (imageEditorTouched || uploadedImageUrls.length || existingImageUrls.length) {
+    await replaceProductImages(product.id, nextImageUrls, product.name);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/shop");
   revalidatePath("/admin/products");
+  revalidatePath(`/product/${product.slug}`);
+  if (existingProduct?.slug && existingProduct.slug !== product.slug) {
+    revalidatePath(`/product/${existingProduct.slug}`);
+  }
   redirect("/admin/products");
+}
+
+export async function bulkUploadProductsAction(formData: FormData) {
+  const actor = await guard();
+  const file = formData.get("productFile");
+  if (!(file instanceof File) || file.size === 0) {
+    throw new Error("Product file is required");
+  }
+  if (file.name && !file.name.toLowerCase().endsWith(".csv")) {
+    throw new Error("Upload file must be a CSV file");
+  }
+
+  const content = await file.text();
+  const rows = parseProductUploadCsv(content);
+  const [categories, brands, products] = await Promise.all([listCategories(), listBrands(), listProducts()]);
+  const categoryLookup = buildLookupMap(categories);
+  const brandLookup = buildLookupMap(brands);
+  const productLookup = new Map<string, (typeof products)[number]>();
+  for (const product of products) {
+    productLookup.set(normalizeLookupKey(product.id), product);
+    productLookup.set(normalizeLookupKey(product.sku), product);
+  }
+
+  for (const row of rows) {
+    if (!row.record.name.trim()) {
+      throw new Error(`Row ${row.lineNumber}: Product name is required`);
+    }
+    if (!row.record.description.trim()) {
+      throw new Error(`Row ${row.lineNumber}: Product description is required`);
+    }
+
+    const category = categoryLookup.get(normalizeLookupKey(row.categoryRef));
+    if (!category) {
+      throw new Error(`Row ${row.lineNumber}: Category "${row.categoryRef}" was not found`);
+    }
+
+    const brand = brandLookup.get(normalizeLookupKey(row.brandRef));
+    if (!brand) {
+      throw new Error(`Row ${row.lineNumber}: Brand "${row.brandRef}" was not found`);
+    }
+
+    const sku = row.record.sku.trim();
+    const existingProduct = sku ? productLookup.get(normalizeLookupKey(sku)) ?? null : null;
+    const product = await upsertProduct(
+      {
+        id: existingProduct?.id,
+        name: row.record.name.trim(),
+        slug: row.record.slug.trim() || undefined,
+        sku: sku || undefined,
+        description: row.record.description.trim(),
+        price: row.price,
+        compareAtPrice: row.compareAtPrice ?? undefined,
+        stock: row.stock,
+        lowStockThreshold: row.lowStockThreshold,
+        categoryId: category.id,
+        brandId: brand.id,
+        isActive: parseBooleanValue(row.record.isActive, true),
+        featured: parseBooleanValue(row.record.featured, false),
+        weightGrams: row.weightGrams,
+        tags: row.tags,
+        searchKeywords: row.searchKeywords,
+        metadata: row.metadata,
+      },
+      actor,
+    );
+
+    if (row.imageUrls.length > 0) {
+      await replaceProductImages(product.id, row.imageUrls, product.name);
+    }
+
+    if (existingProduct?.slug && existingProduct.slug !== product.slug) {
+      revalidatePath(`/product/${existingProduct.slug}`);
+    }
+    revalidatePath(`/product/${product.slug}`);
+
+    productLookup.set(normalizeLookupKey(product.id), product);
+    productLookup.set(normalizeLookupKey(product.sku), product);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/admin/products");
+  redirect(`/admin/products?imported=${rows.length}`);
 }
 
 export async function deleteProductAction(formData: FormData) {

@@ -1,5 +1,6 @@
 import { hashSync } from "bcryptjs";
 import type { DatabaseState } from "@/lib/domain";
+import { createDefaultProductMetadata } from "@/lib/product-admin";
 import { slugify } from "@/lib/utils";
 import { siteBrand } from "@/lib/site-brand";
 
@@ -18,7 +19,7 @@ export function createSeedState(): DatabaseState {
     { id: "brand-3", name: "Nova Gear", slug: "nova-gear", description: "Practical accessories.", isActive: true },
   ];
 
-  const products = [
+  const products: DatabaseState["products"] = [
     {
       id: "prod-1",
       name: "Everyday Cotton Shirt",
@@ -36,6 +37,21 @@ export function createSeedState(): DatabaseState {
       weightGrams: 300,
       tags: ["top-seller", "bundle"],
       searchKeywords: ["cotton", "shirt", "top-seller", "bundle"],
+      metadata: {
+        ...createDefaultProductMetadata(),
+        returnWindowDays: 7,
+        handlingTimeDays: 2,
+        shippingClass: "standard",
+        packageWeight: 0.3,
+        packageWeightUnit: "kg",
+        packageLength: 32,
+        packageWidth: 24,
+        packageHeight: 4,
+        packageDimensionsUnit: "cm",
+        variantGroups: [
+          { name: "Size", options: ["M", "L", "XL"], priceAdjustment: 0, sku: "ET-SHIRT-001" },
+        ],
+      },
       createdAt: now,
     },
     {
@@ -55,6 +71,16 @@ export function createSeedState(): DatabaseState {
       weightGrams: 120,
       tags: ["beauty", "landing-page"],
       searchKeywords: ["serum", "beauty", "glow"],
+      metadata: {
+        ...createDefaultProductMetadata(),
+        condition: "new",
+        returnWindowDays: 3,
+        handlingTimeDays: 1,
+        shippingClass: "fragile",
+        packageWeight: 0.12,
+        packageWeightUnit: "kg",
+        packageDimensionsUnit: "cm",
+      },
       createdAt: now,
     },
     {
@@ -73,6 +99,21 @@ export function createSeedState(): DatabaseState {
       weightGrams: 450,
       tags: ["new-arrival"],
       searchKeywords: ["tote", "bag", "new-arrival"],
+      metadata: {
+        ...createDefaultProductMetadata(),
+        isPhysical: true,
+        returnable: true,
+        returnWindowDays: 14,
+        handlingTimeDays: 2,
+        shippingClass: "oversized",
+        packageWeight: 0.45,
+        packageWeightUnit: "kg",
+        packageLength: 36,
+        packageWidth: 40,
+        packageHeight: 10,
+        packageDimensionsUnit: "cm",
+        discountEnabled: true,
+      },
       createdAt: now,
     },
   ];

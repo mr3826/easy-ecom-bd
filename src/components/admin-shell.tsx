@@ -14,15 +14,13 @@ import {
   Settings2,
   WalletCards,
   CircleDollarSign,
-  ArrowLeftRight,
 } from "lucide-react";
 
 const nav = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/products", label: "Products", icon: Package },
+  { href: "/admin/products", label: "Products & Inventory", icon: Package },
   { href: "/admin/categories", label: "Categories", icon: Tags },
   { href: "/admin/brands", label: "Brands", icon: Boxes },
-  { href: "/admin/inventory", label: "Inventory", icon: ArrowLeftRight },
   { href: "/admin/orders", label: "Orders", icon: ShoppingBag },
   { href: "/admin/customers", label: "Customers", icon: Users },
   { href: "/admin/coupons", label: "Coupons", icon: BadgePercent },

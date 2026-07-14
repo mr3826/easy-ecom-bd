@@ -52,7 +52,12 @@ async function main() {
     await prisma.category.createMany({ data: state.categories });
     await prisma.brand.createMany({ data: state.brands });
     await prisma.courier.createMany({ data: state.couriers });
-    await prisma.product.createMany({ data: state.products });
+    await prisma.product.createMany({
+      data: state.products.map(({ metadata, ...product }) => ({
+        ...product,
+        ...(metadata ? { metadata: JSON.parse(JSON.stringify(metadata)) as Prisma.InputJsonValue } : {}),
+      })),
+    });
     await prisma.productImage.createMany({ data: state.productImages });
     await prisma.coupon.createMany({ data: state.coupons });
     await prisma.landingPage.createMany({ data: state.landingPages });
