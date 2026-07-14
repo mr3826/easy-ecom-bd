@@ -106,7 +106,7 @@ export function createSeedState(): DatabaseState {
         id: "img-1",
         productId: products[0].id,
         url: "/hero-products.png",
-        alt: "Easy e-commerce hero products",
+        alt: "Bornohin hero products",
         sortOrder: 1,
       },
       {

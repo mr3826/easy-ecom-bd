@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
-import { getCollectionBySlug, getProductBySlug, getRelatedProducts, storefrontCollections } from "@/lib/mokkah-storefront";
+import { getCollectionBySlug, getProductBySlug, getRelatedProducts, storefrontCollections } from "@/lib/bornohin-storefront";
 import { money } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +46,7 @@ export default async function ProductPage({
 
         <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="overflow-hidden border border-[color:var(--border)] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-            <div className="relative aspect-[4/3] bg-white">
+            <div className="relative aspect-[9/16] bg-white">
               <div className={`absolute inset-0 bg-gradient-to-br ${product.tone}`} />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.38),transparent_55%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(0,0,0,0.16))]" />
               <Image src="/hero-products.png" alt={product.name} fill className="object-cover mix-blend-soft-light opacity-70" />

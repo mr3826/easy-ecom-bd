@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
-import { searchStorefrontProducts } from "@/lib/mokkah-storefront";
+import { searchStorefrontProducts } from "@/lib/bornohin-storefront";
 
 export const dynamic = "force-dynamic";
 

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { StorefrontCollection } from "@/lib/mokkah-storefront";
+import type { StorefrontCollection } from "@/lib/bornohin-storefront";
 import { ProductCard } from "@/components/product-card";
 
 type ProductSectionProps = {

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ShoppingCart, Menu, X, CircleUserRound, ChevronDown, Heart, Trash2, Minus, Plus } from "lucide-react";
 import { money } from "@/lib/utils";
-import { storefrontCategoryRail, storefrontPrimaryNav } from "@/lib/mokkah-storefront";
+import { storefrontCategoryRail, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
 
 type CartSummaryItem = {
@@ -43,7 +43,7 @@ const wishlistPreview = [
   {
     id: "wishlist-pk-artistic",
     name: "PK Artistic",
-    sku: "MFB-36",
+    sku: "BOR-36",
     price: 1350,
     tone: "from-[#7d4c58] via-[#b15a74] to-[#4b2a34]",
   },

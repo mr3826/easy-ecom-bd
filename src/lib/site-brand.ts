@@ -1,5 +1,5 @@
 export const siteBrand = {
-  name: "Bornohin Lifestyle",
+  name: "Bornohin",
   tagline: "Style that speaks",
   logoPath: "/bornohin-lifestyle-logo.png",
   supportEmail: "support@bornohinlifestyle.com",
