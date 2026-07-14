@@ -13,7 +13,6 @@ export function ProductsFilterDrawer({
   categories: Category[];
   values: {
     q: string;
-    edit: string;
     category: string;
     status: string;
     source: string;
@@ -71,7 +70,6 @@ export function ProductsFilterDrawer({
 
             <form method="get" action="/admin/products" className="mt-6 grid flex-1 gap-4 overflow-auto pr-1">
               <input type="hidden" name="q" value={values.q} />
-              <input type="hidden" name="edit" value={values.edit} />
 
               <label className="grid gap-2 text-sm text-slate-200">
                 <span className="font-medium text-slate-100">Category</span>
