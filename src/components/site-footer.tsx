@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getSettings } from "@/server/store";
-import { storefrontCollections, storefrontPrimaryNav } from "@/lib/mokkah-storefront";
+import { storefrontCollections, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
 
 export async function SiteFooter() {

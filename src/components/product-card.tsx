@@ -27,7 +27,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
   return (
     <article className="group flex h-full flex-col overflow-hidden border border-[color:var(--border)] bg-white shadow-[0_10px_24px_rgba(15,23,42,0.04)] transition duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_18px_38px_rgba(15,23,42,0.09)]">
       <Link href={href} className="block">
-        <div className="relative aspect-[4/5] overflow-hidden bg-[color:var(--surface-soft)]">
+        <div className="relative aspect-[9/16] overflow-hidden bg-[color:var(--surface-soft)]">
           <div className={cn("absolute inset-0 bg-gradient-to-br", toneClass)} />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.54),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(255,255,255,0.18),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(0,0,0,0.22))]" />
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/28 to-transparent" />

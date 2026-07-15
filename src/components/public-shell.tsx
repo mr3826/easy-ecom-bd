@@ -6,7 +6,7 @@ import { SiteAnalytics } from "@/components/site-analytics";
 import { getSettings } from "@/server/store";
 import { getCurrentUser } from "@/server/auth";
 import { getCartSummary, getOrCreateCart } from "@/server/store";
-import { storefrontProducts } from "@/lib/mokkah-storefront";
+import { storefrontProducts } from "@/lib/bornohin-storefront";
 import { money } from "@/lib/utils";
 import { siteBrand } from "@/lib/site-brand";
 
@@ -20,7 +20,7 @@ function buildFallbackCartSummary() {
     product: {
       id: product.slug,
       name: product.name,
-      sku: `MFB-${index + 1}`,
+      sku: `BOR-${index + 1}`,
       slug: product.slug,
       price: product.price,
     },

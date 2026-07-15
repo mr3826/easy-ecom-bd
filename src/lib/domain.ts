@@ -77,6 +77,44 @@ export interface ProductImage {
   sortOrder: number;
 }
 
+export type ProductCondition = "new" | "used" | "refurbished";
+
+export type ProductSource = "manual" | "bulk";
+
+export type ProductWeightUnit = "g" | "kg" | "lb" | "oz";
+
+export type ProductDimensionUnit = "cm" | "mm" | "in";
+
+export interface ProductVariantGroup {
+  name: string;
+  options: string[];
+  priceAdjustment: number;
+  sku?: string;
+}
+
+export interface ProductMetadata {
+  condition: ProductCondition;
+  source: ProductSource;
+  isPhysical: boolean;
+  minOrderQuantity: number;
+  maxOrderQuantity?: number | null;
+  returnable: boolean;
+  returnWindowDays?: number | null;
+  warrantyText?: string | null;
+  expiryDate?: string | null;
+  handlingTimeDays?: number | null;
+  shippingClass?: string | null;
+  packageWeight?: number | null;
+  packageWeightUnit?: ProductWeightUnit | null;
+  packageLength?: number | null;
+  packageWidth?: number | null;
+  packageHeight?: number | null;
+  packageDimensionsUnit?: ProductDimensionUnit | null;
+  taxEnabled: boolean;
+  discountEnabled: boolean;
+  variantGroups: ProductVariantGroup[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -95,6 +133,7 @@ export interface Product {
   weightGrams: number;
   tags: string[];
   searchKeywords: string[];
+  metadata?: ProductMetadata | null;
   createdAt: string;
   updatedAt?: string;
 }

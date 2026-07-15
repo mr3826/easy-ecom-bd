@@ -1,4 +1,4 @@
-# Easy Ecom BD
+# Bornohin
 
 Bangladesh-focused ecommerce starter built with Next.js App Router, a protected admin dashboard, direct wallet payment flows for bKash and Nagad, and delivery abstractions for Pathao and Steadfast.
 
@@ -28,4 +28,3 @@ Bangladesh-focused ecommerce starter built with Next.js App Router, a protected 
 - The local demo mode uses an in-memory store so the site is functional without a database.
 - The Prisma schema is ready for PostgreSQL once `DATABASE_URL` is configured.
 - Payment callbacks are verified in the backend route handlers before an order can become paid.
-

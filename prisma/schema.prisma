@@ -135,6 +135,7 @@ model Product {
   featured          Boolean   @default(false)
   archivedAt        DateTime?
   weightGrams       Int       @default(0)
+  metadata          Json?
   tags              String[]
   searchKeywords    String[]
   createdAt         DateTime  @default(now())

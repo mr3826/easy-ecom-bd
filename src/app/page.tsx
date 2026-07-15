@@ -1,7 +1,7 @@
 import { PublicShell } from "@/components/public-shell";
 import { HomeHeroSlider, type HomeHeroSlide } from "@/components/home-hero-slider";
 import { ProductSection } from "@/components/product-section";
-import { storefrontCollections } from "@/lib/mokkah-storefront";
+import { storefrontCollections } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
 
 export const dynamic = "force-dynamic";

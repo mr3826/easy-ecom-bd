@@ -18,35 +18,35 @@ export default async function AdminDeliveriesPage() {
   ];
 
   return (
-    <div className="space-y-6 text-slate-100">
+    <div className="space-y-6 text-[color:var(--foreground)]">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Deliveries</p>
-        <h1 className="mt-2 text-3xl font-semibold text-white">Delivery status management</h1>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Deliveries</p>
+        <h1 className="mt-2 text-3xl font-semibold text-[color:var(--foreground)]">Delivery status management</h1>
       </div>
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <section className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
-          <h2 className="text-xl font-semibold text-white">Zone charges</h2>
+        <section className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5">
+          <h2 className="text-xl font-semibold text-[color:var(--foreground)]">Zone charges</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             {zoneRows.map((row) => {
               const zone = deliveryZones.find((item) => item.key === row.key);
               return (
-                <div key={row.key} className="rounded-3xl border border-white/10 bg-slate-950/70 p-4">
-                  <p className="font-semibold text-white">{zone?.name}</p>
-                  <p className="mt-2 text-sm text-slate-400">{money(row.charge)}</p>
+                <div key={row.key} className="rounded-3xl border border-[color:var(--border)] bg-white p-4">
+                  <p className="font-semibold text-[color:var(--foreground)]">{zone?.name}</p>
+                  <p className="mt-2 text-sm text-[color:var(--muted)]">{money(row.charge)}</p>
                   <StatusPill label={row.cod ? "COD allowed" : "COD off"} tone={row.cod ? "active" : "inactive"} />
                 </div>
               );
             })}
           </div>
         </section>
-        <section className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
-          <h2 className="text-xl font-semibold text-white">Courier readiness</h2>
+        <section className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5">
+          <h2 className="text-xl font-semibold text-[color:var(--foreground)]">Courier readiness</h2>
           <div className="mt-4 space-y-3">
             {providerRows.map((row) => {
               const provider = courierOptions.find((item) => item.key === row.key);
               return (
-                <div key={row.key} className="flex items-center justify-between gap-3 rounded-3xl border border-white/10 bg-slate-950/70 p-4">
-                  <p className="font-semibold text-white">{provider?.name}</p>
+                <div key={row.key} className="flex items-center justify-between gap-3 rounded-3xl border border-[color:var(--border)] bg-white p-4">
+                  <p className="font-semibold text-[color:var(--foreground)]">{provider?.name}</p>
                   <StatusPill label={row.enabled ? "enabled" : "disabled"} tone={row.enabled ? "active" : "inactive"} />
                 </div>
               );
@@ -56,20 +56,20 @@ export default async function AdminDeliveriesPage() {
       </div>
       <div className="space-y-4">
         {shipments.map((shipment) => (
-          <div key={shipment.id} className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+          <div key={shipment.id} className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-white">{shipment.trackingId}</h2>
-                <p className="mt-1 text-sm text-slate-400">{shipment.courierKey} · {shipment.customerName} · {shipment.customerPhone}</p>
+                <h2 className="text-lg font-semibold text-[color:var(--foreground)]">{shipment.trackingId}</h2>
+                <p className="mt-1 text-sm text-[color:var(--muted)]">{shipment.courierKey} · {shipment.customerName} · {shipment.customerPhone}</p>
               </div>
               <StatusPill label={shipment.status} tone={shipment.status} />
             </div>
-            <p className="mt-3 text-sm text-slate-300">{shipment.customerAddress}</p>
+            <p className="mt-3 text-sm text-[color:var(--muted)]">{shipment.customerAddress}</p>
             <form action={syncShipmentStatusAction} className="mt-4 flex flex-wrap items-end gap-3">
               <input type="hidden" name="shipmentId" value={shipment.id} />
               <label className="grid gap-2 text-sm">
                 <span>Sync status</span>
-                <select name="status" defaultValue={shipment.status} className="rounded-2xl border border-white/10 bg-slate-950 px-4 py-3 text-white">
+                <select name="status" defaultValue={shipment.status} className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)]">
                   {deliveryStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
                 </select>
               </label>

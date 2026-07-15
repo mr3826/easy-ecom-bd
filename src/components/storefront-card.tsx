@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, ShoppingBag, Star } from "lucide-react";
-import type { StorefrontProduct } from "@/lib/mokkah-storefront";
+import type { StorefrontProduct } from "@/lib/bornohin-storefront";
 import { money } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +18,7 @@ export function StorefrontCard({
   return (
     <article className="group overflow-hidden border border-[color:var(--border)] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
       <Link href={href} className="block">
-        <div className={cn("relative overflow-hidden", compact ? "aspect-[4/3]" : "aspect-[4/3]")}>
+        <div className={cn("relative overflow-hidden", compact ? "aspect-[9/16]" : "aspect-[9/16]")}>
           <div className={cn("absolute inset-0 bg-gradient-to-br", product.tone)} />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.34),transparent_55%),linear-gradient(180deg,rgba(255,255,255,0.05),rgba(0,0,0,0.2))]" />
           <div className="absolute inset-x-0 bottom-0 h-24 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.28))]" />
@@ -83,4 +83,3 @@ export function StorefrontCard({
     </article>
   );
 }
-

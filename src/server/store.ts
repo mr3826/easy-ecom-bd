@@ -28,6 +28,7 @@ import type { SessionUser } from "@/server/auth";
 import { money, slugify } from "@/lib/utils";
 import { createSeedState } from "@/server/seed";
 import { siteBrand } from "@/lib/site-brand";
+import { normalizeProductMetadata } from "@/lib/product-admin";
 
 type Actor = Pick<SessionUser, "id" | "email"> | null | undefined;
 
@@ -344,8 +345,18 @@ function buildProductSearchKeywords(input: {
   sku?: string;
   description?: string;
   tags?: string[];
+  metadata?: Product["metadata"] | null;
 }) {
-  const source = [input.name, input.sku, input.description, ...(input.tags ?? [])].join(" ");
+  const metadataTerms = input.metadata
+    ? [
+        input.metadata.source,
+        input.metadata.condition,
+        input.metadata.shippingClass,
+        input.metadata.warrantyText,
+        ...(input.metadata.variantGroups ?? []).flatMap((group) => [group.name, ...group.options, group.sku ?? ""]),
+      ]
+    : [];
+  const source = [input.name, input.sku, input.description, ...(input.tags ?? []), ...metadataTerms].join(" ");
   return Array.from(
     new Set(
       source
@@ -360,7 +371,7 @@ function buildProductSearchKeywords(input: {
 export async function upsertProduct(
   input: Partial<Product> &
     Pick<Product, "name" | "description" | "price" | "categoryId" | "brandId"> & {
-      imageUrls?: string[];
+      metadata?: Product["metadata"] | null;
     },
   actor?: Actor,
 ) {
@@ -375,6 +386,12 @@ export async function upsertProduct(
   const existing = input.id ? await prisma.product.findUnique({ where: { id: input.id } }) : null;
   const sku = input.sku ?? existing?.sku ?? `${slugify(input.name).toUpperCase()}-${randomBytes(2).toString("hex").toUpperCase()}`;
   const tags = input.tags ?? [];
+  const existingMetadata = normalizeProductMetadata(existing?.metadata ?? null);
+  const metadata = normalizeProductMetadata({
+    ...existingMetadata,
+    ...(input.metadata ?? {}),
+  });
+  const metadataJson = JSON.parse(JSON.stringify(metadata)) as Prisma.InputJsonValue;
   const searchKeywords = input.searchKeywords?.length
     ? input.searchKeywords
     : buildProductSearchKeywords({
@@ -382,6 +399,7 @@ export async function upsertProduct(
         sku,
         description: input.description,
         tags,
+        metadata,
       });
   const record = existing
     ? await prisma.product.update({
@@ -403,6 +421,7 @@ export async function upsertProduct(
           weightGrams: input.weightGrams ?? 0,
           tags,
           searchKeywords,
+          metadata: metadataJson,
         },
       })
     : await prisma.product.create({
@@ -423,22 +442,9 @@ export async function upsertProduct(
           weightGrams: input.weightGrams ?? 0,
           tags,
           searchKeywords,
+          metadata: metadataJson,
         },
       });
-
-  if (input.imageUrls) {
-    await prisma.productImage.deleteMany({ where: { productId: record.id } });
-    if (input.imageUrls.length) {
-      await prisma.productImage.createMany({
-        data: input.imageUrls.map((url, index) => ({
-          productId: record.id,
-          url,
-          alt: input.name,
-          sortOrder: index,
-        })),
-      });
-    }
-  }
 
   await recordAuditLog({
     actor,
@@ -450,6 +456,26 @@ export async function upsertProduct(
   });
 
   return record as unknown as Product;
+}
+
+export async function replaceProductImages(productId: string, imageUrls: string[], alt: string) {
+  const prisma = getPrisma();
+  await prisma.productImage.deleteMany({ where: { productId } });
+  if (!imageUrls.length) {
+    return [];
+  }
+  await prisma.productImage.createMany({
+    data: imageUrls.map((url, index) => ({
+      productId,
+      url,
+      alt,
+      sortOrder: index,
+    })),
+  });
+  return prisma.productImage.findMany({
+    where: { productId },
+    orderBy: { sortOrder: "asc" },
+  }) as unknown as Array<{ id: string; productId: string; url: string; alt: string; sortOrder: number }>;
 }
 
 export async function archiveProduct(id: string, actor?: Actor) {
