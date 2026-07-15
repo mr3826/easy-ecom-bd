@@ -97,6 +97,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p ~/.ssh
           : "${DEPLOY_PORT:=22}"
           ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
