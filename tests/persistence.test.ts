@@ -26,6 +26,7 @@ import {
   upsertCategory,
   upsertCoupon,
   upsertProduct,
+  replaceProductImages,
   clearCart,
 } from "@/server/store";
 
@@ -89,10 +90,10 @@ async function createCatalogItem(stock = 5) {
       isActive: true,
       featured: false,
       tags: ["test"],
-      imageUrls: ["/hero-products.png"],
     },
     actor ?? undefined,
   );
+  await replaceProductImages(product.id, ["/hero-products.png"], product.name);
   return { actor, category, brand, product };
 }
 
