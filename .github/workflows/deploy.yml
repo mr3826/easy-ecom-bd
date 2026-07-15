@@ -110,4 +110,10 @@ jobs:
           set -euo pipefail
           : "${DEPLOY_PORT:=22}"
           : "${DEPLOY_PATH:?Set CPANEL_DEPLOY_PATH}"
-          ssh -p "$DEPLOY_PORT" "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && mkdir -p tmp && touch tmp/restart.txt"
+          ssh -p "$DEPLOY_PORT" -i /tmp/cpanel_deploy_key -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && mkdir -p tmp && touch tmp/restart.txt"
+
+      - name: Cleanup deploy key
+        if: steps.cpanel-secrets.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          rm -f /tmp/cpanel_deploy_key
