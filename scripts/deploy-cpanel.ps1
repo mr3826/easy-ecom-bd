@@ -5,8 +5,8 @@ Builds the Next.js standalone app and uploads it to cPanel via explicit FTPS.
 #>
 
 param(
-    [string]$ProjectRoot = (Split-Path -Parent $MyInvocation.MyCommand.Path),
-    [string]$DeployDir = Join-Path $ProjectRoot "deploy-package",
+    [string]$ProjectRoot,
+    [string]$DeployDir,
     [string]$FtpHost = "ftp.bornohinbd.com",
     [int]$FtpPort = 21,
     [string]$FtpUser = "github-deploy@admin.bornohinbd.com",
@@ -18,6 +18,14 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $ProjectRoot) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $ProjectRoot = Split-Path -Parent $scriptDir
+}
+if (-not $DeployDir) {
+    $DeployDir = Join-Path $ProjectRoot "deploy-package"
+}
 
 function Write-Step { param([string]$Text) Write-Host "`n==> $Text" -ForegroundColor Cyan }
 function Write-OK { param([string]$Text) Write-Host "    $Text" -ForegroundColor Green }
