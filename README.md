@@ -28,3 +28,24 @@ Bangladesh-focused ecommerce starter built with Next.js App Router, a protected 
 - The local demo mode uses an in-memory store so the site is functional without a database.
 - The Prisma schema is ready for PostgreSQL once `DATABASE_URL` is configured.
 - Payment callbacks are verified in the backend route handlers before an order can become paid.
+
+## Deployment
+
+Current deployment is done locally to cPanel via FTPS using the script below.
+
+### Local cPanel deploy
+
+```powershell
+.\scripts\deploy-cpanel.ps1
+```
+
+Options:
+- `-SkipBuild` — skip `npm ci`, `prisma generate`, `lint`, and `build`
+- `-DryRun` — show uploads without writing to FTP
+- `-RemoteDir /home/bornohin/public_html` — override upload target
+
+This script builds the Next.js standalone app, uploads it to `ftp.bornohinbd.com`, and restarts Passenger by touching `tmp/restart.txt`.
+
+### GitHub Actions
+
+The repo also contains `.github/workflows/deploy.yml`, but automated deployment from GitHub Actions to this server is not currently working due to SSH/FTP access restrictions from the runner. Use the local deploy script until that is resolved.
