@@ -18,6 +18,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
 
 if (-not $ProjectRoot) {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
