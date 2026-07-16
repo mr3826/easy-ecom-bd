@@ -88,6 +88,7 @@ jobs:
           password: ${{ secrets.CPANEL_FTP_PASSWORD }}
           local-dir: ./deploy-package/
           server-dir: /
+          protocol: ftps
           exclude: |
             tmp/
           state-name: .cpanel-ftp-deploy.json
