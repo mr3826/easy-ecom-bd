@@ -177,14 +177,52 @@ function Upload-FtpItem {
 Write-Step "Uploading deploy bundle to cPanel via FTPS"
 $rootRemote = $RemoteDir.TrimEnd('/')
 if ([string]::IsNullOrEmpty($rootRemote)) { $rootRemote = '/' }
-if ($rootRemote -ne '/') { Ensure-FtpDirectory -Path $rootRemote }
-Get-ChildItem -LiteralPath $DeployDir -Force | ForEach-Object {
-    Upload-FtpItem -LocalPath $_.FullName -RemotePath $rootRemote
-}
-Write-OK "Upload complete"
 
-Write-Step "Restarting Passenger app"
-if ($rootRemote -eq '/') { $restartPath = '/tmp/restart.txt' } else { $restartPath = "$rootRemote/tmp/restart.txt" }
+$zipPath = Join-Path $env:TEMP "deploy-package.zip"
+if (Test-Path $zipPath) { Remove-Item $zipPath }
+Compress-Archive -Path (Join-Path $DeployDir '*') -DestinationPath $zipPath -Force
+Write-OK "Created deploy zip: $zipPath"
+
+$cred = "$FtpUser`:$FtpPassword"
+$ftpZipUri = "ftp://${FtpHost}:${FtpPort}${rootRemote}/deploy-package.zip"
+curl.exe -T $zipPath $ftpZipUri --user $cred --ssl-reqd --insecure
+Write-OK "Uploaded deploy-package.zip"
+
+$phpExtract = @'
+<?php
+$zip = new ZipArchive();
+$res = $zip->open('deploy-package.zip');
+if ($res === TRUE) {
+    $zip->extractTo('.');
+    $zip->close();
+    echo 'OK';
+} else {
+    echo 'FAIL';
+}
+?>
+'@
+$phpPath = Join-Path $env:TEMP "extract-deploy.php"
+Set-Content -Path $phpPath -Value $phpExtract -Encoding ASCII
+$ftpPhpUri = "ftp://${FtpHost}:${FtpPort}${rootRemote}/extract-deploy.php"
+curl.exe -T $phpPath $ftpPhpUri --user $cred --ssl-reqd --insecure
+Write-OK "Uploaded extract-deploy.php"
+
+$protocol = "https"
+$hostForUrl = $FtpHost
+if ($rootRemote -ne '/') {
+    $targetDir = $rootRemote.TrimStart('/')
+} else {
+    $targetDir = ''
+}
+$extractUrl = "$protocol://$hostForUrl/extract-deploy.php"
+if (-not [string]::IsNullOrEmpty($targetDir)) {
+    $extractUrl = "$protocol://$hostForUrl/$targetDir/extract-deploy.php"
+}
+Write-Host "    Visit this URL to extract the deployment package:"
+Write-Host "    $extractUrl" -ForegroundColor Yellow
+
+$restartPath = '/tmp/restart.txt'
+if ($rootRemote -ne '/') { $restartPath = "$rootRemote/tmp/restart.txt" }
 try {
     $uri = "ftp://${FtpHost}:${FtpPort}$restartPath"
     $req = New-FtpRequest -Uri $uri -Method 'STOR'
@@ -199,6 +237,7 @@ try {
 
 Write-Step "Cleaning up"
 Remove-Item -Recurse -Force $DeployDir | Out-Null
-Write-OK "Cleaned deploy-package"
+if (Test-Path $zipPath) { Remove-Item $zipPath }
+Write-OK "Cleaned deploy-package and zip"
 
 Write-Host "`nDeployment finished." -ForegroundColor Green
