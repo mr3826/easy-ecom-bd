@@ -60,9 +60,9 @@ if (-not $SkipBuild) {
 Write-Step "Preparing deploy bundle"
 if (Test-Path $DeployDir) { Remove-Item -Recurse -Force $DeployDir }
 New-Item -ItemType Directory -Path "$DeployDir\.next" | Out-Null
-Copy-Item -LiteralPath "$ProjectRoot\.next\standalone\*" -Destination "$DeployDir\" -Recurse -Force | Out-Null
-Copy-Item -LiteralPath "$ProjectRoot\.next\static" -Destination "$DeployDir\.next\static" -Recurse -Force | Out-Null
-Copy-Item -LiteralPath "$ProjectRoot\public" -Destination "$DeployDir\public" -Recurse -Force | Out-Null
+Get-ChildItem -LiteralPath "$ProjectRoot\.next\standalone" -Force | Copy-Item -Destination "$DeployDir\" -Recurse -Force
+Copy-Item -LiteralPath "$ProjectRoot\.next\static" -Destination "$DeployDir\.next\static" -Recurse -Force
+Copy-Item -LiteralPath "$ProjectRoot\public" -Destination "$DeployDir\public" -Recurse -Force
 Write-OK "Deploy bundle prepared at: $DeployDir"
 
 function New-FtpRequest {
