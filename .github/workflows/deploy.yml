@@ -17,10 +17,6 @@ jobs:
       contents: read
 
     env:
-      DEPLOY_HOST: ${{ secrets.CPANEL_SSH_HOST }}
-      DEPLOY_USER: ${{ secrets.CPANEL_SSH_USER }}
-      DEPLOY_PORT: ${{ secrets.CPANEL_SSH_PORT }}
-      DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
       NEXT_TELEMETRY_DISABLED: "1"
 
     steps:
@@ -46,6 +42,7 @@ jobs:
         run: npm run build
 
       - name: Prepare deploy bundle
+        shell: bash
         run: |
           set -euo pipefail
           rm -rf deploy-package
@@ -54,16 +51,15 @@ jobs:
           cp -R .next/static deploy-package/.next/static
           cp -R public deploy-package/public
 
-      - name: Check cPanel deploy secrets
-        id: cpanel-secrets
+      - name: Check cPanel FTP secrets
+        id: cpanel-ftp
         shell: bash
         run: |
           set -euo pipefail
           missing=()
-          [ -n "${DEPLOY_HOST:-}" ] || missing+=("CPANEL_SSH_HOST")
-          [ -n "${DEPLOY_USER:-}" ] || missing+=("CPANEL_SSH_USER")
-          [ -n "${DEPLOY_PATH:-}" ] || missing+=("CPANEL_DEPLOY_PATH")
-          [ -n "${DEPLOY_KEY:-}" ] || missing+=("CPANEL_SSH_KEY")
+          [ -n "${FTP_SERVER:-}" ] || missing+=("CPANEL_FTP_SERVER")
+          [ -n "${FTP_USERNAME:-}" ] || missing+=("CPANEL_FTP_USERNAME")
+          [ -n "${FTP_PASSWORD:-}" ] || missing+=("CPANEL_FTP_PASSWORD")
 
           if [ "${#missing[@]}" -eq 0 ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -73,53 +69,27 @@ jobs:
           echo "enabled=false" >> "$GITHUB_OUTPUT"
           printf 'missing=%s\n' "${missing[*]}" >> "$GITHUB_OUTPUT"
         env:
-          DEPLOY_HOST: ${{ secrets.CPANEL_SSH_HOST }}
-          DEPLOY_USER: ${{ secrets.CPANEL_SSH_USER }}
-          DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
-          DEPLOY_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          FTP_SERVER: ${{ secrets.CPANEL_FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.CPANEL_FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.CPANEL_FTP_PASSWORD }}
 
-      - name: Skip cPanel deploy
-        if: steps.cpanel-secrets.outputs.enabled != 'true'
-        run: |
-          echo "::warning::Skipping cPanel deploy because these secrets are not configured: ${{ steps.cpanel-secrets.outputs.missing }}"
-
-      - name: Load SSH key
-        if: steps.cpanel-secrets.outputs.enabled == 'true'
+      - name: Skip FTP deploy
+        if: steps.cpanel-ftp.outputs.enabled != 'true'
         shell: bash
         run: |
-          set -euo pipefail
-          umask 077
-          printf '%s\n' "${{ secrets.CPANEL_SSH_KEY }}" > /tmp/cpanel_deploy_key
-          chmod 600 /tmp/cpanel_deploy_key
+          echo "::warning::Skipping FTP deploy because these secrets are not configured: ${{ steps.cpanel-ftp.outputs.missing }}"
 
-      - name: Trust deploy host
-        if: steps.cpanel-secrets.outputs.enabled == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p ~/.ssh
-          : "${DEPLOY_PORT:=22}"
-          ssh-keyscan -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts || true
-
-      - name: Sync bundle to cPanel
-        if: steps.cpanel-secrets.outputs.enabled == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          : "${DEPLOY_PORT:=22}"
-          : "${DEPLOY_PATH:?Set CPANEL_DEPLOY_PATH}"
-          rsync -az --delete --exclude 'tmp/' -e "ssh -p $DEPLOY_PORT -i /tmp/cpanel_deploy_key -o StrictHostKeyChecking=no" deploy-package/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
-
-      - name: Restart Passenger app
-        if: steps.cpanel-secrets.outputs.enabled == 'true'
-        run: |
-          set -euo pipefail
-          : "${DEPLOY_PORT:=22}"
-          : "${DEPLOY_PATH:?Set CPANEL_DEPLOY_PATH}"
-          ssh -p "$DEPLOY_PORT" -i /tmp/cpanel_deploy_key -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_PATH' && mkdir -p tmp && touch tmp/restart.txt"
-
-      - name: Cleanup deploy key
-        if: steps.cpanel-secrets.outputs.enabled == 'true'
-        shell: bash
-        run: |
-          rm -f /tmp/cpanel_deploy_key
+      - name: Deploy with FTP
+        if: steps.cpanel-ftp.outputs.enabled == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4
+        with:
+          server: ${{ secrets.CPANEL_FTP_SERVER }}
+          username: ${{ secrets.CPANEL_FTP_USERNAME }}
+          password: ${{ secrets.CPANEL_FTP_PASSWORD }}
+          local-dir: ./deploy-package
+          server-dir: /
+          exclude: |
+            tmp/
+          state-name: .cpanel-ftp-deploy.json
+          dry-run: false
+          dangerous-clean-slate: false
