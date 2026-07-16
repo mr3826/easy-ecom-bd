@@ -76,6 +76,9 @@ function New-FtpRequest {
     $req.EnableSsl = $true
     $req.UseBinary = $true
     $req.UsePassive = $true
+    $req.KeepAlive = $false
+    $req.Timeout = 600000
+    $req.ReadWriteTimeout = 600000
     $req.Credentials = [System.Net.NetworkCredential]::new($FtpUser, $FtpPassword)
     if ($Body) { $req.ContentLength = $Body.Length }
     return $req
@@ -131,13 +134,28 @@ function Upload-FtpItem {
     if ($targetDir -notmatch '^/$') { Ensure-FtpDirectory -Path $targetDir }
     $uri = "ftp://${FtpHost}:${FtpPort}$targetPath"
     $bytes = [System.IO.File]::ReadAllBytes($LocalPath)
-    $req = New-FtpRequest -Uri $uri -Method 'STOR' -Body $bytes
-    $stream = $req.GetRequestStream()
-    $stream.Write($bytes, 0, $bytes.Length)
-    $stream.Close()
-    $resp = $req.GetResponse()
-    $resp.Close()
-    Write-Host "    uploaded: $relative"
+    $maxAttempts = 3
+    $attempt = 0
+    while ($attempt -lt $maxAttempts) {
+        try {
+            $req = New-FtpRequest -Uri $uri -Method 'STOR' -Body $bytes
+            $stream = $req.GetRequestStream()
+            $stream.Write($bytes, 0, $bytes.Length)
+            $stream.Close()
+            $resp = $req.GetResponse()
+            $resp.Close()
+            Write-Host "    uploaded: $relative"
+            return
+        } catch [System.Net.WebException] {
+            $attempt++
+            if ($attempt -ge $maxAttempts) {
+                Write-Host "    FAILED upload after $attempt attempts: $relative -> $($_.Exception.Message)" -ForegroundColor Red
+                throw
+            }
+            Write-Host "    retry $attempt/$maxAttempts for $relative: $($_.Exception.Message)" -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+        }
+    }
 }
 
 Write-Step "Uploading deploy bundle to cPanel via FTPS"
