@@ -152,7 +152,7 @@ function Upload-FtpItem {
                 Write-Host "    FAILED upload after $attempt attempts: $relative -> $($_.Exception.Message)" -ForegroundColor Red
                 throw
             }
-            Write-Host "    retry $attempt/$maxAttempts for $relative: $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "    retry $attempt/$maxAttempts for ${relative}: $($_.Exception.Message)" -ForegroundColor Yellow
             Start-Sleep -Seconds 2
         }
     }
