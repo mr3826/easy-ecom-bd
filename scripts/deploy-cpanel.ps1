@@ -214,9 +214,9 @@ if ($rootRemote -ne '/') {
 } else {
     $targetDir = ''
 }
-$extractUrl = "$protocol://$hostForUrl/extract-deploy.php"
+$extractUrl = "${protocol}://$hostForUrl/extract-deploy.php"
 if (-not [string]::IsNullOrEmpty($targetDir)) {
-    $extractUrl = "$protocol://$hostForUrl/$targetDir/extract-deploy.php"
+    $extractUrl = "${protocol}://$hostForUrl/$targetDir/extract-deploy.php"
 }
 Write-Host "    Visit this URL to extract the deployment package:"
 Write-Host "    $extractUrl" -ForegroundColor Yellow
