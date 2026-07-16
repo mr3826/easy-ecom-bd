@@ -86,7 +86,7 @@ jobs:
           server: ${{ secrets.CPANEL_FTP_SERVER }}
           username: ${{ secrets.CPANEL_FTP_USERNAME }}
           password: ${{ secrets.CPANEL_FTP_PASSWORD }}
-          local-dir: ./deploy-package
+          local-dir: ./deploy-package/
           server-dir: /
           exclude: |
             tmp/
