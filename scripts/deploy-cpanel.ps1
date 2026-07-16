@@ -60,9 +60,9 @@ if (-not $SkipBuild) {
 Write-Step "Preparing deploy bundle"
 if (Test-Path $DeployDir) { Remove-Item -Recurse -Force $DeployDir }
 New-Item -ItemType Directory -Path "$DeployDir\.next" | Out-Null
-Copy-Item -Recurse -Force "$ProjectRoot\.next\standalone\*" "$DeployDir\" | Out-Null
-Copy-Item -Recurse -Force "$ProjectRoot\.next\static" "$DeployDir\.next\static" | Out-Null
-Copy-Item -Recurse -Force "$ProjectRoot\public" "$DeployDir\public" | Out-Null
+Copy-Item -LiteralPath "$ProjectRoot\.next\standalone\*" -Destination "$DeployDir\" -Recurse -Force | Out-Null
+Copy-Item -LiteralPath "$ProjectRoot\.next\static" -Destination "$DeployDir\.next\static" -Recurse -Force | Out-Null
+Copy-Item -LiteralPath "$ProjectRoot\public" -Destination "$DeployDir\public" -Recurse -Force | Out-Null
 Write-OK "Deploy bundle prepared at: $DeployDir"
 
 function New-FtpRequest {
@@ -115,7 +115,11 @@ function Upload-FtpItem {
         Write-Host "    [dry-run] $LocalPath -> $RemotePath"
         return
     }
-    if (Test-Path $LocalPath -PathType Container) {
+    if (-not (Test-Path -LiteralPath $LocalPath)) {
+        Write-Host "    skip missing: $LocalPath" -ForegroundColor DarkGray
+        return
+    }
+    if (Test-Path -LiteralPath $LocalPath -PathType Container) {
         $items = Get-ChildItem -LiteralPath $LocalPath -Force
         foreach ($item in $items) {
             $name = $item.Name
@@ -128,16 +132,20 @@ function Upload-FtpItem {
         }
         return
     }
+    if (-not (Test-Path -LiteralPath $LocalPath -PathType Leaf)) {
+        Write-Host "    skip non-file: $LocalPath" -ForegroundColor DarkGray
+        return
+    }
     $relative = $LocalPath.Substring($DeployDir.Length + 1)
     $targetPath = "$RemotePath/$relative".Replace('\', '/')
     $targetDir = Split-Path -Parent $targetPath
     if ($targetDir -notmatch '^/$') { Ensure-FtpDirectory -Path $targetDir }
     $uri = "ftp://${FtpHost}:${FtpPort}$targetPath"
-    $bytes = [System.IO.File]::ReadAllBytes($LocalPath)
     $maxAttempts = 3
     $attempt = 0
     while ($attempt -lt $maxAttempts) {
         try {
+            $bytes = [System.IO.File]::ReadAllBytes($LocalPath)
             $req = New-FtpRequest -Uri $uri -Method 'STOR' -Body $bytes
             $stream = $req.GetRequestStream()
             $stream.Write($bytes, 0, $bytes.Length)
@@ -149,7 +157,15 @@ function Upload-FtpItem {
         } catch [System.Net.WebException] {
             $attempt++
             if ($attempt -ge $maxAttempts) {
-                Write-Host "    FAILED upload after $attempt attempts: $relative -> $($_.Exception.Message)" -ForegroundColor Red
+                Write-Host "    FAILED upload after $attempt attempts: ${relative}: $($_.Exception.Message)" -ForegroundColor Red
+                throw
+            }
+            Write-Host "    retry $attempt/$maxAttempts for ${relative}: $($_.Exception.Message)" -ForegroundColor Yellow
+            Start-Sleep -Seconds 2
+        } catch {
+            $attempt++
+            if ($attempt -ge $maxAttempts) {
+                Write-Host "    FAILED upload after $attempt attempts: ${relative}: $($_.Exception.Message)" -ForegroundColor Red
                 throw
             }
             Write-Host "    retry $attempt/$maxAttempts for ${relative}: $($_.Exception.Message)" -ForegroundColor Yellow
