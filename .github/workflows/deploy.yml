@@ -88,6 +88,8 @@ jobs:
           password: ${{ secrets.CPANEL_FTP_PASSWORD }}
           port: 21
           protocol: ftps
+          ftp-ssl: true
+          timeout: 60
           local-dir: ./deploy-package/
           server-dir: /
           exclude: |
