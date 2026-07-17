@@ -3,6 +3,7 @@ import { ArrowRight, ShoppingBag, Star } from "lucide-react";
 import type { StorefrontProduct } from "@/lib/bornohin-storefront";
 import { money } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { addToCartAction } from "@/app/actions";
 
 export function StorefrontCard({
   product,
@@ -14,6 +15,7 @@ export function StorefrontCard({
   compact?: boolean;
 }) {
   const actionLabel = product.soldOut ? "Sold Out" : product.collectionSlug === "mini-fan" ? "Add to Cart" : product.price <= 500 ? "Add to Cart" : "Select Options";
+  const canQuickAdd = !product.soldOut && actionLabel === "Add to Cart";
 
   return (
     <article className="group overflow-hidden border border-[color:var(--border)] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.04)] transition duration-300 hover:-translate-y-0.5 hover:border-[color:var(--brand)] hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
@@ -67,17 +69,32 @@ export function StorefrontCard({
               <p className="text-sm text-[color:var(--muted)] line-through">{money(product.compareAtPrice)}</p>
             ) : null}
           </div>
-          <span
-            className={cn(
-              "inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em]",
-              product.soldOut
-                ? "border border-[color:var(--border)] bg-[color:var(--surface-soft)] text-[color:var(--muted)]"
-                : "bg-[color:var(--accent)] text-white transition group-hover:bg-[color:var(--brand)]",
-            )}
-          >
-            {actionLabel}
-            <ArrowRight className="h-3.5 w-3.5" />
-          </span>
+          {product.soldOut ? (
+            <span className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">
+              {actionLabel}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </span>
+          ) : canQuickAdd ? (
+            <form action={addToCartAction}>
+              <input type="hidden" name="productId" value={product.id} />
+              <input type="hidden" name="quantity" value="1" />
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition group-hover:bg-[color:var(--brand)]"
+              >
+                {actionLabel}
+                <ShoppingBag className="h-3.5 w-3.5" />
+              </button>
+            </form>
+          ) : (
+            <Link
+              href={href}
+              className="inline-flex items-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white transition group-hover:bg-[color:var(--brand)]"
+            >
+              {actionLabel}
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </div>
       </div>
     </article>

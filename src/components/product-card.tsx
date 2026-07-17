@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { money, cn } from "@/lib/utils";
+import { addToCartAction } from "@/app/actions";
 
 type ProductCardProps = {
   product: {
+    id: string;
     slug: string;
     name: string;
     price: number;
@@ -21,6 +23,7 @@ type ProductCardProps = {
 export function ProductCard({ product, href = `/product/${product.slug}`, actionLabel, categoryName }: ProductCardProps) {
   const buttonLabel = actionLabel ?? (product.soldOut ? "Sold Out" : product.price <= 500 ? "Add to Cart" : "Select Options");
   const isSoldOut = product.soldOut || buttonLabel === "Sold Out";
+  const canQuickAdd = !isSoldOut && buttonLabel === "Add to Cart";
   const collectionLabel = categoryName ?? product.collectionSlug?.replace(/-/g, " ") ?? "featured";
   const toneClass = product.tone ?? "from-[#e6ddd0] via-[#f2ece4] to-[#cbb9a4]";
 
@@ -93,6 +96,18 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
             >
               Sold Out
             </button>
+          ) : canQuickAdd ? (
+            <form action={addToCartAction}>
+              <input type="hidden" name="productId" value={product.id} />
+              <input type="hidden" name="quantity" value="1" />
+              <button
+                type="submit"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
+              >
+                {buttonLabel}
+                <ShoppingBag className="h-4 w-4" />
+              </button>
+            </form>
           ) : (
             <Link
               href={href}

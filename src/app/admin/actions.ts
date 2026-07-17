@@ -447,7 +447,6 @@ export async function bulkUploadProductsAction(formData: FormData) {
 export async function deleteProductAction(formData: FormData) {
   const actor = await guard();
   await deleteProduct(asString(formData.get("id")), actor);
-  revalidatePath("/products");
   revalidatePath("/admin/products");
 }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
-import { searchStorefrontProducts } from "@/lib/bornohin-storefront";
+import { searchStorefrontProducts } from "@/server/storefront-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ export default async function SearchPage({
 }) {
   const params = (await searchParams) ?? {};
   const query = params.query ?? "";
-  const matching = searchStorefrontProducts(query);
+  const matching = await searchStorefrontProducts(query);
 
   return (
     <PublicShell>

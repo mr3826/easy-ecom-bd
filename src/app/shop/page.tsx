@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
-import { searchStorefrontProducts } from "@/lib/bornohin-storefront";
+import { searchStorefrontProducts } from "@/server/storefront-catalog";
+import type { StorefrontProduct } from "@/lib/bornohin-storefront";
 
 export const dynamic = "force-dynamic";
 
 function sortProducts(
-  products: ReturnType<typeof searchStorefrontProducts>,
+  products: StorefrontProduct[],
   sort: string,
 ) {
   const copy = [...products];
@@ -24,7 +25,7 @@ export default async function ShopPage({
   const params = (await searchParams) ?? {};
   const query = params.query ?? "";
   const sort = params.sort ?? "";
-  const products = sortProducts(searchStorefrontProducts(query), sort);
+  const products = sortProducts(await searchStorefrontProducts(query), sort);
 
   return (
     <PublicShell showCategoryRail>

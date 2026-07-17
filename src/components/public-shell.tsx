@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { SiteAnalytics } from "@/components/site-analytics";
 import { getSettings } from "@/server/store";
+import { getStorefrontCategoryRail } from "@/server/storefront-catalog";
 import { getCurrentUser } from "@/server/auth";
 import { getCartSummary, getOrCreateCart } from "@/server/store";
 import { storefrontProducts } from "@/lib/bornohin-storefront";
@@ -43,6 +44,7 @@ export async function PublicShell({
   showCategoryRail?: boolean;
 }) {
   const settings = await getSettings();
+  const categoryRail = await getStorefrontCategoryRail();
   const cookieStore = await cookies();
   const hasDatabase = Boolean(process.env.DATABASE_URL);
   const guestKey = cookieStore.get("easy_ecom_guest")?.value ?? "guest-preview";
@@ -59,6 +61,7 @@ export async function PublicShell({
         contactNumber={settings.contactNumber}
         supportEmail={settings.supportEmail ?? siteBrand.supportEmail}
         cartSummary={cartSummary}
+        categoryRail={categoryRail}
         showCategoryRail={showCategoryRail}
       />
       <main className="pb-20 sm:pb-0">{children}</main>

@@ -1,174 +1,121 @@
 import { hashSync } from "bcryptjs";
 import type { DatabaseState } from "@/lib/domain";
+import { storefrontCollections } from "@/lib/bornohin-storefront";
 import { createDefaultProductMetadata } from "@/lib/product-admin";
 import { slugify } from "@/lib/utils";
 import { siteBrand } from "@/lib/site-brand";
 
 const now = new Date().toISOString();
 
+function buildKeywords(parts: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      parts
+        .map((part) => part?.trim().toLowerCase())
+        .filter((part): part is string => Boolean(part)),
+    ),
+  );
+}
+
 export function createSeedState(): DatabaseState {
-  const categories = [
-    { id: "cat-1", name: "Men's Wear", slug: "mens-wear", description: "Shirts, polos and essentials for the shop floor.", isActive: true },
-    { id: "cat-2", name: "Women", slug: "women", description: "Lifestyle pieces with strong conversion appeal.", isActive: true },
-    { id: "cat-3", name: "Accessories", slug: "accessories", description: "Bundles, giftables, and add-on items.", isActive: true },
-  ];
+  const brand = {
+    id: "brand-bornohin",
+    name: siteBrand.name,
+    slug: slugify(siteBrand.name),
+    description: `Official ${siteBrand.name} catalog`,
+    isActive: true,
+  };
 
-  const brands = [
-    { id: "brand-1", name: "Easy Thread", slug: "easy-thread", description: "House apparel label.", isActive: true },
-    { id: "brand-2", name: "Green Drop", slug: "green-drop", description: "Self-care and home goods.", isActive: true },
-    { id: "brand-3", name: "Nova Gear", slug: "nova-gear", description: "Practical accessories.", isActive: true },
-  ];
+  const categories = storefrontCollections.map((collection) => ({
+    id: `cat-${collection.slug}`,
+    name: collection.title,
+    slug: collection.slug,
+    description: collection.description,
+    isActive: true,
+  }));
 
-  const products: DatabaseState["products"] = [
-    {
-      id: "prod-1",
-      name: "Everyday Cotton Shirt",
-      slug: "everyday-cotton-shirt",
-      sku: "ET-SHIRT-001",
-      description: "A breathable cotton shirt with a clean silhouette, ideal for bundle offers and landing pages.",
-      price: 1290,
-      compareAtPrice: 1590,
-      stock: 48,
-      lowStockThreshold: 8,
-      categoryId: categories[0].id,
-      brandId: brands[0].id,
-      isActive: true,
-      featured: true,
-      weightGrams: 300,
-      tags: ["top-seller", "bundle"],
-      searchKeywords: ["cotton", "shirt", "top-seller", "bundle"],
-      metadata: {
-        ...createDefaultProductMetadata(),
-        returnWindowDays: 7,
-        handlingTimeDays: 2,
-        shippingClass: "standard",
-        packageWeight: 0.3,
-        packageWeightUnit: "kg",
-        packageLength: 32,
-        packageWidth: 24,
-        packageHeight: 4,
-        packageDimensionsUnit: "cm",
-        variantGroups: [
-          { name: "Size", options: ["M", "L", "XL"], priceAdjustment: 0, sku: "ET-SHIRT-001" },
-        ],
-      },
-      createdAt: now,
-    },
-    {
-      id: "prod-2",
-      name: "Glow Serum",
-      slug: "glow-serum",
-      sku: "GD-SERUM-004",
-      description: "A lightweight serum for high-conversion beauty campaigns.",
-      price: 890,
-      compareAtPrice: 1090,
-      stock: 62,
-      lowStockThreshold: 10,
-      categoryId: categories[1].id,
-      brandId: brands[1].id,
-      isActive: true,
-      featured: true,
-      weightGrams: 120,
-      tags: ["beauty", "landing-page"],
-      searchKeywords: ["serum", "beauty", "glow"],
-      metadata: {
-        ...createDefaultProductMetadata(),
-        condition: "new",
-        returnWindowDays: 3,
-        handlingTimeDays: 1,
-        shippingClass: "fragile",
-        packageWeight: 0.12,
-        packageWeightUnit: "kg",
-        packageDimensionsUnit: "cm",
-      },
-      createdAt: now,
-    },
-    {
-      id: "prod-3",
-      name: "All Day Tote",
-      slug: "all-day-tote",
-      sku: "NG-TOTE-008",
-      description: "A roomy tote designed for repeat customers and fast shipping campaigns.",
-      price: 1490,
-      stock: 34,
-      lowStockThreshold: 6,
-      categoryId: categories[2].id,
-      brandId: brands[2].id,
-      isActive: true,
-      featured: false,
-      weightGrams: 450,
-      tags: ["new-arrival"],
-      searchKeywords: ["tote", "bag", "new-arrival"],
-      metadata: {
-        ...createDefaultProductMetadata(),
-        isPhysical: true,
-        returnable: true,
-        returnWindowDays: 14,
-        handlingTimeDays: 2,
-        shippingClass: "oversized",
-        packageWeight: 0.45,
-        packageWeightUnit: "kg",
-        packageLength: 36,
-        packageWidth: 40,
-        packageHeight: 10,
-        packageDimensionsUnit: "cm",
-        discountEnabled: true,
-      },
-      createdAt: now,
-    },
-  ];
+  const products: DatabaseState["products"] = storefrontCollections.flatMap((collection, collectionIndex) =>
+    collection.products.map((product, productIndex) => {
+      const soldOut = Boolean(product.soldOut);
+      return {
+        id: `prod-${collection.slug}-${product.slug}`,
+        name: product.name,
+        slug: product.slug,
+        sku: `BOR-${String(collectionIndex + 1).padStart(2, "0")}-${String(productIndex + 1).padStart(2, "0")}`,
+        description: product.description,
+        price: product.price,
+        compareAtPrice: product.compareAtPrice,
+        stock: soldOut ? 0 : product.featured ? 24 : 18,
+        lowStockThreshold: 5,
+        categoryId: categories[collectionIndex].id,
+        brandId: brand.id,
+        isActive: !soldOut,
+        featured: Boolean(product.featured),
+        archivedAt: soldOut ? now : null,
+        weightGrams: 0,
+        tags: [collection.slug, product.badge ? product.badge.toLowerCase() : null].filter(Boolean) as string[],
+        searchKeywords: buildKeywords([
+          product.name,
+          product.description,
+          collection.title,
+          collection.subtitle,
+          collection.description,
+          product.badge,
+          collection.slug,
+        ]),
+        metadata: {
+          ...createDefaultProductMetadata(),
+          source: "manual",
+          minOrderQuantity: 1,
+          returnable: true,
+          variantGroups: [],
+        },
+        createdAt: now,
+      };
+    }),
+  );
+
+  const productImages = products.map((product) => ({
+    id: `img-${product.id}`,
+    productId: product.id,
+    url: "/hero-products.png",
+    alt: product.name,
+    sortOrder: 1,
+  }));
+
+  const adminUser = {
+    id: "user-admin",
+    name: "Admin User",
+    email: "admin@easy-ecom.test",
+    passwordHash: hashSync("admin1234", 10),
+    role: "admin" as const,
+    phone: "01700000000",
+    createdAt: now,
+  };
+
+  const customerUser = {
+    id: "user-customer",
+    name: "Amina Rahman",
+    email: "amina@example.com",
+    passwordHash: hashSync("customer1234", 10),
+    role: "customer" as const,
+    phone: "01811111111",
+    createdAt: now,
+  };
+
+  const demoOrderProducts = products.slice(0, 2);
+  const demoOrderSubtotal = demoOrderProducts.reduce((sum, product) => sum + product.price, 0);
 
   return {
-    users: [
-      {
-        id: "user-admin",
-        name: "Admin User",
-        email: "admin@easy-ecom.test",
-        passwordHash: hashSync("admin1234", 10),
-        role: "admin",
-        phone: "01700000000",
-        createdAt: now,
-      },
-      {
-        id: "user-customer",
-        name: "Amina Rahman",
-        email: "amina@example.com",
-        passwordHash: hashSync("customer1234", 10),
-        role: "customer",
-        phone: "01811111111",
-        createdAt: now,
-      },
-    ],
+    users: [adminUser, customerUser],
     categories,
-    brands,
+    brands: [brand],
     products,
-    productImages: [
-      {
-        id: "img-1",
-        productId: products[0].id,
-        url: "/hero-products.png",
-        alt: "Bornohin hero products",
-        sortOrder: 1,
-      },
-      {
-        id: "img-2",
-        productId: products[1].id,
-        url: "/hero-products.png",
-        alt: "Beauty product hero",
-        sortOrder: 1,
-      },
-      {
-        id: "img-3",
-        productId: products[2].id,
-        url: "/hero-products.png",
-        alt: "Lifestyle product",
-        sortOrder: 1,
-      },
-    ],
+    productImages,
     carts: [
       {
         id: "cart-demo",
-        ownerId: "user-customer",
+        ownerId: customerUser.id,
         guestKey: "demo",
         items: [{ id: "cart-item-1", productId: products[0].id, quantity: 1 }],
         updatedAt: now,
@@ -178,16 +125,16 @@ export function createSeedState(): DatabaseState {
       {
         id: "order-1",
         orderCode: "EE-240621-1001",
-        customerId: "user-customer",
-        customerName: "Amina Rahman",
-        customerPhone: "01811111111",
-        customerEmail: "amina@example.com",
+        customerId: customerUser.id,
+        customerName: customerUser.name,
+        customerPhone: customerUser.phone ?? "",
+        customerEmail: customerUser.email,
         district: "Dhaka",
         shippingAddress: "House 22, Road 4, Dhanmondi, Dhaka",
         deliveryCharge: 80,
         discountAmount: 90,
-        subtotal: 2180,
-        total: 2170,
+        subtotal: demoOrderSubtotal,
+        total: demoOrderSubtotal - 90 + 80,
         status: "confirmed",
         paymentStatus: "processing",
         deliveryStatus: "courier_created",
@@ -200,10 +147,13 @@ export function createSeedState(): DatabaseState {
         adminNotes: "Seed order for operations dashboard",
         createdAt: now,
         updatedAt: now,
-        items: [
-          { id: "order-item-1", productId: products[0].id, quantity: 1, unitPrice: 1290, lineTotal: 1290 },
-          { id: "order-item-2", productId: products[1].id, quantity: 1, unitPrice: 890, lineTotal: 890 },
-        ],
+        items: demoOrderProducts.map((product, index) => ({
+          id: `order-item-${index + 1}`,
+          productId: product.id,
+          quantity: 1,
+          unitPrice: product.price,
+          lineTotal: product.price,
+        })),
       },
     ],
     payments: [
@@ -212,7 +162,7 @@ export function createSeedState(): DatabaseState {
         orderId: "order-1",
         provider: "bkash",
         transactionId: "TXN-EE-1001",
-        amount: 2170,
+        amount: demoOrderSubtotal - 90 + 80,
         status: "processing",
         rawResponse: { status: "processing", gateway: "demo" },
         createdAt: now,
@@ -226,8 +176,8 @@ export function createSeedState(): DatabaseState {
         orderId: "order-1",
         fromStatus: null,
         toStatus: "confirmed",
-        actorId: "user-admin",
-        actorEmail: "admin@easy-ecom.test",
+        actorId: adminUser.id,
+        actorEmail: adminUser.email,
         note: "Seed confirmed order",
         createdAt: now,
       },
@@ -263,8 +213,8 @@ export function createSeedState(): DatabaseState {
         trackingId: "PT-778899",
         consignmentId: "CON-778899",
         status: "in_transit",
-        customerName: "Amina Rahman",
-        customerPhone: "01811111111",
+        customerName: customerUser.name,
+        customerPhone: customerUser.phone ?? "",
         customerAddress: "House 22, Road 4, Dhanmondi, Dhaka",
         rawResponse: { status: "accepted" },
         createdAt: now,
@@ -281,7 +231,7 @@ export function createSeedState(): DatabaseState {
         heroSubtitle: "Custom landing pages, attached products, and direct wallet checkout for Bangladesh.",
         bannerImageUrl: "/hero-products.png",
         published: true,
-        attachedProductIds: [products[0].id, products[1].id],
+        attachedProductIds: products.slice(0, 2).map((product) => product.id),
         createdAt: now,
         updatedAt: now,
       },
@@ -366,7 +316,7 @@ export function createSeedState(): DatabaseState {
     auditLogs: [
       {
         id: "audit-1",
-        actorEmail: "admin@easy-ecom.test",
+        actorEmail: adminUser.email,
         action: "seed",
         entity: "system",
         entityId: "seed",

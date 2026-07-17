@@ -3,8 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
-import { getCollectionBySlug, getProductBySlug, getRelatedProducts, storefrontCollections } from "@/lib/bornohin-storefront";
 import { money } from "@/lib/utils";
+import { addToCartAction } from "@/app/actions";
+import {
+  getStorefrontCollectionBySlug,
+  getStorefrontCollections,
+  getStorefrontProductBySlug,
+  getStorefrontRelatedProducts,
+} from "@/server/storefront-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +24,14 @@ export default async function ProductPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const product = getProductBySlug(slug);
+  const product = await getStorefrontProductBySlug(slug);
   if (!product) notFound();
 
-  const collection = getCollectionBySlug(product.collectionSlug);
-  const related = getRelatedProducts(product.slug, product.collectionSlug);
-  const siblingCollections = storefrontCollections.filter((entry) => entry.slug !== product.collectionSlug).slice(0, 4);
+  const [collection, related, siblingCollections] = await Promise.all([
+    getStorefrontCollectionBySlug(product.collectionSlug),
+    getStorefrontRelatedProducts(product.slug, product.collectionSlug),
+    getStorefrontCollections().then((collections) => collections.filter((entry) => entry.slug !== product.collectionSlug).slice(0, 4)),
+  ]);
 
   return (
     <PublicShell>
@@ -82,9 +90,26 @@ export default async function ProductPage({
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/cart" className="inline-flex items-center justify-center rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white">
-                Add to cart
-              </Link>
+              {product.soldOut ? (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center justify-center rounded-full bg-[color:var(--surface-soft)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]"
+                >
+                  Sold out
+                </button>
+              ) : (
+                <form action={addToCartAction}>
+                  <input type="hidden" name="productId" value={product.id} />
+                  <input type="hidden" name="quantity" value="1" />
+                  <button
+                    type="submit"
+                    className="inline-flex items-center justify-center rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white"
+                  >
+                    Add to cart
+                  </button>
+                </form>
+              )}
               <Link href={`/shop?category=${product.collectionSlug}`} className="inline-flex items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)]">
                 More in collection
               </Link>

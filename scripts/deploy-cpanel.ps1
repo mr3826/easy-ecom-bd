@@ -7,13 +7,20 @@ Builds the Next.js standalone app and uploads it to cPanel via explicit FTPS.
 param(
     [string]$ProjectRoot,
     [string]$DeployDir,
+    [string]$CpanelHost = "bd10.exonhost.com",
+    [string]$CpanelUser = "bornohin",
+    [string]$CpanelHome = "/home/bornohin",
+    [string]$CpanelApiToken = $env:CPANEL_API_TOKEN,
+    [string]$CpanelDir = "public_html/.next/standalone",
     [string]$FtpHost = "ftp.bornohinbd.com",
+    [string]$WebHost = "bornohinbd.com",
     [int]$FtpPort = 21,
     [string]$FtpUser = "github-deploy@admin.bornohinbd.com",
-    [string]$FtpPassword = "Admin@12345!",
+    [string]$FtpPassword = $env:CPANEL_FTP_PASSWORD,
     [string]$RemoteDir = "/",
     [switch]$SkipBuild,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$SkipExtract
 )
 
 Set-StrictMode -Version Latest
@@ -34,6 +41,7 @@ function Write-Fail { param([string]$Text) Write-Host "FAIL: $Text" -ForegroundC
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Write-Fail "Node.js is not installed or not in PATH." }
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { Write-Fail "npm is not installed or not in PATH." }
+if (-not $CpanelApiToken -and -not $FtpPassword) { Write-Fail "Set CPANEL_API_TOKEN for cPanel API deploy or CPANEL_FTP_PASSWORD for FTPS deploy." }
 
 if (-not $SkipBuild) {
     Write-Step "Installing dependencies"
@@ -174,7 +182,19 @@ function Upload-FtpItem {
     }
 }
 
-Write-Step "Uploading deploy bundle to cPanel via FTPS"
+function Invoke-CurlUpload {
+    param(
+        [string]$LocalPath,
+        [string]$RemoteUri,
+        [string]$Label
+    )
+    curl.exe -T $LocalPath $RemoteUri --user $cred --ssl-reqd --insecure
+    if ($LASTEXITCODE -ne 0) {
+        Write-Fail "$Label upload failed with curl exit code $LASTEXITCODE"
+    }
+}
+
+Write-Step "Creating deploy archive"
 $rootRemote = $RemoteDir.TrimEnd('/')
 if ([string]::IsNullOrEmpty($rootRemote)) { $rootRemote = '/' }
 
@@ -183,32 +203,115 @@ if (Test-Path $zipPath) { Remove-Item $zipPath }
 Compress-Archive -Path (Join-Path $DeployDir '*') -DestinationPath $zipPath -Force
 Write-OK "Created deploy zip: $zipPath"
 
-$cred = "$FtpUser`:$FtpPassword"
-$ftpZipUri = "ftp://${FtpHost}:${FtpPort}${rootRemote}/deploy-package.zip"
-curl.exe -T $zipPath $ftpZipUri --user $cred --ssl-reqd --insecure
-Write-OK "Uploaded deploy-package.zip"
-
 $phpExtract = @'
 <?php
 $zip = new ZipArchive();
-$res = $zip->open('deploy-package.zip');
+$zipFile = __DIR__ . '/deploy-package.zip';
+$res = $zip->open($zipFile);
 if ($res === TRUE) {
-    $zip->extractTo('.');
+    $zip->extractTo(__DIR__);
     $zip->close();
+    if (!is_dir(__DIR__ . '/tmp')) {
+        @mkdir(__DIR__ . '/tmp', 0755, true);
+    }
+    @touch(__DIR__ . '/tmp/restart.txt');
+    @unlink($zipFile);
+    @unlink(__FILE__);
     echo 'OK';
 } else {
+    http_response_code(500);
     echo 'FAIL';
 }
 ?>
 '@
 $phpPath = Join-Path $env:TEMP "extract-deploy.php"
 Set-Content -Path $phpPath -Value $phpExtract -Encoding ASCII
+
+function Invoke-CpanelUpload {
+    param(
+        [string]$LocalPath,
+        [string]$Dir,
+        [string]$Label
+    )
+    if ($DryRun) {
+        Write-Host "    [dry-run] cPanel upload $LocalPath -> $Dir"
+        return
+    }
+    $encodedDir = [System.Uri]::EscapeDataString($Dir)
+    $uploadUrl = "https://${CpanelHost}:2083/json-api/cpanel?cpanel_jsonapi_user=${CpanelUser}&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=Fileman&cpanel_jsonapi_func=uploadfiles&dir=${encodedDir}&overwrite=1"
+    $authHeader = "Authorization: cpanel ${CpanelUser}:$CpanelApiToken"
+    $response = curl.exe -sS -H $authHeader -F "uploader_file_input=@$LocalPath" $uploadUrl
+    if ($LASTEXITCODE -ne 0 -or $response -notmatch '"result"\s*:\s*1') {
+        $snippet = if ($response) { $response.Substring(0, [Math]::Min(500, $response.Length)) } else { "" }
+        Write-Fail "$Label cPanel upload failed: $snippet"
+    }
+}
+
+function Invoke-CpanelFileOp {
+    param(
+        [string]$Op,
+        [string]$SourceFile,
+        [string]$DestFile = ""
+    )
+    $encodedSource = [System.Uri]::EscapeDataString($SourceFile)
+    $query = "cpanel_jsonapi_user=${CpanelUser}&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=Fileman&cpanel_jsonapi_func=fileop&filelist=1&multiform=1&doubledecode=0&op=${Op}&sourcefiles=${encodedSource}"
+    if ($DestFile) {
+        $encodedDest = [System.Uri]::EscapeDataString($DestFile)
+        $query = "$query&destfiles=${encodedDest}"
+    }
+    $requestUrl = "https://${CpanelHost}:2083/json-api/cpanel?$query"
+    $headers = @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" }
+    $response = Invoke-WebRequest -Uri $requestUrl -Headers $headers -UseBasicParsing -TimeoutSec 180
+    if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300 -or $response.Content -notmatch '"result"\s*:\s*1') {
+        $snippet = $response.Content.Substring(0, [Math]::Min(500, $response.Content.Length))
+        Write-Fail "cPanel file operation ${Op} failed: $snippet"
+    }
+}
+
+if ($CpanelApiToken) {
+    Write-Step "Uploading deploy bundle to cPanel via Fileman API"
+    Invoke-CpanelUpload -LocalPath $zipPath -Dir $CpanelDir -Label "deploy-package.zip"
+    Write-OK "Uploaded deploy-package.zip"
+
+    $absoluteCpanelDir = "$($CpanelHome.TrimEnd('/'))/$($CpanelDir.Trim('/'))"
+    $remoteZip = "$absoluteCpanelDir/deploy-package.zip"
+
+    if (-not $DryRun -and -not $SkipExtract) {
+        Write-Step "Extracting deploy bundle on cPanel"
+        Invoke-CpanelFileOp -Op "extract" -SourceFile $remoteZip -DestFile $absoluteCpanelDir
+        Write-OK "Remote extraction completed"
+
+        Write-Step "Cleaning remote deployment artifacts"
+        Invoke-CpanelFileOp -Op "unlink" -SourceFile $remoteZip
+        Write-OK "Removed remote deploy-package.zip"
+
+        $restartPath = Join-Path $env:TEMP "restart.txt"
+        Set-Content -Path $restartPath -Value (Get-Date -Format o) -Encoding ASCII
+        Invoke-CpanelUpload -LocalPath $restartPath -Dir "$CpanelDir/tmp" -Label "restart.txt"
+        Remove-Item -LiteralPath $restartPath -Force
+        Write-OK "Restart triggered via $CpanelDir/tmp/restart.txt"
+    }
+
+    Write-Step "Cleaning up"
+    Remove-Item -Recurse -Force $DeployDir | Out-Null
+    if (Test-Path $zipPath) { Remove-Item $zipPath }
+    if (Test-Path $phpPath) { Remove-Item $phpPath }
+    Write-OK "Cleaned deploy-package, zip, and extractor"
+    Write-Host "`nDeployment finished." -ForegroundColor Green
+    exit 0
+}
+
+$cred = "$FtpUser`:$FtpPassword"
+$ftpZipUri = "ftp://${FtpHost}:${FtpPort}${rootRemote}/deploy-package.zip"
+Invoke-CurlUpload -LocalPath $zipPath -RemoteUri $ftpZipUri -Label "deploy-package.zip"
+Write-OK "Uploaded deploy-package.zip"
+
 $ftpPhpUri = "ftp://${FtpHost}:${FtpPort}${rootRemote}/extract-deploy.php"
-curl.exe -T $phpPath $ftpPhpUri --user $cred --ssl-reqd --insecure
+Invoke-CurlUpload -LocalPath $phpPath -RemoteUri $ftpPhpUri -Label "extract-deploy.php"
 Write-OK "Uploaded extract-deploy.php"
 
 $protocol = "https"
-$hostForUrl = $FtpHost
+$hostForUrl = $WebHost
 if ($rootRemote -ne '/') {
     $targetDir = $rootRemote.TrimStart('/')
 } else {
@@ -220,6 +323,19 @@ if (-not [string]::IsNullOrEmpty($targetDir)) {
 }
 Write-Host "    Visit this URL to extract the deployment package:"
 Write-Host "    $extractUrl" -ForegroundColor Yellow
+
+if (-not $DryRun -and -not $SkipExtract) {
+    Write-Step "Extracting deploy bundle on cPanel"
+    try {
+        $extractResponse = Invoke-WebRequest -Uri $extractUrl -UseBasicParsing -TimeoutSec 180
+        if ($extractResponse.StatusCode -lt 200 -or $extractResponse.StatusCode -ge 300 -or $extractResponse.Content -notmatch 'OK') {
+            Write-Fail "Remote extraction failed with HTTP $($extractResponse.StatusCode): $($extractResponse.Content)"
+        }
+        Write-OK "Remote extraction completed"
+    } catch {
+        Write-Fail "Remote extraction request failed: $_"
+    }
+}
 
 $restartPath = '/tmp/restart.txt'
 if ($rootRemote -ne '/') { $restartPath = "$rootRemote/tmp/restart.txt" }
@@ -238,6 +354,7 @@ try {
 Write-Step "Cleaning up"
 Remove-Item -Recurse -Force $DeployDir | Out-Null
 if (Test-Path $zipPath) { Remove-Item $zipPath }
+if (Test-Path $phpPath) { Remove-Item $phpPath }
 Write-OK "Cleaned deploy-package and zip"
 
 Write-Host "`nDeployment finished." -ForegroundColor Green

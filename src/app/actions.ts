@@ -11,8 +11,10 @@ import {
   createOrderFromCart,
   createUser,
   getCartSummary,
+  getProduct,
   getOrCreateCart,
   findUserByEmail,
+  listProducts,
   removeCartItem,
   updateCartQuantity,
 } from "@/server/store";
@@ -37,14 +39,31 @@ async function getGuestKey() {
   return value;
 }
 
+async function resolveProductFromFormValue(productKey: string) {
+  const byId = await getProduct(productKey);
+  if (byId) {
+    return byId;
+  }
+  const products = await listProducts();
+  return products.find((product) => product.slug === productKey) ?? null;
+}
+
 export async function addToCartAction(formData: FormData) {
   const productId = asString(formData.get("productId"));
   const quantity = asNumber(formData.get("quantity"), 1);
   const user = await getCurrentUser();
   const guestKey = await getGuestKey();
+  const product = await resolveProductFromFormValue(productId);
+  if (!product) {
+    throw new Error("Product not found");
+  }
   await addToCart(guestKey, productId, quantity, user?.id, user ?? null);
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/search");
   revalidatePath("/cart");
   revalidatePath("/checkout");
+  revalidatePath(`/product/${product.slug}`);
 }
 
 export async function updateCartQuantityAction(formData: FormData) {

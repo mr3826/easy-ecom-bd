@@ -1,8 +1,8 @@
 import { PublicShell } from "@/components/public-shell";
 import { HomeHeroSlider, type HomeHeroSlide } from "@/components/home-hero-slider";
 import { ProductSection } from "@/components/product-section";
-import { storefrontCollections } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
+import { getStorefrontCollections } from "@/server/storefront-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -49,29 +49,13 @@ const heroSlides: HomeHeroSlide[] = [
   },
 ];
 
-const homepageCollectionOrder = [
-  "cotton-stitched",
-  "cotton-unstitched",
-  "party-wear-stitched",
-  "silk-stitched",
-  "pk-georgette-stitched",
-  "2pcs-dresses",
-  "premium-silk-saree",
-  "1piece-dresses",
-  "slub-cotton-1-piece",
-  "kids-casual-outfits",
-  "limited-drops",
-] as const;
-
-const sectionLimits: Partial<Record<(typeof homepageCollectionOrder)[number], number>> = {
+const sectionLimits: Partial<Record<string, number>> = {
   "silk-stitched": 6,
 };
 
-const homepageCollections = homepageCollectionOrder
-  .map((slug) => storefrontCollections.find((collection) => collection.slug === slug))
-  .filter((collection): collection is NonNullable<typeof collection> => Boolean(collection));
+export default async function HomePage() {
+  const homepageCollections = await getStorefrontCollections();
 
-export default function HomePage() {
   return (
     <PublicShell>
       <div className="pb-12">

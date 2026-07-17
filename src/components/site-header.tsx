@@ -36,6 +36,7 @@ type SiteHeaderProps = {
   contactNumber: string;
   supportEmail: string;
   cartSummary: CartSummary;
+  categoryRail?: Array<{ href: string; label: string }>;
   showCategoryRail?: boolean;
 };
 
@@ -54,6 +55,7 @@ export function SiteHeader({
   contactNumber,
   supportEmail,
   cartSummary,
+  categoryRail,
   showCategoryRail = true,
 }: SiteHeaderProps) {
   const router = useRouter();
@@ -226,7 +228,7 @@ export function SiteHeader({
       {showCategoryRail ? (
         <div className="border-t border-[color:var(--border)] bg-[color:var(--surface-soft)]">
           <div className="mx-auto flex max-w-7xl items-center gap-3 overflow-x-auto px-4 py-3 text-sm font-medium text-[color:var(--foreground)] sm:px-6 lg:px-8">
-            {storefrontCategoryRail.map((entry) => (
+            {(categoryRail ?? storefrontCategoryRail).map((entry) => (
               <Link
                 key={entry.href}
                 href={entry.href}

@@ -115,7 +115,82 @@ export default async function AdminProductsPage({
         <ProductsFilterDrawer categories={categories} values={{ q, category, status, source, minPrice, maxPrice }} />
       </section>
 
-      <section className="overflow-hidden rounded-[2rem] border border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(61,39,35,0.06)]">
+      <section className="grid gap-4 md:hidden">
+        {products.length ? (
+          products.map((product) => {
+            const categoryItem = categories.find((item) => item.id === product.categoryId);
+            const variantLabels = variantBadges(product.metadata?.variantGroups ?? []);
+            const sourceLabel = formatProductSource(product.metadata?.source ?? "manual");
+            return (
+              <article key={product.id} className="rounded-[1.5rem] border border-[color:var(--border)] bg-white p-4 shadow-[0_16px_40px_rgba(61,39,35,0.06)]">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-semibold text-[color:var(--foreground)]">{product.name}</p>
+                    <p className="mt-1 text-xs text-[color:var(--muted)]">{product.sku}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-black text-[color:var(--foreground)]">{money(product.price)}</p>
+                    {product.stock <= product.lowStockThreshold ? <StatusPill label="Low stock" tone="processing" /> : null}
+                  </div>
+                </div>
+
+                <dl className="mt-4 grid gap-3 text-sm text-[color:var(--muted)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <dt>Category</dt>
+                    <dd className="text-right text-[color:var(--foreground)]">{categoryItem?.name ?? "Uncategorized"}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt>Status</dt>
+                    <dd><StatusPill label={product.isActive ? "Active" : "Hidden"} tone={product.isActive ? "active" : "inactive"} /></dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt>Source</dt>
+                    <dd className="text-right text-[color:var(--foreground)]">{sourceLabel}</dd>
+                  </div>
+                </dl>
+
+                {variantLabels.length ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {variantLabels.map((label) => (
+                      <span
+                        key={label}
+                        className="rounded-full border border-[color:var(--brand)]/20 bg-[color:var(--brand-soft)] px-3 py-1 text-xs text-[color:var(--brand)]"
+                      >
+                        {label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="mt-4 flex items-center justify-end gap-3">
+                  <Link
+                    href={`/admin/products/new?edit=${product.id}`}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-[color:var(--brand)]/40 hover:text-[color:var(--brand)]"
+                    aria-label={`Edit ${product.name}`}
+                  >
+                    <PencilLine className="h-4 w-4" />
+                  </Link>
+                  <form action={deleteProductAction}>
+                    <input type="hidden" name="id" value={product.id} />
+                    <button
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/40 hover:text-rose-500"
+                      aria-label={`Delete ${product.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </form>
+                </div>
+              </article>
+            );
+          })
+        ) : (
+          <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-white p-8 text-center text-sm text-[color:var(--muted)]">
+            No products match the current filters.
+          </div>
+        )}
+      </section>
+
+      <section className="hidden overflow-hidden rounded-[2rem] border border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(61,39,35,0.06)] md:block">
         <div className="flex flex-col gap-2 border-b border-[color:var(--border)] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold text-[color:var(--foreground)]">Catalog</h2>

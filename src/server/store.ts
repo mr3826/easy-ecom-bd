@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import type { Prisma, Product as PrismaProduct, CartItem as PrismaCartItem } from "@prisma/client";
+import type { Prisma, Product as PrismaProduct } from "@prisma/client";
 import type {
   Brand,
   Cart,
@@ -22,7 +22,7 @@ import type {
   User,
   DeliveryZone,
 } from "@/lib/domain";
-import { getPrisma } from "@/server/db";
+import { getPrisma, isDatabaseConfigured } from "@/server/db";
 import { recordAuditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/auth";
 import { money, slugify } from "@/lib/utils";
@@ -46,7 +46,14 @@ function buildOrderCode() {
   return `EE-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${randomBytes(2).toString("hex").toUpperCase()}`;
 }
 
-function cartToSummaryItems(items: Array<PrismaCartItem & { product: PrismaProduct }>) {
+type CartSummaryItem = {
+  id: string;
+  productId: string;
+  quantity: number;
+  product: PrismaProduct;
+};
+
+function cartToSummaryItems(items: Array<CartSummaryItem>) {
   return items.map((item) => ({
     id: item.id,
     productId: item.productId,
@@ -552,6 +559,9 @@ export async function setProductStock(productId: string, change: number, reason:
 }
 
 export async function listCoupons() {
+  if (!isDatabaseConfigured()) {
+    return demoState.coupons as unknown as Coupon[];
+  }
   const prisma = getPrisma();
   return prisma.coupon.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Coupon[];
 }
@@ -631,11 +641,17 @@ export async function listUsers() {
 }
 
 export async function findUserByEmail(email: string) {
+  if (!isDatabaseConfigured()) {
+    return (demoState.users.find((user) => user.email.toLowerCase() === email.toLowerCase()) ?? null) as unknown as User | null;
+  }
   const prisma = getPrisma();
   return prisma.user.findUnique({ where: { email: email.toLowerCase() } }) as unknown as User | null;
 }
 
 export async function findUserById(id: string) {
+  if (!isDatabaseConfigured()) {
+    return (demoState.users.find((user) => user.id === id) ?? null) as unknown as User | null;
+  }
   const prisma = getPrisma();
   return prisma.user.findUnique({ where: { id } }) as unknown as User | null;
 }
@@ -644,6 +660,21 @@ export async function createUser(
   input: { name: string; email: string; passwordHash: string; role?: User["role"]; phone?: string | null },
   actor?: Actor,
 ) {
+  if (!isDatabaseConfigured()) {
+    const nowIso = new Date().toISOString();
+    const record: User = {
+      id: `user-${randomBytes(6).toString("hex")}`,
+      name: input.name,
+      email: input.email.toLowerCase(),
+      passwordHash: input.passwordHash,
+      role: input.role ?? "customer",
+      phone: input.phone ?? undefined,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    demoState.users.push(record);
+    return record;
+  }
   const prisma = getPrisma();
   const record = await prisma.user.create({
     data: {
@@ -722,6 +753,13 @@ export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
 }
 
 export async function getCartByKey(guestKey: string, ownerId?: string | null) {
+  if (!isDatabaseConfigured()) {
+    return (
+      demoState.carts.find((cart) =>
+        ownerId ? cart.guestKey === guestKey || cart.ownerId === ownerId : cart.guestKey === guestKey,
+      ) ?? null
+    ) as unknown as (Cart & { items: Array<CartItem & { product: Product }> }) | null;
+  }
   const prisma = getPrisma();
   return prisma.cart.findFirst({
     where: ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey },
@@ -730,8 +768,24 @@ export async function getCartByKey(guestKey: string, ownerId?: string | null) {
 }
 
 export async function getOrCreateCart(guestKey: string, ownerId?: string | null) {
-  const prisma = getPrisma();
   const cartWhere = ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey };
+  if (!isDatabaseConfigured()) {
+    const existing = demoState.carts.find((cart) =>
+      ownerId ? cart.guestKey === guestKey || cart.ownerId === ownerId : cart.guestKey === guestKey,
+    );
+    if (existing) return existing as unknown as Cart & { items: Array<CartItem & { product: Product }> };
+    const created: Cart = {
+      id: `cart-${randomBytes(4).toString("hex")}`,
+      ownerId: ownerId ?? undefined,
+      guestKey,
+      couponCode: null,
+      items: [],
+      updatedAt: new Date().toISOString(),
+    };
+    demoState.carts.push(created);
+    return created as unknown as Cart & { items: Array<CartItem & { product: Product }> };
+  }
+  const prisma = getPrisma();
   const existing = await prisma.cart.findFirst({
     where: cartWhere,
     include: { items: { include: { product: true } } },
@@ -756,6 +810,16 @@ export async function getOrCreateCart(guestKey: string, ownerId?: string | null)
 }
 
 export async function clearCart(guestKey: string, ownerId?: string | null, actor?: Actor) {
+  if (!isDatabaseConfigured()) {
+    const cart = demoState.carts.find((c) =>
+      ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
+    );
+    if (!cart) return null;
+    cart.items = [];
+    cart.couponCode = null;
+    cart.updatedAt = new Date().toISOString();
+    return cart as unknown as Cart & { items: Array<CartItem & { product: Product }> };
+  }
   const prisma = getPrisma();
   const cart = await prisma.cart.findFirst({ where: ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey } });
   if (!cart) return null;
@@ -776,6 +840,15 @@ export async function clearCart(guestKey: string, ownerId?: string | null, actor
 }
 
 export async function setCartCoupon(guestKey: string, couponCode: string | null, ownerId?: string | null, actor?: Actor) {
+  if (!isDatabaseConfigured()) {
+    const cart = demoState.carts.find((c) =>
+      ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
+    );
+    if (!cart) return null;
+    cart.couponCode = couponCode;
+    cart.updatedAt = new Date().toISOString();
+    return cart as unknown as Cart & { items: Array<CartItem & { product: Product }> };
+  }
   const prisma = getPrisma();
   const cart = await prisma.cart.findFirst({ where: ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey } });
   if (!cart) return null;
@@ -795,12 +868,22 @@ export async function setCartCoupon(guestKey: string, couponCode: string | null,
 }
 
 export async function addToCart(guestKey: string, productId: string, quantity = 1, ownerId?: string | null, actor?: Actor) {
-  const prisma = getPrisma();
-  const product = await prisma.product.findUnique({ where: { id: productId } });
+  const product = await getProduct(productId);
   if (!product || product.archivedAt || !product.isActive) {
     throw new Error("Product is unavailable");
   }
   const cart = await getOrCreateCart(guestKey, ownerId);
+  if (!isDatabaseConfigured()) {
+    const existing = cart.items.find((item) => item.productId === productId);
+    if (existing) {
+      existing.quantity += quantity;
+    } else {
+      cart.items.push({ id: `ci-${randomBytes(4).toString("hex")}`, productId, quantity });
+    }
+    cart.updatedAt = new Date().toISOString();
+    return cart.items.find((item) => item.productId === productId) as unknown as CartItem;
+  }
+  const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
     const existing = await tx.cartItem.findFirst({
       where: { cartId: cart.id, productId },
@@ -827,6 +910,17 @@ export async function addToCart(guestKey: string, productId: string, quantity = 
 }
 
 export async function removeCartItem(guestKey: string, productId: string, ownerId?: string | null, actor?: Actor) {
+  if (!isDatabaseConfigured()) {
+    const cart = demoState.carts.find((c) =>
+      ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
+    );
+    if (!cart) return null;
+    const index = cart.items.findIndex((item) => item.productId === productId);
+    if (index === -1) return null;
+    const [removed] = cart.items.splice(index, 1);
+    cart.updatedAt = new Date().toISOString();
+    return removed as unknown as CartItem;
+  }
   const prisma = getPrisma();
   const cart = await prisma.cart.findFirst({ where: ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey } });
   if (!cart) return null;
@@ -851,6 +945,17 @@ export async function updateCartQuantity(
   ownerId?: string | null,
   actor?: Actor,
 ) {
+  if (!isDatabaseConfigured()) {
+    const cart = demoState.carts.find((c) =>
+      ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
+    );
+    if (!cart) return null;
+    const existing = cart.items.find((item) => item.productId === productId);
+    if (!existing) return null;
+    existing.quantity = Math.max(1, quantity);
+    cart.updatedAt = new Date().toISOString();
+    return existing as unknown as CartItem;
+  }
   const prisma = getPrisma();
   const cart = await prisma.cart.findFirst({ where: ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey } });
   if (!cart) return null;
@@ -871,14 +976,38 @@ export async function updateCartQuantity(
   return record;
 }
 
+type CartSummarySource = {
+  id: string;
+  items: Array<{
+    id: string;
+    productId: string;
+    quantity: number;
+    product?: PrismaProduct | null;
+  }>;
+  couponCode?: string | null;
+};
+
 export async function getCartSummary(cart: { id: string; items: Array<CartItem & { product?: Product }>; couponCode?: string | null }) {
-  const prisma = getPrisma();
-  const freshCart = await prisma.cart.findUnique({
-    where: { id: cart.id },
-    include: { items: { include: { product: true } } },
-  });
-  const source = freshCart ?? cart;
-  const items = cartToSummaryItems((source.items as Array<PrismaCartItem & { product: PrismaProduct }>).filter((item) => item.product));
+  let source: CartSummarySource;
+  if (!isDatabaseConfigured()) {
+    source = {
+      ...cart,
+      items: await Promise.all(
+        cart.items.map(async (item) => ({
+          ...item,
+          product: ((await getProduct(item.productId)) as PrismaProduct | null) ?? null,
+        })),
+      ),
+    };
+  } else {
+    const prisma = getPrisma();
+    const freshCart = await prisma.cart.findUnique({
+      where: { id: cart.id },
+      include: { items: { include: { product: true } } },
+    });
+    source = (freshCart ?? cart) as CartSummarySource;
+  }
+  const items = cartToSummaryItems(source.items.filter((item): item is CartSummaryItem => Boolean(item.product)));
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
   return {
     items,
@@ -890,16 +1019,30 @@ export async function getCartSummary(cart: { id: string; items: Array<CartItem &
 }
 
 export async function listOrders() {
+  if (!isDatabaseConfigured()) {
+    return demoState.orders as unknown as Order[];
+  }
   const prisma = getPrisma();
   return prisma.order.findMany({ include: { items: true }, orderBy: { createdAt: "desc" } }) as unknown as Order[];
 }
 
 export async function getOrderByCode(orderCode: string) {
+  if (!isDatabaseConfigured()) {
+    return (demoState.orders.find((order) => order.orderCode === orderCode) ?? null) as unknown as Order | null;
+  }
   const prisma = getPrisma();
   return prisma.order.findUnique({ where: { orderCode }, include: { items: true } }) as unknown as Order | null;
 }
 
 export async function getOrder(orderId: string) {
+  if (!isDatabaseConfigured()) {
+    const order = demoState.orders.find((item) => item.id === orderId);
+    if (!order) return null;
+    return {
+      ...order,
+      statusHistory: demoState.orderStatusHistory.filter((history) => history.orderId === orderId),
+    } as unknown as Order & { statusHistory: OrderStatusHistory[] };
+  }
   const prisma = getPrisma();
   return prisma.order.findUnique({
     where: { id: orderId },

@@ -36,15 +36,18 @@ Current deployment is done locally to cPanel via FTPS using the script below.
 ### Local cPanel deploy
 
 ```powershell
+$env:CPANEL_API_TOKEN = "<cPanel API token>"
 .\scripts\deploy-cpanel.ps1
 ```
 
 Options:
 - `-SkipBuild` — skip `npm ci`, `prisma generate`, `lint`, and `build`
 - `-DryRun` — show uploads without writing to FTP
+- `-CpanelDir public_html/.next/standalone` — override the cPanel upload directory
 - `-RemoteDir /home/bornohin/public_html` — override upload target
+- `-SkipExtract` — upload the bundle but do not call the remote extractor
 
-This script builds the Next.js standalone app, uploads it to `ftp.bornohinbd.com`, and restarts Passenger by touching `tmp/restart.txt`.
+This script builds the Next.js standalone app, uploads it to cPanel File Manager with `CPANEL_API_TOKEN`, extracts it into the live `public_html/.next/standalone` Passenger runtime, and restarts Passenger by touching `tmp/restart.txt`. If `CPANEL_API_TOKEN` is not set, it can fall back to FTPS with `CPANEL_FTP_PASSWORD`.
 
 ### GitHub Actions
 

@@ -1,6 +1,7 @@
 import { siteBrand } from "@/lib/site-brand";
 
 export type StorefrontProduct = {
+  id: string;
   slug: string;
   name: string;
   collectionSlug: string;
@@ -54,9 +55,10 @@ const createProduct = (
   index: number,
   extra?: Partial<StorefrontProduct>,
 ): StorefrontProduct => ({
-  slug: `${collectionSlug}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "")}`,
-  name,
-  collectionSlug,
+    id: `${collectionSlug}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "")}`,
+    slug: `${collectionSlug}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "")}`,
+    name,
+    collectionSlug,
   price,
   compareAtPrice: extra?.compareAtPrice,
   badge: extra?.badge,
