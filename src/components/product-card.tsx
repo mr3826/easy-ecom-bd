@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { money, cn } from "@/lib/utils";
 import { addToCartAction } from "@/app/actions";
+import { WishlistToggle } from "@/components/wishlist-toggle";
 
 type ProductCardProps = {
   product: {
@@ -46,6 +47,22 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
                 Sale
               </span>
             ) : null}
+          </div>
+
+          <div className="absolute right-4 top-4 z-[1]">
+            <WishlistToggle
+              compact
+              item={{
+                id: product.id,
+                slug: product.slug,
+                name: product.name,
+                price: product.price,
+                tone: toneClass,
+                badge: product.badge,
+                compareAtPrice: product.compareAtPrice,
+                collectionSlug: product.collectionSlug,
+              }}
+            />
           </div>
 
           {isSoldOut ? (

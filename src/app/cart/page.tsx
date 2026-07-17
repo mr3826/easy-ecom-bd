@@ -5,7 +5,7 @@ import { StatusPill } from "@/components/status-pill";
 import { getCurrentUser } from "@/server/auth";
 import { getCartSummary, getOrCreateCart, getSettings } from "@/server/store";
 import { money } from "@/lib/utils";
-import { removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
+import { clearCartAction, removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +88,13 @@ export default async function CartPage() {
             <Link href="/checkout" className="mt-6 block rounded-full bg-[color:var(--accent)] px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.18em] text-white">
               Continue to checkout
             </Link>
+            {summary.items.length ? (
+              <form action={clearCartAction} className="mt-3">
+                <button className="block w-full rounded-full border border-[color:var(--border)] bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)]">
+                  Clear cart
+                </button>
+              </form>
+            ) : null}
           </aside>
         </div>
       </section>

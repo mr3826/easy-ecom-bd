@@ -17,6 +17,7 @@ import {
   listProducts,
   removeCartItem,
   updateCartQuantity,
+  clearCart,
 } from "@/server/store";
 import { asNumber, asString } from "@/lib/utils";
 import { initiateBkashPayment, initiateNagadPayment } from "@/server/integrations";
@@ -72,6 +73,9 @@ export async function updateCartQuantityAction(formData: FormData) {
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
   await updateCartQuantity(guestKey, productId, quantity, user?.id, user ?? null);
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/search");
   revalidatePath("/cart");
   revalidatePath("/checkout");
 }
@@ -81,6 +85,20 @@ export async function removeCartItemAction(formData: FormData) {
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
   await removeCartItem(guestKey, productId, user?.id, user ?? null);
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/search");
+  revalidatePath("/cart");
+  revalidatePath("/checkout");
+}
+
+export async function clearCartAction() {
+  const guestKey = await getGuestKey();
+  const user = await getCurrentUser();
+  await clearCart(guestKey, user?.id, user ?? null);
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/search");
   revalidatePath("/cart");
   revalidatePath("/checkout");
 }

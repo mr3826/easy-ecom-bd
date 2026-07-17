@@ -2,12 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Search, ShoppingCart, Menu, X, CircleUserRound, ChevronDown, Heart, Trash2, Minus, Plus } from "lucide-react";
 import { money } from "@/lib/utils";
 import { storefrontCategoryRail, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
+import { addToCartAction, clearCartAction, removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
+import { readWishlistItems, removeWishlistItem, type WishlistItem } from "@/lib/wishlist";
 
 type CartSummaryItem = {
   id: string;
@@ -40,16 +42,6 @@ type SiteHeaderProps = {
   showCategoryRail?: boolean;
 };
 
-const wishlistPreview = [
-  {
-    id: "wishlist-pk-artistic",
-    name: "PK Artistic",
-    sku: "BOR-36",
-    price: 1350,
-    tone: "from-[#7d4c58] via-[#b15a74] to-[#4b2a34]",
-  },
-];
-
 export function SiteHeader({
   storeName,
   contactNumber,
@@ -64,9 +56,20 @@ export function SiteHeader({
   const [accountOpen, setAccountOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<"cart" | "wishlist" | null>(null);
   const [query, setQuery] = useState("");
+  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
 
-  const cartItems = useMemo(() => cartSummary.items, [cartSummary.items]);
-  const wishlistItems = useMemo(() => wishlistPreview, []);
+  const cartItems = cartSummary.items;
+
+  useEffect(() => {
+    const syncWishlist = () => setWishlistItems(readWishlistItems());
+    syncWishlist();
+    window.addEventListener("easy-ecom:wishlist-change", syncWishlist);
+    window.addEventListener("storage", syncWishlist);
+    return () => {
+      window.removeEventListener("easy-ecom:wishlist-change", syncWishlist);
+      window.removeEventListener("storage", syncWishlist);
+    };
+  }, []);
 
   const closeAllOverlays = () => {
     setMobileOpen(false);
@@ -303,28 +306,52 @@ export function SiteHeader({
                           <p className="text-lg font-semibold text-[color:var(--brand)]">{money(item.lineTotal)}</p>
                         </div>
                         <div className="mt-4 flex items-center gap-3">
-                          <button
-                            type="button"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
-                            aria-label={`Decrease quantity for ${item.product.name}`}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </button>
+                          {item.quantity > 1 ? (
+                            <form action={updateCartQuantityAction}>
+                              <input type="hidden" name="productId" value={item.productId} />
+                              <input type="hidden" name="quantity" value={item.quantity - 1} />
+                              <button
+                                type="submit"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+                                aria-label={`Decrease quantity for ${item.product.name}`}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                            </form>
+                          ) : (
+                            <form action={removeCartItemAction}>
+                              <input type="hidden" name="productId" value={item.productId} />
+                              <button
+                                type="submit"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+                                aria-label={`Remove ${item.product.name} from cart`}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </button>
+                            </form>
+                          )}
                           <span className="min-w-8 text-center text-lg font-medium text-[color:var(--foreground)]">{item.quantity}</span>
-                          <button
-                            type="button"
-                            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
-                            aria-label={`Increase quantity for ${item.product.name}`}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
-                            aria-label={`Remove ${item.product.name} from cart`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          <form action={updateCartQuantityAction}>
+                            <input type="hidden" name="productId" value={item.productId} />
+                            <input type="hidden" name="quantity" value={item.quantity + 1} />
+                            <button
+                              type="submit"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+                              aria-label={`Increase quantity for ${item.product.name}`}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </button>
+                          </form>
+                          <form action={removeCartItemAction} className="ml-auto">
+                            <input type="hidden" name="productId" value={item.productId} />
+                            <button
+                              type="submit"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
+                              aria-label={`Remove ${item.product.name} from cart`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </form>
                         </div>
                       </div>
                     </div>
@@ -363,13 +390,14 @@ export function SiteHeader({
             >
               Proceed to Checkout
             </Link>
-            <Link
-              href="/cart"
-              onClick={closeAllOverlays}
-              className="mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-[color:var(--border)] bg-white px-5 py-4 text-sm font-medium text-[color:var(--foreground)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
-            >
-              Clear Cart
-            </Link>
+            <form action={clearCartAction} className="mt-3">
+              <button
+                type="submit"
+                className="inline-flex w-full items-center justify-center rounded-2xl border border-[color:var(--border)] bg-white px-5 py-4 text-sm font-medium text-[color:var(--foreground)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+              >
+                Clear Cart
+              </button>
+            </form>
           </div>
         </aside>
       ) : null}
@@ -403,34 +431,45 @@ export function SiteHeader({
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5 sm:py-6">
             <div className="space-y-4">
-              {wishlistItems.map((item) => (
-                <article key={item.id} className="rounded-[1.5rem] border border-[color:var(--border)] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
-                  <div className="flex items-center gap-4">
-                    <div className={`flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white sm:h-28 sm:w-28 sm:text-xs sm:tracking-[0.24em]`}>
-                      {item.name}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-base font-semibold text-[color:var(--foreground)] sm:text-lg">{item.name}</h3>
-                      <p className="mt-1 text-sm text-[color:var(--muted)]">SKU: {item.sku}</p>
-                      <Link
-                        href="/cart"
-                        onClick={closeAllOverlays}
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-sm font-medium text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]"
+              {wishlistItems.length ? (
+                wishlistItems.map((item) => (
+                  <article key={item.id} className="rounded-[1.5rem] border border-[color:var(--border)] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
+                    <div className="flex items-center gap-4">
+                      <div className={`flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${item.tone} text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white sm:h-28 sm:w-28 sm:text-xs sm:tracking-[0.24em]`}>
+                        {item.name}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-base font-semibold text-[color:var(--foreground)] sm:text-lg">{item.name}</h3>
+                        <p className="mt-1 text-sm text-[color:var(--muted)]">SKU: {item.sku ?? item.slug}</p>
+                        <form action={addToCartAction} className="mt-4">
+                          <input type="hidden" name="productId" value={item.id} />
+                          <input type="hidden" name="quantity" value="1" />
+                          <button
+                            type="submit"
+                            onClick={closeAllOverlays}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-sm font-medium text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]"
+                          >
+                            <ShoppingCart className="h-4 w-4" />
+                            Add to Cart
+                          </button>
+                        </form>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setWishlistItems(removeWishlistItem(item.id))}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
+                        aria-label={`Remove ${item.name} from wishlist`}
                       >
-                        <ShoppingCart className="h-4 w-4" />
-                        Add to Cart
-                      </Link>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
-                      aria-label={`Remove ${item.name} from wishlist`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ))
+              ) : (
+                <div className="rounded-[1.5rem] border border-dashed border-[color:var(--border)] bg-[color:var(--surface-soft)] p-6 text-center text-sm text-[color:var(--muted)]">
+                  Your wishlist is empty.
+                </div>
+              )}
             </div>
           </div>
 
@@ -493,16 +532,16 @@ export function SiteHeader({
               <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--muted)]">Quick links</p>
               <div className="mt-3 grid gap-2">
                 {storefrontPrimaryNav.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-sm font-medium text-[color:var(--foreground)]"
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-sm font-medium text-[color:var(--foreground)]"
                     onClick={closeAllOverlays}
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </div>
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
             </div>
 
             <div className="p-4 text-sm text-[color:var(--muted)]">
@@ -516,7 +555,7 @@ export function SiteHeader({
       {searchOpen ? (
         <div className="fixed inset-0 z-50 bg-black/45" role="presentation" onClick={() => setSearchOpen(false)}>
           <div
-                className="mx-auto mt-20 w-[min(92vw,42rem)] rounded-[2rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
+            className="mx-auto mt-20 w-[min(92vw,42rem)] rounded-[2rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
             role="dialog"
             aria-modal="true"
             aria-label="Search products"
@@ -527,11 +566,11 @@ export function SiteHeader({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--muted)]">Search</p>
                 <p className="mt-1 text-lg font-bold text-[color:var(--foreground)]">Find a product or collection</p>
               </div>
-                <button
-                  type="button"
-                  onClick={() => setSearchOpen(false)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-white"
-                  aria-label="Close search dialog"
+              <button
+                type="button"
+                onClick={() => setSearchOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-white"
+                aria-label="Close search dialog"
               >
                 <X className="h-4 w-4" />
               </button>

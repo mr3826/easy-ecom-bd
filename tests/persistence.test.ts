@@ -209,6 +209,10 @@ test("cart flow and coupon application persist on the backend", async () => {
   expect(summary.couponCode).toBe(coupon.code);
 
   await clearCart(cart.guestKey, actor?.id, actor ?? null);
+  const cleared = await getCartSummary(await getOrCreateCart(cart.guestKey, actor?.id));
+  expect(cleared.itemCount).toBe(0);
+  expect(cleared.subtotal).toBe(0);
+  expect(cleared.couponCode ?? null).toBeNull();
 });
 
 test("checkout reserves inventory, applies coupons, and persists order totals", async () => {

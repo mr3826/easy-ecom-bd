@@ -24,13 +24,18 @@ export function ProductsFilterDrawer({
 
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
       }
     };
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   return (
@@ -68,7 +73,7 @@ export function ProductsFilterDrawer({
               </button>
             </div>
 
-            <form method="get" action="/admin/products" className="mt-6 grid flex-1 gap-4 overflow-auto pr-1">
+            <form method="get" action="/admin/products" className="mt-6 grid flex-1 gap-4 overflow-y-auto overscroll-contain pr-1">
               <input type="hidden" name="q" value={values.q} />
 
               <label className="grid gap-2 text-sm text-[color:var(--foreground)]">

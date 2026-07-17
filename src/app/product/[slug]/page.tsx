@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
+import { WishlistToggle } from "@/components/wishlist-toggle";
 import { money } from "@/lib/utils";
 import { addToCartAction } from "@/app/actions";
 import {
@@ -110,6 +111,18 @@ export default async function ProductPage({
                   </button>
                 </form>
               )}
+              <WishlistToggle
+                item={{
+                  id: product.id,
+                  slug: product.slug,
+                  name: product.name,
+                  price: product.price,
+                  tone: product.tone,
+                  badge: product.badge,
+                  compareAtPrice: product.compareAtPrice,
+                  collectionSlug: product.collectionSlug,
+                }}
+              />
               <Link href={`/shop?category=${product.collectionSlug}`} className="inline-flex items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)]">
                 More in collection
               </Link>

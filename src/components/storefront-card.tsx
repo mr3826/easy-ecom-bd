@@ -4,6 +4,7 @@ import type { StorefrontProduct } from "@/lib/bornohin-storefront";
 import { money } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { addToCartAction } from "@/app/actions";
+import { WishlistToggle } from "@/components/wishlist-toggle";
 
 export function StorefrontCard({
   product,
@@ -35,6 +36,21 @@ export function StorefrontCard({
                 Hot
               </span>
             ) : null}
+          </div>
+          <div className="absolute right-4 top-4 z-[1]">
+            <WishlistToggle
+              compact
+              item={{
+                id: product.id,
+                slug: product.slug,
+                name: product.name,
+                price: product.price,
+                tone: product.tone,
+                badge: product.badge,
+                compareAtPrice: product.compareAtPrice,
+                collectionSlug: product.collectionSlug,
+              }}
+            />
           </div>
           <div className="absolute inset-0 flex items-end justify-between p-4 text-white">
             <div className="max-w-[70%]">
