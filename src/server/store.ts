@@ -7,7 +7,6 @@ import type {
   Category,
   Coupon,
   DatabaseState,
-  DeliveryShipment,
   InventoryLog,
   LandingPage,
   LandingPageSection,
@@ -20,6 +19,7 @@ import type {
   Product,
   Settings,
   User,
+  DeliveryStatus,
   DeliveryZone,
 } from "@/lib/domain";
 import { getPrisma, isDatabaseConfigured } from "@/server/db";
@@ -110,9 +110,6 @@ async function getSettingsRow() {
       insideDhakaCodEnabled: true,
       subDhakaCodEnabled: true,
       outsideDhakaCodEnabled: true,
-      pathaoEnabled: true,
-      steadfastEnabled: true,
-      redxEnabled: false,
     },
   });
 }
@@ -133,8 +130,6 @@ export async function getState(): Promise<DatabaseState> {
     orderStatusHistory,
     payments,
     paymentLogs,
-    couriers,
-    deliveryShipments,
     landingPages,
     landingPageSections,
     coupons,
@@ -152,8 +147,6 @@ export async function getState(): Promise<DatabaseState> {
     prisma.orderStatusHistory.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.payment.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.paymentLog.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.courier.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.deliveryShipment.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.landingPage.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.landingPageSection.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.coupon.findMany({ orderBy: { createdAt: "desc" } }),
@@ -176,8 +169,6 @@ export async function getState(): Promise<DatabaseState> {
     orderStatusHistory: orderStatusHistory as unknown as OrderStatusHistory[],
     payments: payments as unknown as Payment[],
     paymentLogs: paymentLogs as unknown as PaymentLog[],
-    couriers: couriers as unknown as Array<{ id: string; key: "pathao" | "steadfast" | "redx"; name: string; enabled: boolean; description: string }>,
-    deliveryShipments: deliveryShipments as unknown as DeliveryShipment[],
     landingPages: landingPages as unknown as LandingPage[],
     landingPageSections: landingPageSections as unknown as LandingPageSection[],
     coupons: coupons as unknown as Coupon[],
@@ -324,6 +315,10 @@ export async function listProducts() {
 }
 
 export async function listProductImages(productId?: string) {
+  if (!process.env.DATABASE_URL) {
+    return demoState.productImages
+      .filter((image) => (productId ? image.productId === productId : true)) as unknown as Array<{ id: string; productId: string; url: string; alt: string; sortOrder: number }>;
+  }
   const prisma = getPrisma();
   return prisma.productImage.findMany({
     where: productId ? { productId } : undefined,
@@ -736,9 +731,6 @@ export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
       insideDhakaCodEnabled: patch.insideDhakaCodEnabled ?? existing.insideDhakaCodEnabled,
       subDhakaCodEnabled: patch.subDhakaCodEnabled ?? existing.subDhakaCodEnabled,
       outsideDhakaCodEnabled: patch.outsideDhakaCodEnabled ?? existing.outsideDhakaCodEnabled,
-      pathaoEnabled: patch.pathaoEnabled ?? existing.pathaoEnabled,
-      steadfastEnabled: patch.steadfastEnabled ?? existing.steadfastEnabled,
-      redxEnabled: patch.redxEnabled ?? existing.redxEnabled,
     },
   });
   await recordAuditLog({
@@ -868,25 +860,26 @@ export async function setCartCoupon(guestKey: string, couponCode: string | null,
 }
 
 export async function addToCart(guestKey: string, productId: string, quantity = 1, ownerId?: string | null, actor?: Actor) {
-  const product = await getProduct(productId);
+  const product = (await getProduct(productId)) ?? (await getProductBySlug(productId));
   if (!product || product.archivedAt || !product.isActive) {
     throw new Error("Product is unavailable");
   }
+  const resolvedProductId = product.id;
   const cart = await getOrCreateCart(guestKey, ownerId);
   if (!isDatabaseConfigured()) {
-    const existing = cart.items.find((item) => item.productId === productId);
+    const existing = cart.items.find((item) => item.productId === resolvedProductId);
     if (existing) {
       existing.quantity += quantity;
     } else {
-      cart.items.push({ id: `ci-${randomBytes(4).toString("hex")}`, productId, quantity });
+      cart.items.push({ id: `ci-${randomBytes(4).toString("hex")}`, productId: resolvedProductId, quantity });
     }
     cart.updatedAt = new Date().toISOString();
-    return cart.items.find((item) => item.productId === productId) as unknown as CartItem;
+    return cart.items.find((item) => item.productId === resolvedProductId) as unknown as CartItem;
   }
   const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
     const existing = await tx.cartItem.findFirst({
-      where: { cartId: cart.id, productId },
+      where: { cartId: cart.id, productId: resolvedProductId },
     });
     const record = existing
       ? await tx.cartItem.update({
@@ -894,7 +887,7 @@ export async function addToCart(guestKey: string, productId: string, quantity = 
           data: { quantity: existing.quantity + quantity },
         })
       : await tx.cartItem.create({
-          data: { cartId: cart.id, productId, quantity },
+          data: { cartId: cart.id, productId: resolvedProductId, quantity },
         });
     await tx.cart.update({ where: { id: cart.id }, data: { updatedAt: now() } });
     await recordAuditLog({
@@ -1080,13 +1073,6 @@ function assertPaymentMethodAvailable(settings: Settings, provider: PaymentProvi
   if (provider === "rocket" && !settings.rocketEnabled) throw new Error("Rocket is disabled");
 }
 
-export function assertDeliveryProviderAvailable(settings: Settings, provider?: "pathao" | "steadfast" | "redx" | null) {
-  if (!provider) return;
-  if (provider === "pathao" && !settings.pathaoEnabled) throw new Error("Pathao is disabled");
-  if (provider === "steadfast" && !settings.steadfastEnabled) throw new Error("Steadfast is disabled");
-  if (provider === "redx" && !settings.redxEnabled) throw new Error("RedX is disabled");
-}
-
 async function reserveOrderInventory(tx: Prisma.TransactionClient, orderId: string, actor?: Actor) {
   const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: { include: { product: true } } } });
   if (!order || order.inventoryReservedAt) return order;
@@ -1166,7 +1152,6 @@ export async function createOrderFromCart(
     notes?: string;
     paymentProvider?: PaymentProviderKey;
     deliveryZone?: DeliveryZone;
-    deliveryProvider?: "pathao" | "steadfast" | "redx" | null;
     couponCode?: string;
   },
   actor?: Actor,
@@ -1186,7 +1171,6 @@ export async function createOrderFromCart(
     const deliveryZone = input.deliveryZone ?? deriveDeliveryZone(input.district);
     const paymentProvider = input.paymentProvider ?? "cod";
     assertPaymentMethodAvailable(settings, paymentProvider, deliveryZone);
-    assertDeliveryProviderAvailable(settings, input.deliveryProvider);
 
     const couponCode = (input.couponCode ?? cart.couponCode ?? undefined)?.toUpperCase();
     const coupon = couponCode ? await tx.coupon.findUnique({ where: { code: couponCode } }) : null;
@@ -1232,7 +1216,6 @@ export async function createOrderFromCart(
         deliveryStatus: "pending",
         paymentProvider,
         deliveryZone,
-        deliveryProvider: input.deliveryProvider ?? null,
         notes: input.notes ?? null,
         inventoryReservedAt: createdAt,
         items: {
@@ -1315,7 +1298,6 @@ export async function createManualOrder(
     paymentProvider?: PaymentProviderKey;
     paymentStatus?: Payment["status"];
     deliveryZone?: DeliveryZone;
-    deliveryProvider?: "pathao" | "steadfast" | "redx" | null;
     discountAmount?: number;
     notes?: string;
     adminNotes?: string;
@@ -1336,7 +1318,6 @@ export async function createManualOrder(
     const paymentProvider = input.paymentProvider ?? "cod";
     const orderStatus = input.status ?? "draft";
     assertPaymentMethodAvailable(settings, paymentProvider, deliveryZone);
-    assertDeliveryProviderAvailable(settings, input.deliveryProvider);
 
     const productIds = input.items.map((item) => item.productId);
     const products = await tx.product.findMany({ where: { id: { in: productIds } } });
@@ -1378,7 +1359,6 @@ export async function createManualOrder(
         deliveryStatus: "pending",
         paymentProvider,
         deliveryZone,
-        deliveryProvider: input.deliveryProvider ?? null,
         notes: input.notes ?? null,
         adminNotes: input.adminNotes ?? null,
         items: {
@@ -1534,7 +1514,7 @@ export async function updateOrderPayment(
   });
 }
 
-export async function updateOrderDelivery(orderId: string, deliveryStatus: DeliveryShipment["status"], actor?: Actor) {
+export async function updateOrderDelivery(orderId: string, deliveryStatus: DeliveryStatus, actor?: Actor) {
   const prisma = getPrisma();
   const existing = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
   if (!existing) return null;
@@ -1625,123 +1605,6 @@ export async function addPaymentLog(paymentId: string, stage: PaymentLog["stage"
       payload: asJson(payload) as Prisma.InputJsonValue,
     },
   });
-}
-
-export async function listDeliveryShipments() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.deliveryShipments as unknown as DeliveryShipment[];
-  }
-  const prisma = getPrisma();
-  return prisma.deliveryShipment.findMany({ orderBy: { createdAt: "desc" } }) as unknown as DeliveryShipment[];
-}
-
-export async function getShipmentById(shipmentId: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.deliveryShipments.find((shipment) => shipment.id === shipmentId) ?? null) as unknown as DeliveryShipment | null;
-  }
-  const prisma = getPrisma();
-  return prisma.deliveryShipment.findUnique({ where: { id: shipmentId } }) as unknown as DeliveryShipment | null;
-}
-
-export async function getShipmentByTrackingId(trackingId: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.deliveryShipments.find((shipment) => shipment.trackingId === trackingId) ?? null) as unknown as DeliveryShipment | null;
-  }
-  const prisma = getPrisma();
-  return prisma.deliveryShipment.findFirst({ where: { trackingId } }) as unknown as DeliveryShipment | null;
-}
-
-export async function getShipmentByConsignmentId(consignmentId: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.deliveryShipments.find((shipment) => shipment.consignmentId === consignmentId) ?? null) as unknown as DeliveryShipment | null;
-  }
-  const prisma = getPrisma();
-  return prisma.deliveryShipment.findFirst({ where: { consignmentId } }) as unknown as DeliveryShipment | null;
-}
-
-export async function upsertShipment(
-  input: Partial<DeliveryShipment> &
-    Pick<DeliveryShipment, "orderId" | "courierKey" | "trackingId" | "customerName" | "customerPhone" | "customerAddress">,
-  actor?: Actor,
-) {
-  const prisma = getPrisma();
-  const existing = input.id ? await prisma.deliveryShipment.findUnique({ where: { id: input.id } }) : null;
-  const record = existing
-    ? await prisma.deliveryShipment.update({
-        where: { id: existing.id },
-        data: {
-          orderId: input.orderId,
-          courierKey: input.courierKey,
-          trackingId: input.trackingId,
-          consignmentId: input.consignmentId ?? null,
-          status: input.status ?? "courier_created",
-          customerName: input.customerName,
-          customerPhone: input.customerPhone,
-          customerAddress: input.customerAddress,
-          rawResponse: asJson(input.rawResponse ?? {}) as Prisma.InputJsonValue,
-        },
-      })
-    : await prisma.deliveryShipment.create({
-        data: {
-          orderId: input.orderId,
-          courierKey: input.courierKey,
-          trackingId: input.trackingId,
-          consignmentId: input.consignmentId ?? null,
-          status: input.status ?? "courier_created",
-          customerName: input.customerName,
-          customerPhone: input.customerPhone,
-          customerAddress: input.customerAddress,
-          rawResponse: asJson(input.rawResponse ?? {}) as Prisma.InputJsonValue,
-        },
-      });
-
-  await recordAuditLog({
-    actor,
-    action: existing ? "update" : "create",
-    entity: "shipment",
-    entityId: record.id,
-    oldValue: existing ? asJson(existing) : null,
-    newValue: asJson(record),
-  });
-
-  await prisma.order.update({
-    where: { id: record.orderId },
-    data: {
-      deliveryProvider: record.courierKey,
-      trackingId: record.trackingId,
-      consignmentId: record.consignmentId,
-      deliveryStatus: record.status,
-    },
-  });
-
-  return record as unknown as DeliveryShipment;
-}
-
-export async function updateShipmentStatus(
-  shipmentId: string,
-  status: DeliveryShipment["status"],
-  actor?: Actor,
-) {
-  const prisma = getPrisma();
-  const existing = await prisma.deliveryShipment.findUnique({ where: { id: shipmentId } });
-  if (!existing) return null;
-  const record = await prisma.deliveryShipment.update({
-    where: { id: shipmentId },
-    data: { status },
-  });
-  await prisma.order.update({
-    where: { id: existing.orderId },
-    data: { deliveryStatus: status },
-  });
-  await recordAuditLog({
-    actor,
-    action: "update",
-    entity: "shipment_status",
-    entityId: shipmentId,
-    oldValue: asJson(existing),
-    newValue: asJson(record),
-  });
-  return record as unknown as DeliveryShipment;
 }
 
 export async function listLandingPages() {
@@ -1894,22 +1757,3 @@ export async function listInventoryLogs() {
   return prisma.inventoryLog.findMany({ orderBy: { createdAt: "desc" } });
 }
 
-export async function listCouriers() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.couriers as unknown as Array<{ id: string; key: "pathao" | "steadfast" | "redx"; name: string; enabled: boolean; description: string }>;
-  }
-  const prisma = getPrisma();
-  return prisma.courier.findMany({ orderBy: { createdAt: "asc" } });
-}
-
-export async function ensureCourierSeed() {
-  const prisma = getPrisma();
-  const count = await prisma.courier.count();
-  if (count > 0) return;
-  await prisma.courier.createMany({
-    data: [
-      { key: "pathao", name: "Pathao Courier", enabled: true, description: "Fast last-mile coverage for paid and COD shipments." },
-      { key: "steadfast", name: "Steadfast Courier", enabled: true, description: "Reliable nationwide parcel coverage." },
-    ],
-  });
-}

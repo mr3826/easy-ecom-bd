@@ -1,16 +1,15 @@
 import Link from "next/link";
 import { MetricCard } from "@/components/metric-card";
 import { StatusPill } from "@/components/status-pill";
-import { getState, listOrders, listProducts, listPayments, listDeliveryShipments } from "@/server/store";
+import { getState, listOrders, listProducts, listPayments } from "@/server/store";
 import { money } from "@/lib/utils";
 
 export default async function AdminDashboardPage() {
-  const [state, orders, products, payments, shipments] = await Promise.all([
+  const [state, orders, products, payments] = await Promise.all([
     getState(),
     listOrders(),
     listProducts(),
     listPayments(),
-    listDeliveryShipments(),
   ]);
   const grossSales = orders.reduce((sum, order) => sum + order.total, 0);
   const pendingOrders = orders.filter((order) => order.status === "pending").length;
@@ -36,7 +35,7 @@ export default async function AdminDashboardPage() {
         <MetricCard label="Products" value={`${products.length}`} delta="Live catalog" tone="slate" />
         <MetricCard label="Orders" value={`${orders.length}`} delta={`${pendingOrders} pending, ${confirmedOrders} confirmed`} tone="emerald" />
         <MetricCard label="Revenue" value={money(grossSales)} delta="Gross sales" tone="amber" />
-        <MetricCard label="Stock risk" value={`${lowStockProducts}`} delta={`${payments.length} payments, ${shipments.length} shipments`} tone="sky" />
+        <MetricCard label="Stock risk" value={`${lowStockProducts}`} delta={`${payments.length} payments tracked`} tone="sky" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -75,9 +74,6 @@ export default async function AdminDashboardPage() {
             <p>Nagad: {state.settings.nagadEnabled ? "enabled" : "disabled"}</p>
             <p>Rocket: {state.settings.rocketEnabled ? "enabled" : "disabled"}</p>
             <p>COD: {state.settings.codEnabled ? "enabled" : "disabled"}</p>
-            <p>Pathao: {state.settings.pathaoEnabled ? "enabled" : "disabled"}</p>
-            <p>Steadfast: {state.settings.steadfastEnabled ? "enabled" : "disabled"}</p>
-            <p>RedX: {state.settings.redxEnabled ? "enabled" : "disabled"}</p>
           </div>
         </section>
       </div>

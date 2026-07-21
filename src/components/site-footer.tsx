@@ -27,7 +27,7 @@ export async function SiteFooter() {
           <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]">
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">COD ready</span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Mobile-first</span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Courier aware</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Delivery zones</span>
           </div>
         </div>
 

@@ -18,7 +18,7 @@ The work must prioritize real storefront/admin/backend connectivity before addin
 - The Next.js app already contains both the public shop routes and the `/admin` dashboard.
 - Admin reads and writes most operational data through `src/server/store.ts`.
 - Public storefront pages use `src/server/storefront-catalog.ts`, which partially bridges backend products into static Bornohin storefront templates.
-- Checkout, payment records, inventory reservation, order history, settings, and courier shipment records are backed by Prisma when `DATABASE_URL` is configured.
+- Checkout, payment records, inventory reservation, order history, settings, and delivery-zone configuration are backed by Prisma when `DATABASE_URL` is configured.
 - The cPanel deployment script targets the root Passenger runtime at `public_html/.next/standalone`, but prior live recovery left the root domain redirecting to `shop.bornohinbd.com` because of Passenger process pressure.
 
 ## Phase 1: Lock the Production Data Source
@@ -29,7 +29,7 @@ The work must prioritize real storefront/admin/backend connectivity before addin
 4. Seed only required baseline rows:
    - admin user
    - settings row
-   - enabled courier rows
+   - delivery-zone settings
    - real categories and brands
 5. Stop treating demo/no-db mode as production-capable. It can remain for local preview only.
 
@@ -96,7 +96,7 @@ Acceptance checks:
    - create coupon
    - update settings
    - update order status
-   - create courier shipment
+   - update delivery status
 
 Acceptance checks:
 
@@ -104,20 +104,20 @@ Acceptance checks:
 - Admin changes invalidate/revalidate the related public and admin paths.
 - Non-admin users cannot access `/admin`.
 
-## Phase 5: Payment and Courier Provider Readiness
+## Phase 5: Payment and Delivery Operations Readiness
 
 1. Set production callback URL base to `https://bornohinbd.com`.
 2. Configure bKash credentials and verify create-payment plus callback handling.
 3. Decide whether Nagad remains simulated or receives a real provider implementation before launch.
-4. Configure Pathao and Steadfast credentials.
-5. Verify courier creation from `/admin/orders` or `/admin/deliveries`.
+4. Verify delivery-zone charges from `/checkout` and `/admin/settings`.
+5. Verify order delivery status updates from `/admin/orders`.
 6. Confirm webhook/callback signatures with provider test payloads.
 
 Acceptance checks:
 
 - bKash payment initiation redirects to provider or approved sandbox.
 - Payment callback updates payment and order status.
-- Courier shipment creation stores tracking and consignment ids.
+- Delivery status changes are stored on orders and visible in admin order history.
 - Provider-disabled settings are enforced by backend, not only hidden in UI.
 
 ## Phase 6: Root Domain and Admin Path Deployment
@@ -170,7 +170,7 @@ Run the full launch smoke in this order:
    - complete COD checkout
    - verify order in admin
    - update order status
-   - create courier shipment
+   - update delivery status
    - verify customer tracking page
 
 ## Execution Order

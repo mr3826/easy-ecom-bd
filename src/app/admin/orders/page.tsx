@@ -1,19 +1,17 @@
 import {
-  createCourierShipmentAction,
   createManualOrderAction,
   toggleOrderDeliveryAction,
   toggleOrderPaymentAction,
   updateOrderStatusAction,
 } from "@/app/admin/actions";
-import { courierOptions, deliveryStatuses, deliveryZones, orderStatuses, paymentProviders, paymentStatuses } from "@/lib/domain";
+import { deliveryStatuses, deliveryZones, orderStatuses, paymentProviders, paymentStatuses } from "@/lib/domain";
 import { money, shortDate } from "@/lib/utils";
-import { listDeliveryShipments, listOrders, listOrderStatusHistory, listProducts } from "@/server/store";
+import { listOrders, listOrderStatusHistory, listProducts } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
 
 export default async function AdminOrdersPage() {
-  const [orders, shipments, products, history] = await Promise.all([
+  const [orders, products, history] = await Promise.all([
     listOrders(),
-    listDeliveryShipments(),
     listProducts(),
     listOrderStatusHistory(),
   ]);
@@ -81,13 +79,6 @@ export default async function AdminOrdersPage() {
             </select>
           </label>
           <label className="grid gap-2 text-sm">
-            <span>Delivery provider</span>
-            <select name="deliveryProvider" defaultValue="" className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)]">
-              <option value="">Not selected</option>
-              {courierOptions.map((provider) => <option key={provider.key} value={provider.key}>{provider.name}</option>)}
-            </select>
-          </label>
-          <label className="grid gap-2 text-sm">
             <span>Discount</span>
             <input name="discountAmount" type="number" defaultValue={0} className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)]" />
           </label>
@@ -123,7 +114,6 @@ export default async function AdminOrdersPage() {
 
       <div className="space-y-4">
         {orders.map((order) => {
-          const shipment = shipments.find((entry) => entry.orderId === order.id);
           const paymentLabel = order.paymentProvider ?? "cod";
           const orderHistory = history.filter((entry) => entry.orderId === order.id).slice(0, 4);
 
@@ -137,7 +127,7 @@ export default async function AdminOrdersPage() {
                   </p>
                   <p className="mt-2 text-sm text-[color:var(--muted)]">{order.shippingAddress}</p>
                   <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[color:var(--muted)]">
-                    Payment: {paymentLabel} · Zone: {order.deliveryZone} · Provider: {order.deliveryProvider ?? "none"}
+                    Payment: {paymentLabel} · Zone: {order.deliveryZone}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -236,36 +226,10 @@ export default async function AdminOrdersPage() {
                 </div>
 
                 <div className="rounded-3xl border border-[color:var(--border)] bg-white p-4">
-                  <p className="text-sm font-medium text-[color:var(--muted)]">Courier</p>
-                  {shipment ? (
-                    <div className="mt-3 space-y-2 text-sm text-[color:var(--muted)]">
-                      <p>{shipment.courierKey}</p>
-                      <p>{shipment.trackingId}</p>
-                      {shipment.consignmentId && <p>{shipment.consignmentId}</p>}
-                    </div>
-                  ) : (
-                    <div className="mt-3 grid gap-2">
-                      {courierOptions.map((provider, index) => (
-                        <form key={provider.key} action={createCourierShipmentAction}>
-                          <input type="hidden" name="orderId" value={order.id} />
-                          <input type="hidden" name="courierKey" value={provider.key} />
-                          <button className={`w-full rounded-full px-4 py-2 text-sm font-semibold ${index === 0 ? "bg-white text-slate-950" : "border border-[color:var(--border)] text-[color:var(--foreground)]"}`}>
-                            Create {provider.name}
-                          </button>
-                        </form>
-                      ))}
-                    </div>
-                  )}
-                  {(order.trackingId || order.consignmentId) && (
-                    <div className="mt-4 space-y-1 text-xs uppercase tracking-[0.16em] text-[color:var(--muted)]">
-                      {order.trackingId && <p>Tracking: {order.trackingId}</p>}
-                      {order.consignmentId && <p>Consignment: {order.consignmentId}</p>}
-                    </div>
-                  )}
+                  <p className="text-sm font-medium text-[color:var(--muted)]">Status history</p>
                   {orderHistory.length > 0 && (
-                    <div className="mt-5 border-t border-[color:var(--border)] pt-4">
-                      <p className="text-sm font-medium text-[color:var(--muted)]">Status history</p>
-                      <div className="mt-2 space-y-2 text-xs text-[color:var(--muted)]">
+                    <div className="mt-3">
+                      <div className="space-y-2 text-xs text-[color:var(--muted)]">
                         {orderHistory.map((entry) => (
                           <p key={entry.id}>
                             {entry.fromStatus ?? "new"} → {entry.toStatus} · {shortDate(entry.createdAt)}
@@ -274,6 +238,7 @@ export default async function AdminOrdersPage() {
                       </div>
                     </div>
                   )}
+                  {!orderHistory.length && <p className="mt-3 text-sm text-[color:var(--muted)]">No status updates yet.</p>}
                 </div>
               </div>
             </div>

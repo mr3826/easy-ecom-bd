@@ -58,7 +58,13 @@ export default async function ProductPage({
             <div className="relative aspect-[9/16] bg-white">
               <div className={`absolute inset-0 bg-gradient-to-br ${product.tone}`} />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.38),transparent_55%),linear-gradient(180deg,rgba(255,255,255,0.08),rgba(0,0,0,0.16))]" />
-              <Image src="/hero-products.png" alt={product.name} fill className="object-cover mix-blend-soft-light opacity-70" />
+              <Image
+                src={product.imageUrl ?? "/hero-products.png"}
+                alt={product.imageAlt ?? product.name}
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className={product.imageUrl ? "object-cover" : "object-cover mix-blend-soft-light opacity-70"}
+              />
               <div className="absolute left-4 top-4 flex flex-wrap gap-2">
                 {product.badge ? <span className="rounded-full bg-[#111111] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">{product.badge}</span> : null}
                 {product.featured ? <span className="rounded-full bg-white/90 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#111111]">Hot</span> : null}

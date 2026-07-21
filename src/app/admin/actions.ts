@@ -2,12 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  createPathaoShipment,
-  createRedxShipment,
-  createSteadfastShipment,
-  syncCourierStatus,
-} from "@/server/integrations";
 import { requireAdmin } from "@/server/auth";
 import {
   deleteBrand,
@@ -32,8 +26,6 @@ import {
   updateOrderPayment,
   updateOrderStatus,
   updateSettings,
-  getSettings,
-  assertDeliveryProviderAvailable,
 } from "@/server/store";
 import { getFileStorage } from "@/server/storage";
 import { asNumber, asString } from "@/lib/utils";
@@ -514,9 +506,6 @@ export async function saveSettingsAction(formData: FormData) {
     insideDhakaCodEnabled: asString(formData.get("insideDhakaCodEnabled")) === "on",
     subDhakaCodEnabled: asString(formData.get("subDhakaCodEnabled")) === "on",
     outsideDhakaCodEnabled: asString(formData.get("outsideDhakaCodEnabled")) === "on",
-    pathaoEnabled: asString(formData.get("pathaoEnabled")) === "on",
-    steadfastEnabled: asString(formData.get("steadfastEnabled")) === "on",
-    redxEnabled: asString(formData.get("redxEnabled")) === "on",
   }, actor);
   revalidatePath("/");
   revalidatePath("/admin/settings");
@@ -536,7 +525,6 @@ export async function createManualOrderAction(formData: FormData) {
     paymentProvider: asString(formData.get("paymentProvider")) as "cod" | "bkash" | "nagad" | "rocket",
     paymentStatus: asString(formData.get("paymentStatus")) as "pending" | "processing" | "paid" | "failed" | "cancelled" | "refunded",
     deliveryZone: asString(formData.get("deliveryZone")) as "inside_dhaka" | "sub_dhaka" | "outside_dhaka",
-    deliveryProvider: (asString(formData.get("deliveryProvider")) || undefined) as "pathao" | "steadfast" | "redx" | undefined,
     discountAmount: asNumber(formData.get("discountAmount")),
     notes: asString(formData.get("notes")) || undefined,
     adminNotes: asString(formData.get("adminNotes")) || undefined,
@@ -635,7 +623,6 @@ export async function toggleOrderDeliveryAction(formData: FormData) {
   const orderId = asString(formData.get("orderId"));
   const status = asString(formData.get("status")) as
     | "pending"
-    | "courier_created"
     | "picked_up"
     | "in_transit"
     | "delivered"
@@ -645,44 +632,5 @@ export async function toggleOrderDeliveryAction(formData: FormData) {
   if (order) {
     await updateOrderDelivery(orderId, status, actor);
     revalidatePath("/admin/orders");
-    revalidatePath("/admin/deliveries");
   }
-}
-
-export async function createCourierShipmentAction(formData: FormData) {
-  const actor = await guard();
-  const orderId = asString(formData.get("orderId"));
-  const courierKey = asString(formData.get("courierKey"));
-  const order = await getOrder(orderId);
-  if (!order) return;
-  const settings = await getSettings();
-  assertDeliveryProviderAvailable(settings, courierKey as "pathao" | "steadfast" | "redx");
-  const payload = {
-    orderId: order.id,
-    customerName: order.customerName,
-    customerPhone: order.customerPhone,
-    customerAddress: order.shippingAddress,
-    district: order.district,
-    actor,
-  };
-  if (courierKey === "pathao") await createPathaoShipment(payload);
-  else if (courierKey === "redx") await createRedxShipment(payload);
-  else await createSteadfastShipment(payload);
-  revalidatePath("/admin/deliveries");
-  revalidatePath("/admin/orders");
-}
-
-export async function syncShipmentStatusAction(formData: FormData) {
-  const actor = await guard();
-  await syncCourierStatus(
-    asString(formData.get("shipmentId")),
-    asString(formData.get("status")) as
-      | "picked_up"
-      | "in_transit"
-      | "delivered"
-      | "returned"
-      | "cancelled",
-    actor,
-  );
-  revalidatePath("/admin/deliveries");
 }

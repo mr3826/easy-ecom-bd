@@ -1,14 +1,13 @@
 # Bornohin
 
-Bangladesh-focused ecommerce starter built with Next.js App Router, a protected admin dashboard, direct wallet payment flows for bKash and Nagad, and delivery abstractions for Pathao and Steadfast.
+Bangladesh-focused ecommerce starter built with Next.js App Router, a protected admin dashboard, direct wallet payment flows for bKash and Nagad, and configurable delivery zones.
 
 ## What is included
 
 - Customer storefront with home, catalog, product detail, cart, checkout, login, register, account, and tracking pages
-- Admin dashboard for products, categories, brands, inventory, orders, customers, coupons, payments, deliveries, landing pages, reports, and settings
+- Admin dashboard for products, categories, brands, inventory, orders, customers, coupons, payments, landing pages, reports, and settings
 - Landing page builder with custom slugs and attached products
 - Payment provider interfaces for bKash and Nagad with backend verification flow
-- Courier provider interfaces for Pathao and Steadfast
 - Prisma schema for PostgreSQL
 - Demo content and local in-memory persistence so the app runs immediately
 

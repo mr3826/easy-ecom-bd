@@ -4,7 +4,6 @@ import { getPrisma } from "@/server/db";
 import {
   addToCart,
   archiveProduct,
-  assertDeliveryProviderAvailable,
   createManualOrder,
   createOrderFromCart,
   deleteProduct,
@@ -213,6 +212,22 @@ test("cart flow and coupon application persist on the backend", async () => {
   expect(cleared.itemCount).toBe(0);
   expect(cleared.subtotal).toBe(0);
   expect(cleared.couponCode ?? null).toBeNull();
+});
+
+test("cart insertion accepts product id and slug while storing backend product ids", async () => {
+  const { actor, product } = await createCatalogItem(6);
+  const cart = await getOrCreateCart(unique("test-cart"), actor?.id);
+
+  const firstItem = await addToCart(cart.guestKey, product.slug, 1, actor?.id, actor ?? null);
+  expect(firstItem.productId).toBe(product.id);
+
+  const secondItem = await addToCart(cart.guestKey, product.id, 2, actor?.id, actor ?? null);
+  expect(secondItem.id).toBe(firstItem.id);
+  expect(secondItem.productId).toBe(product.id);
+
+  const summary = await getCartSummary(await getOrCreateCart(cart.guestKey, actor?.id));
+  expect(summary.itemCount).toBe(3);
+  expect(summary.subtotal).toBe(3000);
 });
 
 test("checkout reserves inventory, applies coupons, and persists order totals", async () => {
@@ -437,14 +452,11 @@ test("disabled payment methods are rejected by backend order creation", async ()
   }
 });
 
-test("delivery zones calculate configured charges and provider config rejects disabled couriers", async () => {
+test("delivery zones calculate configured charges", async () => {
   const settings = await getSettings();
 
   expect(getDeliveryChargeForZone(settings, "inside_dhaka", 0)).toBe(settings.insideDhakaDeliveryCharge);
   expect(getDeliveryChargeForZone(settings, "sub_dhaka", 0)).toBe(settings.subDhakaDeliveryCharge);
   expect(getDeliveryChargeForZone(settings, "outside_dhaka", 0)).toBe(settings.outsideDhakaDeliveryCharge);
   expect(getDeliveryChargeForZone(settings, "outside_dhaka", settings.freeDeliveryThreshold)).toBe(0);
-
-  expect(() => assertDeliveryProviderAvailable({ ...settings, redxEnabled: false }, "redx")).toThrow(/RedX is disabled/);
-  expect(() => assertDeliveryProviderAvailable({ ...settings, redxEnabled: true }, "redx")).not.toThrow();
 });

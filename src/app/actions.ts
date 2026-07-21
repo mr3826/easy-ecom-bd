@@ -58,7 +58,7 @@ export async function addToCartAction(formData: FormData) {
   if (!product) {
     throw new Error("Product not found");
   }
-  await addToCart(guestKey, productId, quantity, user?.id, user ?? null);
+  await addToCart(guestKey, product.id, quantity, user?.id, user ?? null);
   revalidatePath("/");
   revalidatePath("/shop");
   revalidatePath("/search");

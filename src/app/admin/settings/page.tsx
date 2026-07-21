@@ -55,12 +55,6 @@ export default async function AdminSettingsPage() {
           <label className="flex items-center gap-3 text-sm"><input name="subDhakaCodEnabled" type="checkbox" defaultChecked={settings.subDhakaCodEnabled} /> COD Sub-Dhaka</label>
           <label className="flex items-center gap-3 text-sm"><input name="outsideDhakaCodEnabled" type="checkbox" defaultChecked={settings.outsideDhakaCodEnabled} /> COD outside Dhaka</label>
         </div>
-        <div className="grid gap-3 rounded-3xl border border-[color:var(--border)] bg-white p-4 md:col-span-2">
-          <p className="font-semibold text-[color:var(--foreground)]">Courier providers</p>
-          <label className="flex items-center gap-3 text-sm"><input name="pathaoEnabled" type="checkbox" defaultChecked={settings.pathaoEnabled} /> Pathao enabled</label>
-          <label className="flex items-center gap-3 text-sm"><input name="steadfastEnabled" type="checkbox" defaultChecked={settings.steadfastEnabled} /> Steadfast enabled</label>
-          <label className="flex items-center gap-3 text-sm"><input name="redxEnabled" type="checkbox" defaultChecked={settings.redxEnabled} /> RedX enabled</label>
-        </div>
         <button className="w-fit rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950">Save settings</button>
       </form>
     </div>

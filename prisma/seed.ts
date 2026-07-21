@@ -21,7 +21,6 @@ async function clearDatabase(prisma: PrismaClient) {
     prisma.orderStatusHistory.deleteMany(),
     prisma.inventoryLog.deleteMany(),
     prisma.paymentLog.deleteMany(),
-    prisma.deliveryShipment.deleteMany(),
     prisma.payment.deleteMany(),
     prisma.orderItem.deleteMany(),
     prisma.order.deleteMany(),
@@ -37,7 +36,6 @@ async function clearDatabase(prisma: PrismaClient) {
     prisma.user.deleteMany(),
     prisma.category.deleteMany(),
     prisma.brand.deleteMany(),
-    prisma.courier.deleteMany(),
   ]);
 }
 
@@ -52,7 +50,6 @@ async function main() {
     await prisma.user.createMany({ data: state.users });
     await prisma.category.createMany({ data: state.categories });
     await prisma.brand.createMany({ data: state.brands });
-    await prisma.courier.createMany({ data: state.couriers });
     await prisma.product.createMany({
       data: state.products.map(({ metadata, ...product }) => ({
         ...product,
@@ -86,12 +83,6 @@ async function main() {
       data: state.payments.map((payment) => ({
         ...payment,
         rawResponse: payment.rawResponse as Prisma.InputJsonValue,
-      })),
-    });
-    await prisma.deliveryShipment.createMany({
-      data: state.deliveryShipments.map((shipment) => ({
-        ...shipment,
-        rawResponse: shipment.rawResponse as Prisma.InputJsonValue,
       })),
     });
     await prisma.auditLog.createMany({

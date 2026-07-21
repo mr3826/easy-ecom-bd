@@ -5,11 +5,14 @@ export type StorefrontProduct = {
   slug: string;
   name: string;
   collectionSlug: string;
+  collectionTitle?: string;
   price: number;
   compareAtPrice?: number;
   badge?: string;
   description: string;
   tone: string;
+  imageUrl?: string | null;
+  imageAlt?: string | null;
   featured?: boolean;
   soldOut?: boolean;
 };

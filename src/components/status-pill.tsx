@@ -15,7 +15,6 @@ const toneMap: Record<string, string> = {
   in_transit: "bg-cyan-100 text-cyan-800 ring-cyan-200",
   picked_up: "bg-[#f4ded9] text-[color:var(--brand)] ring-[#e8c9c1]",
   returned: "bg-orange-100 text-orange-800 ring-orange-200",
-  courier_created: "bg-[#f4ded9] text-[color:var(--brand)] ring-[#e8c9c1]",
 };
 
 export function StatusPill({

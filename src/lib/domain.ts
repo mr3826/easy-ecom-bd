@@ -19,7 +19,6 @@ export type PaymentStatus =
 
 export type DeliveryStatus =
   | "pending"
-  | "courier_created"
   | "picked_up"
   | "in_transit"
   | "delivered"
@@ -181,29 +180,6 @@ export interface PaymentLog {
   createdAt: string;
 }
 
-export interface Courier {
-  id: string;
-  key: "pathao" | "steadfast" | "redx";
-  name: string;
-  enabled: boolean;
-  description: string;
-}
-
-export interface DeliveryShipment {
-  id: string;
-  orderId: string;
-  courierKey: Courier["key"];
-  trackingId: string;
-  consignmentId?: string;
-  status: DeliveryStatus;
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
-  rawResponse: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface Coupon {
   id: string;
   code: string;
@@ -293,9 +269,6 @@ export interface Settings {
   insideDhakaCodEnabled: boolean;
   subDhakaCodEnabled: boolean;
   outsideDhakaCodEnabled: boolean;
-  pathaoEnabled: boolean;
-  steadfastEnabled: boolean;
-  redxEnabled: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -318,9 +291,6 @@ export interface Order {
   deliveryStatus: DeliveryStatus;
   paymentProvider?: PaymentProviderKey;
   deliveryZone: DeliveryZone;
-  deliveryProvider?: Courier["key"] | null;
-  trackingId?: string | null;
-  consignmentId?: string | null;
   notes?: string;
   adminNotes?: string | null;
   couponCode?: string | null;
@@ -353,8 +323,6 @@ export interface DatabaseState {
   orderStatusHistory: OrderStatusHistory[];
   payments: Payment[];
   paymentLogs: PaymentLog[];
-  couriers: Courier[];
-  deliveryShipments: DeliveryShipment[];
   landingPages: LandingPage[];
   landingPageSections: LandingPageSection[];
   coupons: Coupon[];
@@ -391,7 +359,6 @@ export const orderStatuses: OrderStatus[] = [
 
 export const deliveryStatuses: DeliveryStatus[] = [
   "pending",
-  "courier_created",
   "picked_up",
   "in_transit",
   "delivered",
@@ -408,16 +375,6 @@ export const paymentProviders: Array<{
   { key: "bkash", name: "bKash", description: "Mobile financial service instructions or checkout" },
   { key: "nagad", name: "Nagad", description: "Mobile financial service instructions" },
   { key: "rocket", name: "Rocket", description: "Mobile financial service instructions" },
-];
-
-export const courierOptions: Array<{
-  key: Courier["key"];
-  name: string;
-  description: string;
-}> = [
-  { key: "pathao", name: "Pathao Courier", description: "API-first parcel delivery" },
-  { key: "steadfast", name: "Steadfast Courier", description: "Nationwide delivery network" },
-  { key: "redx", name: "RedX Courier", description: "Courier booking placeholder" },
 ];
 
 export const deliveryZones: Array<{
