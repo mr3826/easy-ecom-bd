@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
-import { filterStorefrontProducts, getStorefrontCollectionBySlug } from "@/server/storefront-catalog";
+import {
+  filterStorefrontProducts,
+  getStorefrontBrandBySlug,
+  getStorefrontBrandRail,
+  getStorefrontCollectionBySlug,
+} from "@/server/storefront-catalog";
 import type { StorefrontProduct } from "@/lib/bornohin-storefront";
 
 export const dynamic = "force-dynamic";
@@ -20,15 +25,18 @@ function sortProducts(
 export default async function ShopPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ category?: string; query?: string; sort?: string }>;
+  searchParams?: Promise<{ brand?: string; category?: string; query?: string; sort?: string }>;
 }) {
   const params = (await searchParams) ?? {};
   const query = params.query ?? "";
   const category = params.category ?? "";
+  const brand = params.brand ?? "";
   const sort = params.sort ?? "";
-  const [products, selectedCollection] = await Promise.all([
-    filterStorefrontProducts(query, category),
+  const [products, selectedCollection, selectedBrand, brandRail] = await Promise.all([
+    filterStorefrontProducts(query, category, brand),
     category ? getStorefrontCollectionBySlug(category) : Promise.resolve(null),
+    brand ? getStorefrontBrandBySlug(brand) : Promise.resolve(null),
+    getStorefrontBrandRail(),
   ]);
   const sortedProducts = sortProducts(products, sort);
 
@@ -43,8 +51,9 @@ export default async function ShopPage({
                 <h1 className="mt-2 text-3xl font-black uppercase tracking-tight text-[color:var(--foreground)]">All products</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--muted)]">
                   {selectedCollection ? `${selectedCollection.title}. ` : ""}
+                  {selectedBrand ? `${selectedBrand.label}. ` : ""}
                   {query ? `Searching for “${query}”. ` : ""}
-                  This page uses backend product, category, and inventory data.
+                  This page uses backend product, category, brand, and inventory data.
                 </p>
               </div>
               <div className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--muted)]">
@@ -53,9 +62,18 @@ export default async function ShopPage({
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
-              {query ? (
+              {brandRail.map((entry) => (
+                <Link
+                  key={entry.href}
+                  href={entry.href}
+                  className={`rounded-full border px-3 py-2 ${entry.href.endsWith(`brand=${brand}`) ? "border-[color:var(--brand)] bg-[color:var(--brand)] text-white" : "border-[color:var(--border)] bg-white text-[color:var(--foreground)]"}`}
+                >
+                  {entry.label}
+                </Link>
+              ))}
+              {query || category || brand ? (
                 <Link href="/shop" className="rounded-full bg-[color:var(--accent)] px-3 py-2 text-white">
-                  Clear search
+                  Clear filters
                 </Link>
               ) : null}
             </div>

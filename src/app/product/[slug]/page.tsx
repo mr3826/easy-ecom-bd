@@ -80,7 +80,7 @@ export default async function ProductPage({
           </div>
 
           <div className="border border-[color:var(--border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--brand)]">{collection?.title ?? "Collection"}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--brand)]">{product.brandTitle ?? collection?.title ?? "Collection"}</p>
             <h1 className="mt-2 text-3xl font-black uppercase tracking-tight text-[color:var(--foreground)]">{product.name}</h1>
             <p className="mt-4 text-base leading-8 text-[color:var(--muted)]">{product.description}</p>
 
@@ -132,6 +132,11 @@ export default async function ProductPage({
               <Link href={`/shop?category=${product.collectionSlug}`} className="inline-flex items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)]">
                 More in collection
               </Link>
+              {product.brandSlug ? (
+                <Link href={`/shop?brand=${product.brandSlug}`} className="inline-flex items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)]">
+                  More by brand
+                </Link>
+              ) : null}
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">

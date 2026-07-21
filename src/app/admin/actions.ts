@@ -566,6 +566,9 @@ export async function saveLandingPageAction(formData: FormData) {
   }, actor);
   revalidatePath("/admin/landing-pages");
   revalidatePath(`/l/${landingPage.slug}`);
+  if (landingPage.slug === "home") {
+    revalidatePath("/");
+  }
 }
 
 export async function saveLandingPageSectionAction(formData: FormData) {
@@ -573,6 +576,7 @@ export async function saveLandingPageSectionAction(formData: FormData) {
   const landingPageId = asString(formData.get("landingPageId"));
   const type = asString(formData.get("type")) as
     | "banner"
+    | "carousel"
     | "title"
     | "subtitle"
     | "product_section"
@@ -597,6 +601,7 @@ export async function saveLandingPageSectionAction(formData: FormData) {
     sortOrder: asNumber(formData.get("sortOrder")),
   }, actor);
   revalidatePath("/admin/landing-pages");
+  revalidatePath("/");
 }
 
 export async function toggleOrderPaymentAction(formData: FormData) {

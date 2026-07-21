@@ -16,6 +16,8 @@ type ProductCardProps = {
     soldOut?: boolean;
     collectionSlug?: string;
     collectionTitle?: string;
+    brandSlug?: string;
+    brandTitle?: string;
     tone?: string;
     imageUrl?: string | null;
     imageAlt?: string | null;
@@ -30,7 +32,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
   const isSoldOut = product.soldOut || buttonLabel === "Sold Out";
   const canQuickAdd = !isSoldOut && buttonLabel === "Add to Cart";
   const collectionLabel = categoryName ?? product.collectionSlug?.replace(/-/g, " ") ?? "featured";
-  const displayCollectionLabel = categoryName ?? product.collectionTitle ?? collectionLabel;
+  const displayCollectionLabel = product.brandTitle ?? categoryName ?? product.collectionTitle ?? collectionLabel;
   const toneClass = product.tone ?? "from-[#e6ddd0] via-[#f2ece4] to-[#cbb9a4]";
 
   return (

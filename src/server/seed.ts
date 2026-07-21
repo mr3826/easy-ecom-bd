@@ -1,6 +1,7 @@
 import { hashSync } from "bcryptjs";
 import type { DatabaseState } from "@/lib/domain";
 import { storefrontCollections } from "@/lib/bornohin-storefront";
+import { homepageCarouselItemsTemplate } from "@/lib/homepage-carousel";
 import { createDefaultProductMetadata } from "@/lib/product-admin";
 import { slugify } from "@/lib/utils";
 import { siteBrand } from "@/lib/site-brand";
@@ -181,6 +182,19 @@ export function createSeedState(): DatabaseState {
     ],
     landingPages: [
       {
+        id: "lp-home",
+        slug: "home",
+        title: "Home",
+        metaDescription: "Homepage carousel and storefront campaign content.",
+        heroTitle: "Fresh, image-led fashion shelves built for quick browsing",
+        heroSubtitle: "Move through featured collections with admin-managed slides.",
+        bannerImageUrl: "/hero-fashion-1.svg",
+        published: true,
+        attachedProductIds: products.slice(0, 4).map((product) => product.id),
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
         id: "lp-1",
         slug: "ramadan-collection",
         title: "Ramadan Collection",
@@ -195,6 +209,20 @@ export function createSeedState(): DatabaseState {
       },
     ],
     landingPageSections: [
+      {
+        id: "lp-section-home-carousel",
+        landingPageId: "lp-home",
+        type: "carousel",
+        title: "Homepage carousel",
+        subtitle: "Featured",
+        body: "Admin-managed homepage slider.",
+        imageUrl: "/hero-fashion-1.svg",
+        productIds: [],
+        items: JSON.parse(homepageCarouselItemsTemplate),
+        ctaLabel: "Shop now",
+        ctaHref: "/shop",
+        sortOrder: 1,
+      },
       {
         id: "lp-section-1",
         landingPageId: "lp-1",

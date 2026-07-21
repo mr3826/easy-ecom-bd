@@ -1,11 +1,11 @@
 import { cache } from "react";
-import type { Product, ProductImage } from "@/lib/domain";
+import type { Brand, Product, ProductImage } from "@/lib/domain";
 import {
   storefrontCollections,
   type StorefrontCollection,
   type StorefrontProduct,
 } from "@/lib/bornohin-storefront";
-import { listCategories, listProductImages, listProducts } from "@/server/store";
+import { listBrands, listCategories, listProductImages, listProducts } from "@/server/store";
 
 type StorefrontRailEntry = {
   href: string;
@@ -21,6 +21,7 @@ function isSoldOut(product: Product) {
 function toStorefrontProduct(
   product: Product,
   collection: Pick<StorefrontCollection, "slug" | "title">,
+  brand: Pick<Brand, "slug" | "name"> | undefined,
   templateCollection: StorefrontCollection | undefined,
   image: ProductImage | undefined,
   fallbackIndex: number,
@@ -37,6 +38,8 @@ function toStorefrontProduct(
     name: product.name,
     collectionSlug: collection.slug,
     collectionTitle: collection.title,
+    brandSlug: brand?.slug,
+    brandTitle: brand?.name,
     price: product.price,
     compareAtPrice: product.compareAtPrice ?? templateProduct?.compareAtPrice,
     badge: isSoldOut(product) ? "Sold Out" : templateProduct?.badge,
@@ -50,8 +53,9 @@ function toStorefrontProduct(
 }
 
 async function resolveBackendCollections(): Promise<ResolvedStorefrontCollection[]> {
-  const [categories, products, productImages] = await Promise.all([listCategories(), listProducts(), listProductImages()]);
+  const [categories, brands, products, productImages] = await Promise.all([listCategories(), listBrands(), listProducts(), listProductImages()]);
   const templateBySlug = new Map(storefrontCollections.map((collection) => [collection.slug, collection] as const));
+  const brandById = new Map(brands.filter((brand) => brand.isActive).map((brand) => [brand.id, brand] as const));
   const productsByCategoryId = new Map<string, Product[]>();
   const imagesByProductId = new Map<string, ProductImage>();
 
@@ -89,6 +93,7 @@ async function resolveBackendCollections(): Promise<ResolvedStorefrontCollection
           toStorefrontProduct(
             product,
             { slug: category.slug, title: category.name },
+            brandById.get(product.brandId),
             templateCollection,
             imagesByProductId.get(product.id),
             index,
@@ -113,6 +118,20 @@ export const getStorefrontCategoryRail = cache(async function getStorefrontCateg
   })) satisfies StorefrontRailEntry[];
 });
 
+export const getStorefrontBrandRail = cache(async function getStorefrontBrandRail() {
+  const products = await getStorefrontProducts();
+  const brandEntries = new Map<string, StorefrontRailEntry>();
+  for (const product of products) {
+    if (product.brandSlug && product.brandTitle) {
+      brandEntries.set(product.brandSlug, {
+        href: `/shop?brand=${product.brandSlug}`,
+        label: product.brandTitle,
+      });
+    }
+  }
+  return Array.from(brandEntries.values());
+});
+
 export const getStorefrontProducts = cache(async function getStorefrontProducts() {
   const collections = await getStorefrontCollections();
   return collections.flatMap((collection) => collection.products);
@@ -126,6 +145,11 @@ export const getStorefrontCollectionBySlug = cache(async function getStorefrontC
 export const getStorefrontProductBySlug = cache(async function getStorefrontProductBySlug(slug: string) {
   const products = await getStorefrontProducts();
   return products.find((product) => product.slug === slug) ?? null;
+});
+
+export const getStorefrontBrandBySlug = cache(async function getStorefrontBrandBySlug(slug: string) {
+  const brands = await getStorefrontBrandRail();
+  return brands.find((brand) => brand.href === `/shop?brand=${slug}`) ?? null;
 });
 
 export const getStorefrontRelatedProducts = cache(async function getStorefrontRelatedProducts(
@@ -149,16 +173,20 @@ export const searchStorefrontProducts = cache(async function searchStorefrontPro
   const products = await getStorefrontProducts();
   if (!normalized) return products;
   return products.filter((product) =>
-    [product.name, product.description, product.collectionSlug, product.badge ?? ""]
+    [product.name, product.description, product.collectionSlug, product.collectionTitle ?? "", product.brandTitle ?? "", product.badge ?? ""]
       .join(" ")
       .toLowerCase()
       .includes(normalized),
   );
 });
 
-export const filterStorefrontProducts = cache(async function filterStorefrontProducts(query: string, categorySlug?: string) {
+export const filterStorefrontProducts = cache(async function filterStorefrontProducts(query: string, categorySlug?: string, brandSlug?: string) {
   const normalizedCategory = categorySlug?.trim();
+  const normalizedBrand = brandSlug?.trim();
   const products = await searchStorefrontProducts(query);
-  if (!normalizedCategory) return products;
-  return products.filter((product) => product.collectionSlug === normalizedCategory);
+  return products.filter((product) => {
+    if (normalizedCategory && product.collectionSlug !== normalizedCategory) return false;
+    if (normalizedBrand && product.brandSlug !== normalizedBrand) return false;
+    return true;
+  });
 });

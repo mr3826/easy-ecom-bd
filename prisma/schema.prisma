@@ -53,6 +53,7 @@ enum DeliveryZone {
 
 enum LandingSectionType {
   banner
+  carousel
   title
   subtitle
   product_section

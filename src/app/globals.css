@@ -66,3 +66,65 @@ details > summary {
 details > summary::-webkit-details-marker {
   display: none;
 }
+
+.admin-shell main :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  min-height: 2.875rem;
+  min-width: 0;
+  width: 100%;
+  border-color: var(--border);
+  background: #fffdf7;
+  color: var(--foreground);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.admin-shell main :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea)::placeholder {
+  color: color-mix(in srgb, var(--muted) 70%, white);
+}
+
+.admin-shell main :where(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus {
+  border-color: color-mix(in srgb, var(--brand) 48%, var(--border));
+  outline: 2px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  outline-offset: 2px;
+}
+
+.admin-shell main :where(button, a[href]) {
+  min-height: 2.5rem;
+  min-width: 0;
+}
+
+.admin-shell main :where(button:not(:disabled), a[href]) {
+  transition-property: background-color, border-color, color, box-shadow, transform;
+  transition-duration: 180ms;
+}
+
+.admin-shell main :where(button:not(:disabled):hover, a[href]:hover) {
+  box-shadow: 0 12px 28px rgba(139, 0, 0, 0.08);
+}
+
+.admin-shell main :where(button:disabled) {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.admin-shell main :where(form, section, article, table) {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .admin-shell main {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-shell main :where(form) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .admin-shell main :where(button, a[href]) {
+    max-width: 100%;
+  }
+
+  .admin-shell main :where(form.grid > button, form.grid > a[href]) {
+    width: 100%;
+    justify-content: center;
+  }
+}

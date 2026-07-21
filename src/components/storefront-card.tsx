@@ -58,7 +58,7 @@ export function StorefrontCard({
           </div>
           <div className="absolute inset-0 flex items-end justify-between p-4 text-white">
             <div className="max-w-[70%]">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/80">{product.collectionTitle ?? product.collectionSlug.replace(/-/g, " ")}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/80">{product.brandTitle ?? product.collectionTitle ?? product.collectionSlug.replace(/-/g, " ")}</p>
               <h3 className="mt-2 text-lg font-black leading-tight sm:text-xl">{product.name}</h3>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/30 bg-white/12 text-white backdrop-blur">
@@ -70,7 +70,7 @@ export function StorefrontCard({
 
       <div className="space-y-4 p-4">
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{product.collectionTitle ?? product.collectionSlug.replace(/-/g, " ")}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">{product.brandTitle ?? product.collectionTitle ?? product.collectionSlug.replace(/-/g, " ")}</p>
           <div className="flex items-center gap-0.5 text-[#d89a47]" aria-label="Rated 5 stars">
             {Array.from({ length: 5 }).map((_, index) => (
               <Star key={index} className="h-3.5 w-3.5 fill-current" />

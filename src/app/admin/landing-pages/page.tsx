@@ -2,6 +2,9 @@ import Link from "next/link";
 import { saveLandingPageAction, saveLandingPageSectionAction } from "@/app/admin/actions";
 import { listLandingPages, getLandingPageSections, listProducts } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
+import { homepageCarouselItemsTemplate } from "@/lib/homepage-carousel";
+
+const defaultSectionItemsJson = JSON.stringify([{ title: "Question", body: "Answer" }], null, 2);
 
 export default async function AdminLandingPagesPage({
   searchParams,
@@ -65,6 +68,7 @@ export default async function AdminLandingPagesPage({
             <span>Type</span>
             <select name="type" className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)]">
               <option value="banner">Banner</option>
+              <option value="carousel">Slider / carousel</option>
               <option value="title">Title</option>
               <option value="subtitle">Subtitle</option>
               <option value="product_section">Product section</option>
@@ -106,8 +110,8 @@ export default async function AdminLandingPagesPage({
             <input name="sortOrder" type="number" defaultValue={sections.length + 1} className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)]" />
           </label>
           <label className="grid gap-2 text-sm md:col-span-2">
-            <span>Items JSON for FAQ/testimonials</span>
-            <textarea name="itemsJson" rows={4} defaultValue='[{"title":"Question","body":"Answer"}]' className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] font-mono text-xs" />
+            <span>Items JSON for carousel/FAQ/testimonials</span>
+            <textarea name="itemsJson" rows={8} defaultValue={selected.slug === "home" ? homepageCarouselItemsTemplate : defaultSectionItemsJson} className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] font-mono text-xs" />
           </label>
           <button className="w-fit rounded-full bg-white px-5 py-3 text-sm font-semibold text-slate-950">Add section</button>
         </form>

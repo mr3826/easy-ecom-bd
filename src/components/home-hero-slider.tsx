@@ -5,26 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-export type HomeHeroSlide = {
-  id: string;
-  eyebrow: string;
-  title: string;
-  description: string;
-  primaryCta: {
-    label: string;
-    href: string;
-  };
-  secondaryCta?: {
-    label: string;
-    href: string;
-  };
-  chips?: string[];
-  imageAlt: string;
-  imageSrc: string;
-  accentClass: string;
-  reverse?: boolean;
-};
+import type { HomeHeroSlide } from "@/lib/homepage-carousel";
 
 export function HomeHeroSlider({ slides }: { slides: HomeHeroSlide[] }) {
   const [activeIndex, setActiveIndex] = useState(0);

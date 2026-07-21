@@ -38,7 +38,7 @@ export async function AdminShell({
 }) {
   const settings = await getSettings();
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff3de_0%,#f5efe5_34%,#eef2f6_100%)] text-[color:var(--foreground)]">
+    <div className="admin-shell min-h-screen bg-[radial-gradient(circle_at_top,#fff3de_0%,#f5efe5_34%,#eef2f6_100%)] text-[color:var(--foreground)]">
       <div className="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
         <div className="border-b border-[color:var(--border)] bg-white/90 px-4 py-4 backdrop-blur lg:hidden">
           <details className="group rounded-[1.5rem] border border-[color:var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(61,39,35,0.06)]">

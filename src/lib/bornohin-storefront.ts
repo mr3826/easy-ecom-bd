@@ -6,6 +6,8 @@ export type StorefrontProduct = {
   name: string;
   collectionSlug: string;
   collectionTitle?: string;
+  brandSlug?: string;
+  brandTitle?: string;
   price: number;
   compareAtPrice?: number;
   badge?: string;

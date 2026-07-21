@@ -29,6 +29,7 @@ export type DeliveryZone = "inside_dhaka" | "sub_dhaka" | "outside_dhaka";
 
 export type LandingSectionType =
   | "banner"
+  | "carousel"
   | "title"
   | "subtitle"
   | "product_section"
@@ -206,6 +207,22 @@ export interface InventoryLog {
   createdAt: string;
 }
 
+export type LandingSectionItem = {
+  id?: string;
+  title?: string;
+  body?: string;
+  eyebrow?: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  primaryCtaLabel?: string;
+  primaryCtaHref?: string;
+  secondaryCtaLabel?: string;
+  secondaryCtaHref?: string;
+  chips?: string[] | string;
+  accentClass?: string;
+  reverse?: boolean | string;
+};
+
 export interface LandingPageSection {
   id: string;
   landingPageId: string;
@@ -215,7 +232,7 @@ export interface LandingPageSection {
   body?: string;
   imageUrl?: string;
   productIds: string[];
-  items: Array<{ title: string; body: string }>;
+  items: LandingSectionItem[];
   ctaLabel?: string;
   ctaHref?: string;
   sortOrder: number;
