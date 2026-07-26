@@ -61,8 +61,8 @@ cPanel API cannot add it.
 Please preserve /home/bornohin/bornohin_app, the active Passenger application,
 the PostgreSQL database, mail data, and existing Cloudflare nameservers. Do not
 replace Cloudflare DNS records. After the primary-domain change, please keep
-www.bornohin.com as a redirect to the apex and keep api.bornohin.com as a
-compatibility redirect to https://bornohin.com/api/.
+www.bornohin.com as a redirect to the apex. Serve API routes only from
+https://bornohin.com/api/.
 ```
 
 ## Gate 1: Access and Backup
@@ -130,7 +130,7 @@ After the backup is complete and the preflight paths are reviewed:
    - Node.js: 20.9 or newer
    - application URL: `bornohin.com`
 7. Keep `www.bornohin.com` as a canonical redirect to the apex domain.
-8. Keep `api.bornohin.com` as a compatibility redirect to `https://bornohin.com/api/`.
+8. Do not maintain a separate API hostname. Serve API routes only from `https://bornohin.com/api/`.
 
 Changing the cPanel account's primary domain may require ExonHost support. The public site can still use `bornohin.com` as an addon domain/application URL without changing the account username or home path.
 

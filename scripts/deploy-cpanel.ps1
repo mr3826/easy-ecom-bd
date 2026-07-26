@@ -162,6 +162,12 @@ Write-OK "Release extracted and archive removed"
 Write-Step "Restarting Passenger"
 $restartFile = Join-Path $env:TEMP "restart.txt"
 Set-Content -LiteralPath $restartFile -Value (Get-Date -Format o) -Encoding ASCII
+$remoteRestartFile = "$absoluteAppRoot/tmp/restart.txt"
+try {
+    Invoke-CpanelFileOperation -Operation "unlink" -Source $remoteRestartFile
+} catch {
+    # The marker is often missing on the first deploy, which is fine.
+}
 $restartResponse = curl.exe --fail-with-body --silent --show-error `
     -H $authorization `
     -F "file-1=@$restartFile;filename=restart.txt" `
