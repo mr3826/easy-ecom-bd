@@ -44,3 +44,7 @@ next-env.d.ts
 
 # local infrastructure inventories
 /cpanel-preflight.json
+
+# generated local release and workspace artifacts
+/.kilo/
+/deploy-package/
