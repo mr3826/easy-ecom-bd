@@ -153,11 +153,55 @@ function Invoke-CpanelFileOperation {
     }
 }
 
+function Sync-CpanelAppApiUrl {
+    param(
+        [string]$DesiredApiUrl
+    )
+
+    $htaccessDir = "/home/bornohin/public_html"
+    $readResponse = Invoke-RestMethod `
+        -Uri "https://${CpanelHost}:2083/execute/Fileman/get_file_content?dir=$([Uri]::EscapeDataString($htaccessDir))&file=.htaccess" `
+        -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
+        -Method Get
+
+    if ($readResponse.status -ne 1 -or -not $readResponse.data.content) {
+        Stop-Deploy "Failed to read the live cPanel .htaccess file."
+    }
+
+    $updatedContent = [regex]::Replace(
+        $readResponse.data.content,
+        '(?m)^SetEnv API_URL\s+.*$',
+        "SetEnv API_URL $DesiredApiUrl"
+    )
+
+    if ($updatedContent -eq $readResponse.data.content) {
+        return
+    }
+
+    $saveResponse = Invoke-RestMethod `
+        -Uri "https://${CpanelHost}:2083/execute/Fileman/save_file_content" `
+        -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
+        -Method Post `
+        -Body @{
+            dir = $htaccessDir
+            file = ".htaccess"
+            content = $updatedContent
+        }
+
+    if ($saveResponse.status -ne 1) {
+        Stop-Deploy "Failed to synchronize the live API_URL in cPanel."
+    }
+
+    Write-OK "Live API_URL synced to $DesiredApiUrl"
+}
+
 Write-Step "Extracting release into the confirmed Passenger app root"
 $remoteArchive = "$absoluteAppRoot/bornohin-release.zip"
 Invoke-CpanelFileOperation -Operation "extract" -Source $remoteArchive -Destination $absoluteAppRoot
 Invoke-CpanelFileOperation -Operation "unlink" -Source $remoteArchive
 Write-OK "Release extracted and archive removed"
+
+Sync-CpanelAppApiUrl -DesiredApiUrl "https://bornohin.com/api"
 
 Write-Step "Restarting Passenger"
 $restartFile = Join-Path $env:TEMP "restart.txt"
