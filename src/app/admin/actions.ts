@@ -28,6 +28,7 @@ import {
   updateSettings,
 } from "@/server/store";
 import { getFileStorage } from "@/server/storage";
+import { getBkashIntegrationConfig } from "@/server/integration-config";
 import { asNumber, asString } from "@/lib/utils";
 import type { ProductVariantGroup } from "@/lib/domain";
 import { parseProductUploadCsv } from "@/lib/product-import";
@@ -488,6 +489,10 @@ export async function saveSettingsAction(formData: FormData) {
     if (!deliveryAreas.length) {
       throw new Error("At least one delivery area is required");
     }
+    const bkashEnabled = asString(formData.get("bkashEnabled")) === "on";
+    if (bkashEnabled && !getBkashIntegrationConfig().enabled) {
+      throw new Error("bKash gateway credentials must be configured before bKash can be enabled");
+    }
 
     await updateSettings({
       storeName: parseRequiredString(formData, "storeName", "Store name"),
@@ -512,7 +517,7 @@ export async function saveSettingsAction(formData: FormData) {
         "Free delivery threshold",
       ),
       codEnabled: asString(formData.get("codEnabled")) === "on",
-      bkashEnabled: asString(formData.get("bkashEnabled")) === "on",
+      bkashEnabled,
       bkashAccountNumber: readTrimmedString(formData, "bkashAccountNumber") || null,
       bkashInstructions: readTrimmedString(formData, "bkashInstructions"),
       nagadEnabled: asString(formData.get("nagadEnabled")) === "on",

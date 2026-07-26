@@ -1,6 +1,7 @@
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { saveSettingsAction } from "@/app/admin/actions";
 import { SettingsSubmitButton } from "@/components/admin/settings-submit-button";
+import { getBkashIntegrationConfig } from "@/server/integration-config";
 import { getSettings } from "@/server/store";
 
 const inputClass =
@@ -12,6 +13,7 @@ export default async function AdminSettingsPage({
   searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
   const [{ saved, error }, settings] = await Promise.all([searchParams, getSettings()]);
+  const bkashReady = getBkashIntegrationConfig().enabled;
 
   return (
     <div className="space-y-6 text-[color:var(--foreground)]">
@@ -120,7 +122,13 @@ export default async function AdminSettingsPage({
             <input name="codEnabled" type="checkbox" defaultChecked={settings.codEnabled} /> COD enabled
           </label>
           <label className="flex items-center gap-3 text-sm">
-            <input name="bkashEnabled" type="checkbox" defaultChecked={settings.bkashEnabled} /> bKash enabled
+            <input
+              name="bkashEnabled"
+              type="checkbox"
+              disabled={!bkashReady}
+              defaultChecked={settings.bkashEnabled && bkashReady}
+            />
+            {bkashReady ? "bKash enabled" : "bKash unavailable until gateway credentials are configured"}
           </label>
           <div className="grid gap-3 md:grid-cols-2">
             <input name="bkashAccountNumber" aria-label="bKash account number" placeholder="bKash account/merchant number" defaultValue={settings.bkashAccountNumber ?? ""} className={inputClass} />

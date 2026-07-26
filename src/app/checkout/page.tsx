@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/server/auth";
 import { getOrCreateCart, getCartSummary, getSettings } from "@/server/store";
 import { checkoutAction } from "@/app/actions";
 import { money } from "@/lib/utils";
+import { getBkashIntegrationConfig } from "@/server/integration-config";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,12 @@ export default async function CheckoutPage() {
     getSettings(),
   ]);
   const summary = await getCartSummary(cart);
+  const bkashReady = getBkashIntegrationConfig().enabled;
   const deliveryFee = summary.subtotal >= settings.freeDeliveryThreshold ? 0 : settings.insideDhakaDeliveryCharge;
   const supportDigits = settings.contactNumber.replace(/\D/g, "");
   const paymentMethods = [
     { key: "cod", name: "Cash on Delivery", description: "Pay when the parcel arrives", enabled: settings.codEnabled },
-    { key: "bkash", name: "bKash", description: settings.bkashInstructions || "Mobile wallet checkout after order creation", enabled: settings.bkashEnabled },
+    { key: "bkash", name: "bKash", description: settings.bkashInstructions || "Mobile wallet checkout after order creation", enabled: settings.bkashEnabled && bkashReady },
     { key: "nagad", name: "Nagad", description: settings.nagadInstructions || "Manual mobile payment instructions", enabled: settings.nagadEnabled },
     { key: "rocket", name: "Rocket", description: settings.rocketInstructions || "Manual mobile payment instructions", enabled: settings.rocketEnabled },
   ];
