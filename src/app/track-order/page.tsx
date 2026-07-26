@@ -4,7 +4,7 @@ import { ContentPage } from "@/components/content-page";
 import { StatusPill } from "@/components/status-pill";
 import { storefrontPolicyPages } from "@/lib/bornohin-storefront";
 import { money, shortDate } from "@/lib/utils";
-import { getOrderByCode } from "@/server/store";
+import { getOrderByCode, getSettings } from "@/server/store";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,10 @@ export default async function TrackOrderPage({
   const params = (await searchParams) ?? {};
   const page = storefrontPolicyPages["track-order"];
   const trackingCode = params.code ?? params.invoice ?? "";
-  const order = trackingCode ? await getOrderByCode(trackingCode.trim()) : null;
+  const [order, settings] = await Promise.all([
+    trackingCode ? getOrderByCode(trackingCode.trim()) : null,
+    getSettings(),
+  ]);
 
   return (
     <PublicShell>
@@ -28,25 +31,30 @@ export default async function TrackOrderPage({
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--brand)]">Tracking reference</p>
               <p className="mt-1 text-base font-semibold text-[color:var(--foreground)]">{trackingCode}</p>
               {order ? (
-                <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                  <div>
-                    <p className="text-[color:var(--muted)]">Order</p>
-                    <p className="mt-1 font-semibold text-[color:var(--foreground)]">{order.orderCode}</p>
+                <>
+                  <p className="mt-3 text-sm leading-6 text-[color:var(--foreground)]">
+                    {settings.confirmationMessageTemplate}
+                  </p>
+                  <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      <p className="text-[color:var(--muted)]">Order</p>
+                      <p className="mt-1 font-semibold text-[color:var(--foreground)]">{order.orderCode}</p>
+                    </div>
+                    <div>
+                      <p className="text-[color:var(--muted)]">Total</p>
+                      <p className="mt-1 font-semibold text-[color:var(--foreground)]">{money(order.total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[color:var(--muted)]">Created</p>
+                      <p className="mt-1 font-semibold text-[color:var(--foreground)]">{shortDate(order.createdAt)}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill label={order.status} tone={order.status} />
+                      <StatusPill label={order.paymentStatus} tone={order.paymentStatus} />
+                      <StatusPill label={order.deliveryStatus} tone={order.deliveryStatus} />
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[color:var(--muted)]">Total</p>
-                    <p className="mt-1 font-semibold text-[color:var(--foreground)]">{money(order.total)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[color:var(--muted)]">Created</p>
-                    <p className="mt-1 font-semibold text-[color:var(--foreground)]">{shortDate(order.createdAt)}</p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusPill label={order.status} tone={order.status} />
-                    <StatusPill label={order.paymentStatus} tone={order.paymentStatus} />
-                    <StatusPill label={order.deliveryStatus} tone={order.deliveryStatus} />
-                  </div>
-                </div>
+                </>
               ) : (
                 <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
                   No matching order was found for this reference.

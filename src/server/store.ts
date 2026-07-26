@@ -695,42 +695,120 @@ export async function getSettings() {
   return (await getSettingsRow()) as unknown as Settings;
 }
 
+function validateSettings(settings: Settings) {
+  const requiredText: Array<[string, string]> = [
+    ["Store name", settings.storeName],
+    ["Logo text", settings.logoText],
+    ["Contact number", settings.contactNumber],
+    ["Shop address", settings.address],
+    ["Business hours", settings.businessHours],
+    ["Return/refund policy", settings.returnRefundPolicy],
+    ["Order confirmation message", settings.confirmationMessageTemplate],
+  ];
+  for (const [label, value] of requiredText) {
+    if (!value.trim()) throw new Error(`${label} is required`);
+  }
+
+  if (!settings.deliveryAreas.length || settings.deliveryAreas.some((area) => !area.trim())) {
+    throw new Error("At least one valid delivery area is required");
+  }
+
+  const nonNegativeIntegers: Array<[string, number]> = [
+    ["Default delivery charge", settings.deliveryCharge],
+    ["Free delivery threshold", settings.freeDeliveryThreshold],
+    ["Inside Dhaka delivery charge", settings.insideDhakaDeliveryCharge],
+    ["Sub-Dhaka delivery charge", settings.subDhakaDeliveryCharge],
+    ["Outside Dhaka delivery charge", settings.outsideDhakaDeliveryCharge],
+  ];
+  for (const [label, value] of nonNegativeIntegers) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`${label} must be a non-negative integer`);
+    }
+  }
+
+  if (settings.supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.supportEmail)) {
+    throw new Error("Support email must be valid");
+  }
+
+  if (settings.logoUrl) {
+    const isLocalPath = settings.logoUrl.startsWith("/");
+    let isHttpUrl = false;
+    try {
+      const parsed = new URL(settings.logoUrl);
+      isHttpUrl = parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      isHttpUrl = false;
+    }
+    if (!isLocalPath && !isHttpUrl) {
+      throw new Error("Logo URL must be an absolute HTTP(S) URL or a local path");
+    }
+  }
+
+  const mobilePayments: Array<[string, boolean, string | null | undefined, string]> = [
+    ["bKash", settings.bkashEnabled, settings.bkashAccountNumber, settings.bkashInstructions],
+    ["Nagad", settings.nagadEnabled, settings.nagadAccountNumber, settings.nagadInstructions],
+    ["Rocket", settings.rocketEnabled, settings.rocketAccountNumber, settings.rocketInstructions],
+  ];
+  for (const [name, enabled, accountNumber, instructions] of mobilePayments) {
+    if (enabled && !accountNumber?.trim()) throw new Error(`${name} account number is required when enabled`);
+    if (enabled && !instructions.trim()) throw new Error(`${name} instructions are required when enabled`);
+  }
+
+  if (
+    settings.codEnabled &&
+    !settings.insideDhakaCodEnabled &&
+    !settings.subDhakaCodEnabled &&
+    !settings.outsideDhakaCodEnabled
+  ) {
+    throw new Error("Enable COD for at least one delivery zone or disable COD");
+  }
+}
+
 export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
   const prisma = getPrisma();
   const existing = await getSettingsRow();
+  const definedPatch = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined),
+  ) as Partial<Settings>;
+  const next = {
+    ...existing,
+    ...definedPatch,
+  } as unknown as Settings;
+  validateSettings(next);
+
   const record = await prisma.setting.update({
     where: { id: existing.id },
     data: {
-      storeName: patch.storeName ?? existing.storeName,
-      logoText: patch.logoText ?? existing.logoText,
-      logoUrl: patch.logoUrl ?? existing.logoUrl,
-      supportEmail: patch.supportEmail ?? existing.supportEmail,
-      contactNumber: patch.contactNumber ?? existing.contactNumber,
-      address: patch.address ?? existing.address,
-      businessHours: patch.businessHours ?? existing.businessHours,
-      deliveryAreas: patch.deliveryAreas ?? existing.deliveryAreas,
-      returnRefundPolicy: patch.returnRefundPolicy ?? existing.returnRefundPolicy,
-      confirmationMessageTemplate: patch.confirmationMessageTemplate ?? existing.confirmationMessageTemplate,
-      metaPixelId: patch.metaPixelId ?? existing.metaPixelId,
-      gtmContainerId: patch.gtmContainerId ?? existing.gtmContainerId,
-      deliveryCharge: patch.deliveryCharge ?? existing.deliveryCharge,
-      freeDeliveryThreshold: patch.freeDeliveryThreshold ?? existing.freeDeliveryThreshold,
-      codEnabled: patch.codEnabled ?? existing.codEnabled,
-      bkashEnabled: patch.bkashEnabled ?? existing.bkashEnabled,
-      bkashAccountNumber: patch.bkashAccountNumber ?? existing.bkashAccountNumber,
-      bkashInstructions: patch.bkashInstructions ?? existing.bkashInstructions,
-      nagadEnabled: patch.nagadEnabled ?? existing.nagadEnabled,
-      nagadAccountNumber: patch.nagadAccountNumber ?? existing.nagadAccountNumber,
-      nagadInstructions: patch.nagadInstructions ?? existing.nagadInstructions,
-      rocketEnabled: patch.rocketEnabled ?? existing.rocketEnabled,
-      rocketAccountNumber: patch.rocketAccountNumber ?? existing.rocketAccountNumber,
-      rocketInstructions: patch.rocketInstructions ?? existing.rocketInstructions,
-      insideDhakaDeliveryCharge: patch.insideDhakaDeliveryCharge ?? existing.insideDhakaDeliveryCharge,
-      subDhakaDeliveryCharge: patch.subDhakaDeliveryCharge ?? existing.subDhakaDeliveryCharge,
-      outsideDhakaDeliveryCharge: patch.outsideDhakaDeliveryCharge ?? existing.outsideDhakaDeliveryCharge,
-      insideDhakaCodEnabled: patch.insideDhakaCodEnabled ?? existing.insideDhakaCodEnabled,
-      subDhakaCodEnabled: patch.subDhakaCodEnabled ?? existing.subDhakaCodEnabled,
-      outsideDhakaCodEnabled: patch.outsideDhakaCodEnabled ?? existing.outsideDhakaCodEnabled,
+      storeName: next.storeName,
+      logoText: next.logoText,
+      logoUrl: next.logoUrl,
+      supportEmail: next.supportEmail,
+      contactNumber: next.contactNumber,
+      address: next.address,
+      businessHours: next.businessHours,
+      deliveryAreas: next.deliveryAreas,
+      returnRefundPolicy: next.returnRefundPolicy,
+      confirmationMessageTemplate: next.confirmationMessageTemplate,
+      metaPixelId: next.metaPixelId,
+      gtmContainerId: next.gtmContainerId,
+      deliveryCharge: next.deliveryCharge,
+      freeDeliveryThreshold: next.freeDeliveryThreshold,
+      codEnabled: next.codEnabled,
+      bkashEnabled: next.bkashEnabled,
+      bkashAccountNumber: next.bkashAccountNumber,
+      bkashInstructions: next.bkashInstructions,
+      nagadEnabled: next.nagadEnabled,
+      nagadAccountNumber: next.nagadAccountNumber,
+      nagadInstructions: next.nagadInstructions,
+      rocketEnabled: next.rocketEnabled,
+      rocketAccountNumber: next.rocketAccountNumber,
+      rocketInstructions: next.rocketInstructions,
+      insideDhakaDeliveryCharge: next.insideDhakaDeliveryCharge,
+      subDhakaDeliveryCharge: next.subDhakaDeliveryCharge,
+      outsideDhakaDeliveryCharge: next.outsideDhakaDeliveryCharge,
+      insideDhakaCodEnabled: next.insideDhakaCodEnabled,
+      subDhakaCodEnabled: next.subDhakaCodEnabled,
+      outsideDhakaCodEnabled: next.outsideDhakaCodEnabled,
     },
   });
   await recordAuditLog({

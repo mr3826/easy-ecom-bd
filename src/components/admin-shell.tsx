@@ -1,8 +1,7 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { ReactNode } from "react";
+import { SiteLogo } from "@/components/site-logo";
 import { getSettings } from "@/server/store";
-import { siteBrand } from "@/lib/site-brand";
 import {
   LayoutDashboard,
   Package,
@@ -45,7 +44,7 @@ export async function AdminShell({
             <summary className="flex list-none items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--border)] bg-white p-2">
-                  <Image src={siteBrand.logoPath} alt="" width={96} height={96} className="h-full w-full object-contain" />
+                  <SiteLogo logoUrl={settings.logoUrl} size={96} className="h-full w-full object-contain" />
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">{settings.logoText}</p>
@@ -79,7 +78,7 @@ export async function AdminShell({
           <div className="mb-8 rounded-[1.75rem] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4 shadow-[0_18px_40px_rgba(61,39,35,0.06)]">
             <div className="flex items-center gap-3">
               <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[1.25rem] border border-[color:var(--border)] bg-white p-2">
-                <Image src={siteBrand.logoPath} alt="" width={96} height={96} className="h-full w-full object-contain" />
+                <SiteLogo logoUrl={settings.logoUrl} size={96} className="h-full w-full object-contain" />
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[color:var(--muted)]">{settings.logoText}</p>

@@ -460,3 +460,35 @@ test("delivery zones calculate configured charges", async () => {
   expect(getDeliveryChargeForZone(settings, "outside_dhaka", 0)).toBe(settings.outsideDhakaDeliveryCharge);
   expect(getDeliveryChargeForZone(settings, "outside_dhaka", settings.freeDeliveryThreshold)).toBe(0);
 });
+
+test("settings allow nullable fields to be cleared and reject negative charges", async () => {
+  const settings = await getSettings();
+  const actor = await findUserByEmail("admin@easy-ecom.test");
+
+  try {
+    await updateSettings(
+      {
+        logoUrl: "https://example.com/test-logo.png",
+        supportEmail: "settings@test.local",
+      },
+      actor ?? undefined,
+    );
+    await updateSettings({ logoUrl: null, supportEmail: null }, actor ?? undefined);
+
+    const cleared = await getSettings();
+    expect(cleared.logoUrl).toBeNull();
+    expect(cleared.supportEmail).toBeNull();
+
+    await expect(
+      updateSettings({ outsideDhakaDeliveryCharge: -1 }, actor ?? undefined),
+    ).rejects.toThrow(/non-negative integer/);
+  } finally {
+    await updateSettings(
+      {
+        logoUrl: settings.logoUrl,
+        supportEmail: settings.supportEmail,
+      },
+      actor ?? undefined,
+    );
+  }
+});

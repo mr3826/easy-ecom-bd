@@ -58,6 +58,8 @@ export async function PublicShell({
       <SiteAnalytics />
       <SiteHeader
         storeName={settings.storeName}
+        logoText={settings.logoText}
+        logoUrl={settings.logoUrl}
         contactNumber={settings.contactNumber}
         supportEmail={settings.supportEmail ?? siteBrand.supportEmail}
         cartSummary={cartSummary}

@@ -88,6 +88,18 @@ function parseNumberField(
   return normalized;
 }
 
+function parseRequiredNonNegativeInteger(formData: FormData, name: string, label: string) {
+  const value = parseNumberField(formData, name, label, {
+    required: true,
+    integer: true,
+    min: 0,
+  });
+  if (value === null) {
+    throw new Error(`${label} is required`);
+  }
+  return value;
+}
+
 function parseOptionalDateString(formData: FormData, name: string, label: string) {
   const value = readTrimmedString(formData, name);
   if (!value) return null;
@@ -471,44 +483,76 @@ export async function saveCouponAction(formData: FormData) {
 
 export async function saveSettingsAction(formData: FormData) {
   const actor = await guard();
-  const deliveryAreas = asString(formData.get("deliveryAreas"))
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  await updateSettings({
-    storeName: asString(formData.get("storeName")),
-    logoText: asString(formData.get("logoText")),
-    logoUrl: asString(formData.get("logoUrl")) || undefined,
-    supportEmail: asString(formData.get("supportEmail")) || undefined,
-    contactNumber: asString(formData.get("contactNumber")),
-    address: asString(formData.get("address")),
-    businessHours: asString(formData.get("businessHours")),
-    deliveryAreas,
-    returnRefundPolicy: asString(formData.get("returnRefundPolicy")),
-    confirmationMessageTemplate: asString(formData.get("confirmationMessageTemplate")),
-    metaPixelId: asString(formData.get("metaPixelId")) || undefined,
-    gtmContainerId: asString(formData.get("gtmContainerId")) || undefined,
-    deliveryCharge: asNumber(formData.get("deliveryCharge")),
-    freeDeliveryThreshold: asNumber(formData.get("freeDeliveryThreshold")),
-    codEnabled: asString(formData.get("codEnabled")) === "on",
-    bkashEnabled: asString(formData.get("bkashEnabled")) === "on",
-    bkashAccountNumber: asString(formData.get("bkashAccountNumber")) || undefined,
-    bkashInstructions: asString(formData.get("bkashInstructions")),
-    nagadEnabled: asString(formData.get("nagadEnabled")) === "on",
-    nagadAccountNumber: asString(formData.get("nagadAccountNumber")) || undefined,
-    nagadInstructions: asString(formData.get("nagadInstructions")),
-    rocketEnabled: asString(formData.get("rocketEnabled")) === "on",
-    rocketAccountNumber: asString(formData.get("rocketAccountNumber")) || undefined,
-    rocketInstructions: asString(formData.get("rocketInstructions")),
-    insideDhakaDeliveryCharge: asNumber(formData.get("insideDhakaDeliveryCharge")),
-    subDhakaDeliveryCharge: asNumber(formData.get("subDhakaDeliveryCharge")),
-    outsideDhakaDeliveryCharge: asNumber(formData.get("outsideDhakaDeliveryCharge")),
-    insideDhakaCodEnabled: asString(formData.get("insideDhakaCodEnabled")) === "on",
-    subDhakaCodEnabled: asString(formData.get("subDhakaCodEnabled")) === "on",
-    outsideDhakaCodEnabled: asString(formData.get("outsideDhakaCodEnabled")) === "on",
-  }, actor);
+  try {
+    const deliveryAreas = parseCsvList(formData.get("deliveryAreas"));
+    if (!deliveryAreas.length) {
+      throw new Error("At least one delivery area is required");
+    }
+
+    await updateSettings({
+      storeName: parseRequiredString(formData, "storeName", "Store name"),
+      logoText: parseRequiredString(formData, "logoText", "Logo text"),
+      logoUrl: readTrimmedString(formData, "logoUrl") || null,
+      supportEmail: readTrimmedString(formData, "supportEmail") || null,
+      contactNumber: parseRequiredString(formData, "contactNumber", "Contact number"),
+      address: parseRequiredString(formData, "address", "Shop address"),
+      businessHours: parseRequiredString(formData, "businessHours", "Business hours"),
+      deliveryAreas,
+      returnRefundPolicy: parseRequiredString(formData, "returnRefundPolicy", "Return/refund policy"),
+      confirmationMessageTemplate: parseRequiredString(
+        formData,
+        "confirmationMessageTemplate",
+        "Order confirmation message",
+      ),
+      metaPixelId: readTrimmedString(formData, "metaPixelId") || null,
+      gtmContainerId: readTrimmedString(formData, "gtmContainerId") || null,
+      freeDeliveryThreshold: parseRequiredNonNegativeInteger(
+        formData,
+        "freeDeliveryThreshold",
+        "Free delivery threshold",
+      ),
+      codEnabled: asString(formData.get("codEnabled")) === "on",
+      bkashEnabled: asString(formData.get("bkashEnabled")) === "on",
+      bkashAccountNumber: readTrimmedString(formData, "bkashAccountNumber") || null,
+      bkashInstructions: readTrimmedString(formData, "bkashInstructions"),
+      nagadEnabled: asString(formData.get("nagadEnabled")) === "on",
+      nagadAccountNumber: readTrimmedString(formData, "nagadAccountNumber") || null,
+      nagadInstructions: readTrimmedString(formData, "nagadInstructions"),
+      rocketEnabled: asString(formData.get("rocketEnabled")) === "on",
+      rocketAccountNumber: readTrimmedString(formData, "rocketAccountNumber") || null,
+      rocketInstructions: readTrimmedString(formData, "rocketInstructions"),
+      insideDhakaDeliveryCharge: parseRequiredNonNegativeInteger(
+        formData,
+        "insideDhakaDeliveryCharge",
+        "Inside Dhaka delivery charge",
+      ),
+      subDhakaDeliveryCharge: parseRequiredNonNegativeInteger(
+        formData,
+        "subDhakaDeliveryCharge",
+        "Sub-Dhaka delivery charge",
+      ),
+      outsideDhakaDeliveryCharge: parseRequiredNonNegativeInteger(
+        formData,
+        "outsideDhakaDeliveryCharge",
+        "Outside Dhaka delivery charge",
+      ),
+      insideDhakaCodEnabled: asString(formData.get("insideDhakaCodEnabled")) === "on",
+      subDhakaCodEnabled: asString(formData.get("subDhakaCodEnabled")) === "on",
+      outsideDhakaCodEnabled: asString(formData.get("outsideDhakaCodEnabled")) === "on",
+    }, actor);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Store settings could not be saved";
+    redirect(`/admin/settings?error=${encodeURIComponent(message)}`);
+  }
+
   revalidatePath("/");
+  revalidatePath("/cart");
+  revalidatePath("/checkout");
+  revalidatePath("/terms");
+  revalidatePath("/track-order");
+  revalidatePath("/admin");
   revalidatePath("/admin/settings");
+  redirect("/admin/settings?saved=1");
 }
 
 export async function createManualOrderAction(formData: FormData) {

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +7,7 @@ import { Search, ShoppingCart, Menu, X, CircleUserRound, ChevronDown, Heart, Tra
 import { money } from "@/lib/utils";
 import { storefrontCategoryRail, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
+import { SiteLogo } from "@/components/site-logo";
 import { addToCartAction, clearCartAction, removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
 import { readWishlistItems, removeWishlistItem, type WishlistItem } from "@/lib/wishlist";
 
@@ -35,6 +35,8 @@ type CartSummary = {
 
 type SiteHeaderProps = {
   storeName: string;
+  logoText: string;
+  logoUrl?: string | null;
   contactNumber: string;
   supportEmail: string;
   cartSummary: CartSummary;
@@ -44,6 +46,8 @@ type SiteHeaderProps = {
 
 export function SiteHeader({
   storeName,
+  logoText,
+  logoUrl,
   contactNumber,
   supportEmail,
   cartSummary,
@@ -101,10 +105,10 @@ export function SiteHeader({
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-4 sm:gap-4 sm:px-6 lg:px-8">
         <Link href="/" aria-label={storeName} className="flex min-w-0 items-center gap-2 sm:gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#ece7e0] bg-white p-1.5 shadow-[0_12px_24px_rgba(139,0,0,0.08)] sm:h-14 sm:w-14 sm:rounded-[1.15rem]">
-            <Image src={siteBrand.logoPath} alt="" width={96} height={96} className="h-full w-full object-contain" />
+            <SiteLogo logoUrl={logoUrl} size={96} className="h-full w-full object-contain" />
           </span>
           <span className="hidden min-w-0 leading-tight sm:block">
-            <span className="block truncate text-[1.05rem] font-black tracking-[0.02em] text-[color:var(--brand)]">{storeName}</span>
+            <span className="block truncate text-[1.05rem] font-black tracking-[0.02em] text-[color:var(--brand)]">{logoText}</span>
             <span className="block text-[10px] font-semibold uppercase tracking-[0.42em] text-[color:var(--muted)]">{siteBrand.tagline}</span>
           </span>
         </Link>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { SiteLogo } from "@/components/site-logo";
 import { getSettings } from "@/server/store";
 import { storefrontCollections, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
@@ -14,7 +14,7 @@ export async function SiteFooter() {
         <div>
           <div className="flex items-center gap-4">
             <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white p-2 shadow-[0_16px_34px_rgba(0,0,0,0.16)]">
-              <Image src={siteBrand.logoPath} alt="" width={128} height={128} className="h-full w-full object-contain" />
+              <SiteLogo logoUrl={settings.logoUrl} size={128} className="h-full w-full object-contain" />
             </span>
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.28em] text-white">{settings.storeName}</p>
@@ -65,6 +65,8 @@ export async function SiteFooter() {
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Get In Touch</h2>
             <p className="mt-3 max-w-2xl leading-7">{settings.address}</p>
+            <p className="mt-2">{settings.businessHours}</p>
+            <p className="mt-2">{settings.deliveryAreas.join(" | ")}</p>
             <div className="mt-3 flex flex-wrap gap-4">
               <a href={`tel:${settings.contactNumber.replace(/\D/g, "")}`} className="transition hover:text-white">
                 {settings.contactNumber}
