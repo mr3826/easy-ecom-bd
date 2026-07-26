@@ -7,7 +7,7 @@ Updated: 2026-07-26
 - `https://bornohin.com/` is the canonical customer shop.
 - `https://www.bornohin.com/` redirects to `https://bornohin.com/`.
 - `https://bornohin.com/admin` is the admin dashboard in the same Next.js app.
-- `https://api.bornohin.com/api/*` serves public backend routes from the same Passenger app.
+- `https://bornohin.com/api/*` serves public backend routes from the same Passenger app.
 - `bornohinbd.com`, `shop.bornohinbd.com`, and `admin.bornohinbd.com` do not host separate applications.
 
 The application still requires PostgreSQL. A cPanel MySQL/MariaDB database is not a compatible substitute for the Prisma datasource.
@@ -19,7 +19,7 @@ The application still requires PostgreSQL. A cPanel MySQL/MariaDB database is no
 - Product, category, brand, inventory, order, coupon, settings, landing page, carousel, and upload changes flow from admin to the storefront.
 - The old delivery gateway integration has been removed. Delivery zones, fees, and order delivery statuses remain first-party order data.
 - The payment simulator has been removed. bKash must be fully configured before its checkout option is used.
-- `bornohin.com` currently delegates DNS to Cloudflare and serves the Zatiq Easy storefront.
+- `bornohin.com` currently delegates DNS to Cloudflare and serves the Bornohin storefront.
 - The replacement Passenger app is healthy on the ExonHost origin through the current `bornohinbd.com` main-domain vhost.
 
 ## Live Execution Status
@@ -60,9 +60,9 @@ cPanel API cannot add it.
 
 Please preserve /home/bornohin/bornohin_app, the active Passenger application,
 the PostgreSQL database, mail data, and existing Cloudflare nameservers. Do not
-replace Cloudflare DNS records. After the primary-domain change, please map
-www.bornohin.com and api.bornohin.com to the same application or confirm that
-the account can add those aliases.
+replace Cloudflare DNS records. After the primary-domain change, please keep
+www.bornohin.com as a redirect to the apex and keep api.bornohin.com as a
+compatibility redirect to https://bornohin.com/api/.
 ```
 
 ## Gate 1: Access and Backup
@@ -97,7 +97,6 @@ DATABASE_URL=postgresql://...
 AUTH_SECRET=...
 NEXT_PUBLIC_APP_URL=https://bornohin.com
 APP_URL=https://bornohin.com
-API_URL=https://api.bornohin.com
 UPLOAD_DIR=/home/bornohin/bornohin_uploads
 BKASH_USERNAME=...
 BKASH_PASSWORD=...
@@ -130,8 +129,8 @@ After the backup is complete and the preflight paths are reviewed:
    - startup file: `server.js`
    - Node.js: 20.9 or newer
    - application URL: `bornohin.com`
-7. Add `www.bornohin.com` and `api.bornohin.com` as aliases/subdomains routed to the same application.
-8. Configure the canonical redirect from `www` to the apex domain.
+7. Keep `www.bornohin.com` as a canonical redirect to the apex domain.
+8. Keep `api.bornohin.com` as a compatibility redirect to `https://bornohin.com/api/`.
 
 Changing the cPanel account's primary domain may require ExonHost support. The public site can still use `bornohin.com` as an addon domain/application URL without changing the account username or home path.
 
@@ -187,7 +186,7 @@ After the new domain is stable:
 4. `https://bornohin.com/` returns `200`.
 5. `https://www.bornohin.com/` redirects to the apex domain.
 6. `https://bornohin.com/admin` requires admin authentication.
-7. `https://api.bornohin.com/api/health` returns a successful JSON response.
+7. `https://bornohin.com/api/health` returns a successful JSON response.
 8. Admin-created products, images, settings, and carousel sections appear on the storefront.
 9. Cart, coupon, COD checkout, inventory reservation, order tracking, and admin order updates work.
 10. bKash callbacks without a valid signature are rejected.

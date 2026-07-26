@@ -6,8 +6,8 @@ Bangladesh-focused ecommerce application built with Next.js App Router, PostgreS
 
 - Shop: `https://bornohin.com/`
 - Admin: `https://bornohin.com/admin`
-- API: `https://api.bornohin.com/api/*`
-- Health check: `https://api.bornohin.com/api/health`
+- API: `https://bornohin.com/api/*`
+- Health check: `https://bornohin.com/api/health`
 
 The shop, admin dashboard, server actions, and API route handlers are one deployable Next.js application.
 
@@ -85,7 +85,6 @@ ADMIN_EMAIL=admin@bornohin.com
 ADMIN_PASSWORD=...
 NEXT_PUBLIC_APP_URL=https://bornohin.com
 APP_URL=https://bornohin.com
-API_URL=https://api.bornohin.com
 UPLOAD_DIR=/home/bornohin/bornohin_uploads
 ```
 
