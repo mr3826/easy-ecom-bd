@@ -373,7 +373,7 @@ model Setting {
   deliveryCharge              Int
   freeDeliveryThreshold       Int
   codEnabled                  Boolean  @default(true)
-  bkashEnabled                Boolean  @default(true)
+  bkashEnabled                Boolean  @default(false)
   bkashAccountNumber          String?
   bkashInstructions           String   @default("")
   nagadEnabled                Boolean  @default(false)

@@ -80,6 +80,9 @@ Required core values:
 NODE_ENV=production
 DATABASE_URL=postgresql://...
 AUTH_SECRET=...
+ADMIN_NAME=Bornohin Admin
+ADMIN_EMAIL=admin@bornohin.com
+ADMIN_PASSWORD=...
 NEXT_PUBLIC_APP_URL=https://bornohin.com
 APP_URL=https://bornohin.com
 API_URL=https://api.bornohin.com
@@ -87,3 +90,10 @@ UPLOAD_DIR=/home/bornohin/bornohin_uploads
 ```
 
 bKash must remain disabled unless all provider credentials and `BKASH_WEBHOOK_SECRET` are configured. There is no production payment simulator.
+
+After applying migrations to a fresh database, create or rotate the production
+administrator without loading demo customers, orders, or credentials:
+
+```powershell
+npm run production:bootstrap-admin
+```

@@ -34,11 +34,13 @@ function Invoke-CpanelUapi {
     if ($queryString) { $uri = "$uri`?$queryString" }
 
     $response = Invoke-RestMethod -Uri $uri -Headers $headers -TimeoutSec 120
-    if ($response.result.status -ne 1) {
-        $errors = ($response.result.errors | Where-Object { $_ }) -join "; "
+    $hasWrappedResult = $response.PSObject.Properties.Name -contains "result"
+    $result = if ($hasWrappedResult) { $response.result } else { $response }
+    if ($result.status -ne 1) {
+        $errors = ($result.errors | Where-Object { $_ }) -join "; "
         throw "$Module/$Function failed: $errors"
     }
-    return $response.result.data
+    return $result.data
 }
 
 function Get-InventoryItem {
