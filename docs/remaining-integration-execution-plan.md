@@ -20,7 +20,50 @@ The application still requires PostgreSQL. A cPanel MySQL/MariaDB database is no
 - The old delivery gateway integration has been removed. Delivery zones, fees, and order delivery statuses remain first-party order data.
 - The payment simulator has been removed. bKash must be fully configured before its checkout option is used.
 - `bornohin.com` currently delegates DNS to Cloudflare and serves the Zatiq Easy storefront.
-- The old `bornohinbd.com` host resolves to the ExonHost cPanel server and still contains separate legacy applications.
+- The replacement Passenger app is healthy on the ExonHost origin through the current `bornohinbd.com` main-domain vhost.
+
+## Live Execution Status
+
+Verified on 2026-07-26:
+
+- A full cPanel backup is preserved at `/home/bornohin/backup-7.26.2026_16-51-33_bornohin.tar.gz`.
+- PostgreSQL database `bornohin_ecom` is migrated through all nine migrations.
+- The production super-admin is bootstrapped without demo users, orders, or credentials.
+- The replacement app runs from `/home/bornohin/bornohin_app` on CloudLinux Node.js 20 in production mode.
+- Direct origin checks return `200` for `/`, `307` to login for `/admin`, and successful JSON for `/api/health`.
+- The separate `shop.bornohinbd.com` Next.js app and `admin.bornohinbd.com` Laravel app, their subdomain registrations, deploy FTP users, and the confirmed Laravel MySQL database have been removed.
+- The active Passenger configuration, ACME files, mail/DNS records, two unidentified MySQL databases, persistent uploads, and full backup remain preserved.
+- The temporary deployment SSH key was deauthorized and deleted after deployment.
+- Cloudflare still points the proxied apex CNAME to `edge.zatiqeasy.com`; no DNS cutover has occurred.
+
+The remaining blocker is host-level. ExonHost's DNS cluster contains a
+`bornohin.com` zone that is not owned by the `bornohin` cPanel account. Addon
+domain creation fails with "A DNS entry for bornohin.com already exists," and
+the cPanel token has no WHM authority to remove that zone or change the primary
+domain.
+
+Submit an ExonHost technical support ticket at
+`https://clients.exonhost.com/submitticket.php` with this request:
+
+```text
+Subject: Remove stale bornohin.com DNS zone and change cPanel primary domain
+
+cPanel account: bornohin
+Server: bd10.exonhost.com
+Current primary domain: bornohinbd.com
+Requested primary domain: bornohin.com
+
+Please remove the stale/orphan bornohin.com DNS zone from your DNS cluster and
+change this cPanel account's primary domain to bornohin.com. The account reports
+that bornohin.com is controlled by another zone/account, so the customer-level
+cPanel API cannot add it.
+
+Please preserve /home/bornohin/bornohin_app, the active Passenger application,
+the PostgreSQL database, mail data, and existing Cloudflare nameservers. Do not
+replace Cloudflare DNS records. After the primary-domain change, please map
+www.bornohin.com and api.bornohin.com to the same application or confirm that
+the account can add those aliases.
+```
 
 ## Gate 1: Access and Backup
 
