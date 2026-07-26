@@ -1,132 +1,122 @@
 import { hashSync } from "bcryptjs";
 import type { DatabaseState } from "@/lib/domain";
+import { storefrontCollections } from "@/lib/bornohin-storefront";
+import { homepageCarouselItemsTemplate } from "@/lib/homepage-carousel";
+import { createDefaultProductMetadata } from "@/lib/product-admin";
 import { slugify } from "@/lib/utils";
+import { siteBrand } from "@/lib/site-brand";
 
 const now = new Date().toISOString();
 
+function buildKeywords(parts: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(
+      parts
+        .map((part) => part?.trim().toLowerCase())
+        .filter((part): part is string => Boolean(part)),
+    ),
+  );
+}
+
 export function createSeedState(): DatabaseState {
-  const categories = [
-    { id: "cat-1", name: "Men's Wear", slug: "mens-wear", description: "Shirts, polos and essentials for the shop floor.", isActive: true },
-    { id: "cat-2", name: "Women", slug: "women", description: "Lifestyle pieces with strong conversion appeal.", isActive: true },
-    { id: "cat-3", name: "Accessories", slug: "accessories", description: "Bundles, giftables, and add-on items.", isActive: true },
-  ];
+  const brand = {
+    id: "brand-bornohin",
+    name: siteBrand.name,
+    slug: slugify(siteBrand.name),
+    description: `Official ${siteBrand.name} catalog`,
+    isActive: true,
+  };
 
-  const brands = [
-    { id: "brand-1", name: "Easy Thread", slug: "easy-thread", description: "House apparel label.", isActive: true },
-    { id: "brand-2", name: "Green Drop", slug: "green-drop", description: "Self-care and home goods.", isActive: true },
-    { id: "brand-3", name: "Nova Gear", slug: "nova-gear", description: "Practical accessories.", isActive: true },
-  ];
+  const categories = storefrontCollections.map((collection) => ({
+    id: `cat-${collection.slug}`,
+    name: collection.title,
+    slug: collection.slug,
+    description: collection.description,
+    isActive: true,
+  }));
 
-  const products = [
-    {
-      id: "prod-1",
-      name: "Everyday Cotton Shirt",
-      slug: "everyday-cotton-shirt",
-      sku: "ET-SHIRT-001",
-      description: "A breathable cotton shirt with a clean silhouette, ideal for bundle offers and landing pages.",
-      price: 1290,
-      compareAtPrice: 1590,
-      stock: 48,
-      lowStockThreshold: 8,
-      categoryId: categories[0].id,
-      brandId: brands[0].id,
-      isActive: true,
-      featured: true,
-      weightGrams: 300,
-      tags: ["top-seller", "bundle"],
-      searchKeywords: ["cotton", "shirt", "top-seller", "bundle"],
-      createdAt: now,
-    },
-    {
-      id: "prod-2",
-      name: "Glow Serum",
-      slug: "glow-serum",
-      sku: "GD-SERUM-004",
-      description: "A lightweight serum for high-conversion beauty campaigns.",
-      price: 890,
-      compareAtPrice: 1090,
-      stock: 62,
-      lowStockThreshold: 10,
-      categoryId: categories[1].id,
-      brandId: brands[1].id,
-      isActive: true,
-      featured: true,
-      weightGrams: 120,
-      tags: ["beauty", "landing-page"],
-      searchKeywords: ["serum", "beauty", "glow"],
-      createdAt: now,
-    },
-    {
-      id: "prod-3",
-      name: "All Day Tote",
-      slug: "all-day-tote",
-      sku: "NG-TOTE-008",
-      description: "A roomy tote designed for repeat customers and fast shipping campaigns.",
-      price: 1490,
-      stock: 34,
-      lowStockThreshold: 6,
-      categoryId: categories[2].id,
-      brandId: brands[2].id,
-      isActive: true,
-      featured: false,
-      weightGrams: 450,
-      tags: ["new-arrival"],
-      searchKeywords: ["tote", "bag", "new-arrival"],
-      createdAt: now,
-    },
-  ];
+  const products: DatabaseState["products"] = storefrontCollections.flatMap((collection, collectionIndex) =>
+    collection.products.map((product, productIndex) => {
+      const soldOut = Boolean(product.soldOut);
+      return {
+        id: `prod-${collection.slug}-${product.slug}`,
+        name: product.name,
+        slug: product.slug,
+        sku: `BOR-${String(collectionIndex + 1).padStart(2, "0")}-${String(productIndex + 1).padStart(2, "0")}`,
+        description: product.description,
+        price: product.price,
+        compareAtPrice: product.compareAtPrice,
+        stock: soldOut ? 0 : product.featured ? 24 : 18,
+        lowStockThreshold: 5,
+        categoryId: categories[collectionIndex].id,
+        brandId: brand.id,
+        isActive: !soldOut,
+        featured: Boolean(product.featured),
+        archivedAt: soldOut ? now : null,
+        weightGrams: 0,
+        tags: [collection.slug, product.badge ? product.badge.toLowerCase() : null].filter(Boolean) as string[],
+        searchKeywords: buildKeywords([
+          product.name,
+          product.description,
+          collection.title,
+          collection.subtitle,
+          collection.description,
+          product.badge,
+          collection.slug,
+        ]),
+        metadata: {
+          ...createDefaultProductMetadata(),
+          source: "manual",
+          minOrderQuantity: 1,
+          returnable: true,
+          variantGroups: [],
+        },
+        createdAt: now,
+      };
+    }),
+  );
+
+  const productImages = products.map((product) => ({
+    id: `img-${product.id}`,
+    productId: product.id,
+    url: "/hero-products.png",
+    alt: product.name,
+    sortOrder: 1,
+  }));
+
+  const adminUser = {
+    id: "user-admin",
+    name: "Admin User",
+    email: "admin@easy-ecom.test",
+    passwordHash: hashSync("admin1234", 10),
+    role: "admin" as const,
+    phone: "01700000000",
+    createdAt: now,
+  };
+
+  const customerUser = {
+    id: "user-customer",
+    name: "Amina Rahman",
+    email: "amina@example.com",
+    passwordHash: hashSync("customer1234", 10),
+    role: "customer" as const,
+    phone: "01811111111",
+    createdAt: now,
+  };
+
+  const demoOrderProducts = products.slice(0, 2);
+  const demoOrderSubtotal = demoOrderProducts.reduce((sum, product) => sum + product.price, 0);
 
   return {
-    users: [
-      {
-        id: "user-admin",
-        name: "Admin User",
-        email: "admin@easy-ecom.test",
-        passwordHash: hashSync("admin1234", 10),
-        role: "admin",
-        phone: "01700000000",
-        createdAt: now,
-      },
-      {
-        id: "user-customer",
-        name: "Amina Rahman",
-        email: "amina@example.com",
-        passwordHash: hashSync("customer1234", 10),
-        role: "customer",
-        phone: "01811111111",
-        createdAt: now,
-      },
-    ],
+    users: [adminUser, customerUser],
     categories,
-    brands,
+    brands: [brand],
     products,
-    productImages: [
-      {
-        id: "img-1",
-        productId: products[0].id,
-        url: "/hero-products.png",
-        alt: "Easy e-commerce hero products",
-        sortOrder: 1,
-      },
-      {
-        id: "img-2",
-        productId: products[1].id,
-        url: "/hero-products.png",
-        alt: "Beauty product hero",
-        sortOrder: 1,
-      },
-      {
-        id: "img-3",
-        productId: products[2].id,
-        url: "/hero-products.png",
-        alt: "Lifestyle product",
-        sortOrder: 1,
-      },
-    ],
+    productImages,
     carts: [
       {
         id: "cart-demo",
-        ownerId: "user-customer",
+        ownerId: customerUser.id,
         guestKey: "demo",
         items: [{ id: "cart-item-1", productId: products[0].id, quantity: 1 }],
         updatedAt: now,
@@ -136,32 +126,32 @@ export function createSeedState(): DatabaseState {
       {
         id: "order-1",
         orderCode: "EE-240621-1001",
-        customerId: "user-customer",
-        customerName: "Amina Rahman",
-        customerPhone: "01811111111",
-        customerEmail: "amina@example.com",
+        customerId: customerUser.id,
+        customerName: customerUser.name,
+        customerPhone: customerUser.phone ?? "",
+        customerEmail: customerUser.email,
         district: "Dhaka",
         shippingAddress: "House 22, Road 4, Dhanmondi, Dhaka",
         deliveryCharge: 80,
         discountAmount: 90,
-        subtotal: 2180,
-        total: 2170,
+        subtotal: demoOrderSubtotal,
+        total: demoOrderSubtotal - 90 + 80,
         status: "confirmed",
         paymentStatus: "processing",
-        deliveryStatus: "courier_created",
+        deliveryStatus: "in_transit",
         paymentProvider: "bkash",
         deliveryZone: "inside_dhaka",
-        deliveryProvider: "pathao",
-        trackingId: "PT-778899",
-        consignmentId: "CON-778899",
         notes: "Ring before delivery",
         adminNotes: "Seed order for operations dashboard",
         createdAt: now,
         updatedAt: now,
-        items: [
-          { id: "order-item-1", productId: products[0].id, quantity: 1, unitPrice: 1290, lineTotal: 1290 },
-          { id: "order-item-2", productId: products[1].id, quantity: 1, unitPrice: 890, lineTotal: 890 },
-        ],
+        items: demoOrderProducts.map((product, index) => ({
+          id: `order-item-${index + 1}`,
+          productId: product.id,
+          quantity: 1,
+          unitPrice: product.price,
+          lineTotal: product.price,
+        })),
       },
     ],
     payments: [
@@ -170,7 +160,7 @@ export function createSeedState(): DatabaseState {
         orderId: "order-1",
         provider: "bkash",
         transactionId: "TXN-EE-1001",
-        amount: 2170,
+        amount: demoOrderSubtotal - 90 + 80,
         status: "processing",
         rawResponse: { status: "processing", gateway: "demo" },
         createdAt: now,
@@ -184,52 +174,26 @@ export function createSeedState(): DatabaseState {
         orderId: "order-1",
         fromStatus: null,
         toStatus: "confirmed",
-        actorId: "user-admin",
-        actorEmail: "admin@easy-ecom.test",
+        actorId: adminUser.id,
+        actorEmail: adminUser.email,
         note: "Seed confirmed order",
         createdAt: now,
       },
     ],
-    couriers: [
+    landingPages: [
       {
-        id: "courier-1",
-        key: "pathao",
-        name: "Pathao Courier",
-        enabled: true,
-        description: "Fast last-mile coverage for paid and COD shipments.",
-      },
-      {
-        id: "courier-2",
-        key: "steadfast",
-        name: "Steadfast Courier",
-        enabled: true,
-        description: "Reliable nationwide parcel coverage.",
-      },
-      {
-        id: "courier-3",
-        key: "redx",
-        name: "RedX Courier",
-        enabled: false,
-        description: "Placeholder for RedX booking readiness.",
-      },
-    ],
-    deliveryShipments: [
-      {
-        id: "ship-1",
-        orderId: "order-1",
-        courierKey: "pathao",
-        trackingId: "PT-778899",
-        consignmentId: "CON-778899",
-        status: "in_transit",
-        customerName: "Amina Rahman",
-        customerPhone: "01811111111",
-        customerAddress: "House 22, Road 4, Dhanmondi, Dhaka",
-        rawResponse: { status: "accepted" },
+        id: "lp-home",
+        slug: "home",
+        title: "Home",
+        metaDescription: "Homepage carousel and storefront campaign content.",
+        heroTitle: "Fresh, image-led fashion shelves built for quick browsing",
+        heroSubtitle: "Move through featured collections with admin-managed slides.",
+        bannerImageUrl: "/hero-fashion-1.svg",
+        published: true,
+        attachedProductIds: products.slice(0, 4).map((product) => product.id),
         createdAt: now,
         updatedAt: now,
       },
-    ],
-    landingPages: [
       {
         id: "lp-1",
         slug: "ramadan-collection",
@@ -239,12 +203,26 @@ export function createSeedState(): DatabaseState {
         heroSubtitle: "Custom landing pages, attached products, and direct wallet checkout for Bangladesh.",
         bannerImageUrl: "/hero-products.png",
         published: true,
-        attachedProductIds: [products[0].id, products[1].id],
+        attachedProductIds: products.slice(0, 2).map((product) => product.id),
         createdAt: now,
         updatedAt: now,
       },
     ],
     landingPageSections: [
+      {
+        id: "lp-section-home-carousel",
+        landingPageId: "lp-home",
+        type: "carousel",
+        title: "Homepage carousel",
+        subtitle: "Featured",
+        body: "Admin-managed homepage slider.",
+        imageUrl: "/hero-fashion-1.svg",
+        productIds: [],
+        items: JSON.parse(homepageCarouselItemsTemplate),
+        ctaLabel: "Shop now",
+        ctaHref: "/shop",
+        sortOrder: 1,
+      },
       {
         id: "lp-section-1",
         landingPageId: "lp-1",
@@ -269,7 +247,7 @@ export function createSeedState(): DatabaseState {
         productIds: [],
         items: [
           { title: "Do you support bKash?", body: "Yes, direct merchant checkout is built in." },
-          { title: "Can I assign courier after payment?", body: "Yes, Pathao and Steadfast shipments can be created from admin." },
+          { title: "Can I manage delivery status?", body: "Yes, order delivery status and delivery zones are managed from admin." },
         ],
         sortOrder: 2,
       },
@@ -287,10 +265,10 @@ export function createSeedState(): DatabaseState {
     ],
     inventoryLogs: [],
     settings: {
-      storeName: "Easy Ecom BD",
-      logoText: "Easy Ecom",
+      storeName: siteBrand.name,
+      logoText: siteBrand.name,
       logoUrl: null,
-      supportEmail: "support@easy-ecom.test",
+      supportEmail: siteBrand.supportEmail,
       contactNumber: "01700 123 456",
       address: "Dhanmondi, Dhaka, Bangladesh",
       businessHours: "10:00 AM - 8:00 PM",
@@ -302,9 +280,9 @@ export function createSeedState(): DatabaseState {
       deliveryCharge: 80,
       freeDeliveryThreshold: 1990,
       codEnabled: true,
-      bkashEnabled: true,
-      bkashAccountNumber: "01700123456",
-      bkashInstructions: "Send payment to bKash merchant number and share transaction ID.",
+      bkashEnabled: false,
+      bkashAccountNumber: null,
+      bkashInstructions: "",
       nagadEnabled: false,
       nagadAccountNumber: null,
       nagadInstructions: "",
@@ -317,14 +295,11 @@ export function createSeedState(): DatabaseState {
       insideDhakaCodEnabled: true,
       subDhakaCodEnabled: true,
       outsideDhakaCodEnabled: true,
-      pathaoEnabled: true,
-      steadfastEnabled: true,
-      redxEnabled: false,
     },
     auditLogs: [
       {
         id: "audit-1",
-        actorEmail: "admin@easy-ecom.test",
+        actorEmail: adminUser.email,
         action: "seed",
         entity: "system",
         entityId: "seed",

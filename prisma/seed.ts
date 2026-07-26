@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { Prisma, PrismaClient } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { createSeedState } from "../src/server/seed";
 
 function getClient() {
@@ -20,7 +21,6 @@ async function clearDatabase(prisma: PrismaClient) {
     prisma.orderStatusHistory.deleteMany(),
     prisma.inventoryLog.deleteMany(),
     prisma.paymentLog.deleteMany(),
-    prisma.deliveryShipment.deleteMany(),
     prisma.payment.deleteMany(),
     prisma.orderItem.deleteMany(),
     prisma.order.deleteMany(),
@@ -36,7 +36,6 @@ async function clearDatabase(prisma: PrismaClient) {
     prisma.user.deleteMany(),
     prisma.category.deleteMany(),
     prisma.brand.deleteMany(),
-    prisma.courier.deleteMany(),
   ]);
 }
 
@@ -51,8 +50,12 @@ async function main() {
     await prisma.user.createMany({ data: state.users });
     await prisma.category.createMany({ data: state.categories });
     await prisma.brand.createMany({ data: state.brands });
-    await prisma.courier.createMany({ data: state.couriers });
-    await prisma.product.createMany({ data: state.products });
+    await prisma.product.createMany({
+      data: state.products.map(({ metadata, ...product }) => ({
+        ...product,
+        ...(metadata ? { metadata: JSON.parse(JSON.stringify(metadata)) as Prisma.InputJsonValue } : {}),
+      })),
+    });
     await prisma.productImage.createMany({ data: state.productImages });
     await prisma.coupon.createMany({ data: state.coupons });
     await prisma.landingPage.createMany({ data: state.landingPages });
@@ -80,12 +83,6 @@ async function main() {
       data: state.payments.map((payment) => ({
         ...payment,
         rawResponse: payment.rawResponse as Prisma.InputJsonValue,
-      })),
-    });
-    await prisma.deliveryShipment.createMany({
-      data: state.deliveryShipments.map((shipment) => ({
-        ...shipment,
-        rawResponse: shipment.rawResponse as Prisma.InputJsonValue,
       })),
     });
     await prisma.auditLog.createMany({

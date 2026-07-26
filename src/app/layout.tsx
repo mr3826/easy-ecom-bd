@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { siteBrand } from "@/lib/site-brand";
 
 export const metadata: Metadata = {
-  title: "Easy Ecom BD",
-  description:
-    "Bangladesh ecommerce stack with customer storefront, admin dashboard, landing page builder, direct wallet payments, and courier integration.",
+  title: siteBrand.name,
+  description: `${siteBrand.name} fashion, lifestyle, and everyday essentials in Bangladesh.`,
 };
 
 export default function RootLayout({

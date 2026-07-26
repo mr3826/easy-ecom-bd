@@ -10,7 +10,7 @@ RUN apt-get update \
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY prisma ./prisma
-COPY prisma.config.ts tsconfig.json next.config.ts eslint.config.mjs postcss.config.mjs next-env.d.ts ./
+COPY prisma.config.ts tsconfig.json next.config.mjs eslint.config.mjs postcss.config.mjs next-env.d.ts ./
 RUN npx prisma generate
 EXPOSE 3000 5555
 CMD ["npm", "run", "dev"]

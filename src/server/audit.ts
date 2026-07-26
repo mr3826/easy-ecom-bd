@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { getPrisma } from "@/server/db";
+import { getPrisma, isDatabaseConfigured } from "@/server/db";
 
 type AuditActor = { id?: string | null; email?: string | null };
 
@@ -11,6 +11,9 @@ export async function recordAuditLog(input: {
   oldValue?: Prisma.JsonValue | null;
   newValue?: Prisma.JsonValue | null;
 }) {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
   const prisma = getPrisma();
   await prisma.auditLog.create({
     data: {

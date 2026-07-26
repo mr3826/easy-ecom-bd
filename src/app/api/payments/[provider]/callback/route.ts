@@ -11,14 +11,27 @@ export async function POST(
   const form = new URLSearchParams(body);
   const paymentId = form.get("paymentId") ?? form.get("paymentID") ?? "";
   const transactionId = form.get("transactionId") ?? form.get("trxId") ?? "";
-  const status = (form.get("status") ?? "failed") as "paid" | "failed" | "cancelled" | "refunded";
+  const status = form.get("status") ?? "";
   const signature = request.headers.get("x-signature");
   if (provider !== "bkash") {
     return NextResponse.json({ ok: false, error: "Unsupported payment provider" }, { status: 404 });
   }
+
+  if (!["paid", "failed", "cancelled", "refunded"].includes(status)) {
+    return NextResponse.json({ ok: false, error: "Invalid payment status" }, { status: 400 });
+  }
+
+  if (!paymentId && !transactionId) {
+    return NextResponse.json({ ok: false, error: "Missing payment reference" }, { status: 400 });
+  }
+
   const secret = getBkashIntegrationConfig().webhookSecret;
 
-  if (signature && secret && !verifyProviderSignature(body, signature, secret)) {
+  if (!secret) {
+    return NextResponse.json({ ok: false, error: "Payment callback is not configured" }, { status: 503 });
+  }
+
+  if (!verifyProviderSignature(body, signature, secret)) {
     return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
   }
 
@@ -27,7 +40,7 @@ export async function POST(
       paymentId,
       transactionId,
     },
-    status,
+    status as "paid" | "failed" | "cancelled" | "refunded",
     {
       provider,
       source: "callback",

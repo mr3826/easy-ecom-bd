@@ -11,13 +11,17 @@ import {
   createOrderFromCart,
   createUser,
   getCartSummary,
+  getProduct,
   getOrCreateCart,
   findUserByEmail,
+  listProducts,
   removeCartItem,
   updateCartQuantity,
+  clearCart,
 } from "@/server/store";
 import { asNumber, asString } from "@/lib/utils";
-import { initiateBkashPayment, initiateNagadPayment } from "@/server/integrations";
+import { initiateBkashPayment } from "@/server/integrations";
+import { getBkashIntegrationConfig } from "@/server/integration-config";
 import { clearSessionCookie, getCurrentUser, setSessionCookie } from "@/server/auth";
 
 const guestCookie = "easy_ecom_guest";
@@ -37,14 +41,31 @@ async function getGuestKey() {
   return value;
 }
 
+async function resolveProductFromFormValue(productKey: string) {
+  const byId = await getProduct(productKey);
+  if (byId) {
+    return byId;
+  }
+  const products = await listProducts();
+  return products.find((product) => product.slug === productKey) ?? null;
+}
+
 export async function addToCartAction(formData: FormData) {
   const productId = asString(formData.get("productId"));
   const quantity = asNumber(formData.get("quantity"), 1);
   const user = await getCurrentUser();
   const guestKey = await getGuestKey();
-  await addToCart(guestKey, productId, quantity, user?.id, user ?? null);
+  const product = await resolveProductFromFormValue(productId);
+  if (!product) {
+    throw new Error("Product not found");
+  }
+  await addToCart(guestKey, product.id, quantity, user?.id, user ?? null);
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/search");
   revalidatePath("/cart");
   revalidatePath("/checkout");
+  revalidatePath(`/product/${product.slug}`);
 }
 
 export async function updateCartQuantityAction(formData: FormData) {
@@ -53,6 +74,9 @@ export async function updateCartQuantityAction(formData: FormData) {
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
   await updateCartQuantity(guestKey, productId, quantity, user?.id, user ?? null);
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/search");
   revalidatePath("/cart");
   revalidatePath("/checkout");
 }
@@ -62,6 +86,20 @@ export async function removeCartItemAction(formData: FormData) {
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
   await removeCartItem(guestKey, productId, user?.id, user ?? null);
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/search");
+  revalidatePath("/cart");
+  revalidatePath("/checkout");
+}
+
+export async function clearCartAction() {
+  const guestKey = await getGuestKey();
+  const user = await getCurrentUser();
+  await clearCart(guestKey, user?.id, user ?? null);
+  revalidatePath("/");
+  revalidatePath("/shop");
+  revalidatePath("/search");
   revalidatePath("/cart");
   revalidatePath("/checkout");
 }
@@ -124,7 +162,6 @@ export async function logoutAction() {
 export async function checkoutAction(formData: FormData) {
   const paymentMethod = (asString(formData.get("paymentMethod")) || "cod") as "cod" | "bkash" | "nagad" | "rocket";
   const wantsBkash = paymentMethod === "bkash";
-  const wantsNagad = paymentMethod === "nagad";
   const customerName = asString(formData.get("customerName"));
   const customerPhone = asString(formData.get("customerPhone"));
   const customerEmail = asString(formData.get("customerEmail")) || undefined;
@@ -142,6 +179,10 @@ export async function checkoutAction(formData: FormData) {
     throw new Error("Your cart is empty");
   }
 
+  if (wantsBkash && !getBkashIntegrationConfig().enabled) {
+    throw new Error("bKash checkout is temporarily unavailable");
+  }
+
   const order = await createOrderFromCart({
     cart,
     customerName,
@@ -154,26 +195,19 @@ export async function checkoutAction(formData: FormData) {
     couponCode,
   });
 
-  if (!wantsBkash && !wantsNagad) {
+  if (!wantsBkash) {
     revalidatePath("/cart");
     revalidatePath("/checkout");
     revalidatePath("/admin");
-    redirect(`/track?code=${order.orderCode}`);
+    redirect(`/track-order?code=${order.orderCode}`);
   }
 
-  const providerReady = wantsNagad
-    ? await initiateNagadPayment({
-        orderId: order.id,
-        amount: order.total,
-        customerName,
-        customerPhone,
-      })
-    : await initiateBkashPayment({
-        orderId: order.id,
-        amount: order.total,
-        customerName,
-        customerPhone,
-      });
+  const providerReady = await initiateBkashPayment({
+    orderId: order.id,
+    amount: order.total,
+    customerName,
+    customerPhone,
+  });
 
   revalidatePath("/cart");
   revalidatePath("/checkout");

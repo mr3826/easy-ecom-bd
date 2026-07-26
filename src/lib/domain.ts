@@ -19,7 +19,6 @@ export type PaymentStatus =
 
 export type DeliveryStatus =
   | "pending"
-  | "courier_created"
   | "picked_up"
   | "in_transit"
   | "delivered"
@@ -30,6 +29,7 @@ export type DeliveryZone = "inside_dhaka" | "sub_dhaka" | "outside_dhaka";
 
 export type LandingSectionType =
   | "banner"
+  | "carousel"
   | "title"
   | "subtitle"
   | "product_section"
@@ -77,6 +77,44 @@ export interface ProductImage {
   sortOrder: number;
 }
 
+export type ProductCondition = "new" | "used" | "refurbished";
+
+export type ProductSource = "manual" | "bulk";
+
+export type ProductWeightUnit = "g" | "kg" | "lb" | "oz";
+
+export type ProductDimensionUnit = "cm" | "mm" | "in";
+
+export interface ProductVariantGroup {
+  name: string;
+  options: string[];
+  priceAdjustment: number;
+  sku?: string;
+}
+
+export interface ProductMetadata {
+  condition: ProductCondition;
+  source: ProductSource;
+  isPhysical: boolean;
+  minOrderQuantity: number;
+  maxOrderQuantity?: number | null;
+  returnable: boolean;
+  returnWindowDays?: number | null;
+  warrantyText?: string | null;
+  expiryDate?: string | null;
+  handlingTimeDays?: number | null;
+  shippingClass?: string | null;
+  packageWeight?: number | null;
+  packageWeightUnit?: ProductWeightUnit | null;
+  packageLength?: number | null;
+  packageWidth?: number | null;
+  packageHeight?: number | null;
+  packageDimensionsUnit?: ProductDimensionUnit | null;
+  taxEnabled: boolean;
+  discountEnabled: boolean;
+  variantGroups: ProductVariantGroup[];
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -95,6 +133,7 @@ export interface Product {
   weightGrams: number;
   tags: string[];
   searchKeywords: string[];
+  metadata?: ProductMetadata | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -142,29 +181,6 @@ export interface PaymentLog {
   createdAt: string;
 }
 
-export interface Courier {
-  id: string;
-  key: "pathao" | "steadfast" | "redx";
-  name: string;
-  enabled: boolean;
-  description: string;
-}
-
-export interface DeliveryShipment {
-  id: string;
-  orderId: string;
-  courierKey: Courier["key"];
-  trackingId: string;
-  consignmentId?: string;
-  status: DeliveryStatus;
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
-  rawResponse: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface Coupon {
   id: string;
   code: string;
@@ -191,6 +207,22 @@ export interface InventoryLog {
   createdAt: string;
 }
 
+export type LandingSectionItem = {
+  id?: string;
+  title?: string;
+  body?: string;
+  eyebrow?: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  primaryCtaLabel?: string;
+  primaryCtaHref?: string;
+  secondaryCtaLabel?: string;
+  secondaryCtaHref?: string;
+  chips?: string[] | string;
+  accentClass?: string;
+  reverse?: boolean | string;
+};
+
 export interface LandingPageSection {
   id: string;
   landingPageId: string;
@@ -200,7 +232,7 @@ export interface LandingPageSection {
   body?: string;
   imageUrl?: string;
   productIds: string[];
-  items: Array<{ title: string; body: string }>;
+  items: LandingSectionItem[];
   ctaLabel?: string;
   ctaHref?: string;
   sortOrder: number;
@@ -254,9 +286,6 @@ export interface Settings {
   insideDhakaCodEnabled: boolean;
   subDhakaCodEnabled: boolean;
   outsideDhakaCodEnabled: boolean;
-  pathaoEnabled: boolean;
-  steadfastEnabled: boolean;
-  redxEnabled: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -279,9 +308,6 @@ export interface Order {
   deliveryStatus: DeliveryStatus;
   paymentProvider?: PaymentProviderKey;
   deliveryZone: DeliveryZone;
-  deliveryProvider?: Courier["key"] | null;
-  trackingId?: string | null;
-  consignmentId?: string | null;
   notes?: string;
   adminNotes?: string | null;
   couponCode?: string | null;
@@ -314,8 +340,6 @@ export interface DatabaseState {
   orderStatusHistory: OrderStatusHistory[];
   payments: Payment[];
   paymentLogs: PaymentLog[];
-  couriers: Courier[];
-  deliveryShipments: DeliveryShipment[];
   landingPages: LandingPage[];
   landingPageSections: LandingPageSection[];
   coupons: Coupon[];
@@ -352,7 +376,6 @@ export const orderStatuses: OrderStatus[] = [
 
 export const deliveryStatuses: DeliveryStatus[] = [
   "pending",
-  "courier_created",
   "picked_up",
   "in_transit",
   "delivered",
@@ -369,16 +392,6 @@ export const paymentProviders: Array<{
   { key: "bkash", name: "bKash", description: "Mobile financial service instructions or checkout" },
   { key: "nagad", name: "Nagad", description: "Mobile financial service instructions" },
   { key: "rocket", name: "Rocket", description: "Mobile financial service instructions" },
-];
-
-export const courierOptions: Array<{
-  key: Courier["key"];
-  name: string;
-  description: string;
-}> = [
-  { key: "pathao", name: "Pathao Courier", description: "API-first parcel delivery" },
-  { key: "steadfast", name: "Steadfast Courier", description: "Nationwide delivery network" },
-  { key: "redx", name: "RedX Courier", description: "Courier booking placeholder" },
 ];
 
 export const deliveryZones: Array<{

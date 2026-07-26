@@ -11,6 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
+    "production:bootstrap-admin": "tsx scripts/bootstrap-production-admin.ts",
     "prisma:studio": "prisma studio --browser none --port 5555"
   },
   "dependencies": {

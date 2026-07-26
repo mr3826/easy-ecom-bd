@@ -38,18 +38,11 @@ enum PaymentStatus {
 
 enum DeliveryStatus {
   pending
-  courier_created
   picked_up
   in_transit
   delivered
   returned
   cancelled
-}
-
-enum CourierKey {
-  pathao
-  steadfast
-  redx
 }
 
 enum DeliveryZone {
@@ -60,6 +53,7 @@ enum DeliveryZone {
 
 enum LandingSectionType {
   banner
+  carousel
   title
   subtitle
   product_section
@@ -135,6 +129,7 @@ model Product {
   featured          Boolean   @default(false)
   archivedAt        DateTime?
   weightGrams       Int       @default(0)
+  metadata          Json?
   tags              String[]
   searchKeywords    String[]
   createdAt         DateTime  @default(now())
@@ -211,9 +206,6 @@ model Order {
   deliveryStatus      DeliveryStatus      @default(pending)
   paymentProvider     PaymentProviderKey?
   deliveryZone        DeliveryZone        @default(inside_dhaka)
-  deliveryProvider    CourierKey?
-  trackingId          String?
-  consignmentId       String?
   notes               String?
   adminNotes          String?
   inventoryReservedAt DateTime?
@@ -224,7 +216,6 @@ model Order {
   customer      User?                @relation(fields: [customerId], references: [id])
   items         OrderItem[]
   payments      Payment[]
-  shipments     DeliveryShipment[]
   inventoryLogs InventoryLog[]
   statusHistory OrderStatusHistory[]
 
@@ -289,37 +280,6 @@ model PaymentLog {
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@map("payment_logs")
-}
-
-model Courier {
-  id          String     @id @default(cuid())
-  key         CourierKey @unique
-  name        String
-  enabled     Boolean    @default(true)
-  description String
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  @@map("couriers")
-}
-
-model DeliveryShipment {
-  id              String         @id @default(cuid())
-  orderId         String
-  courierKey      CourierKey
-  trackingId      String         @unique
-  consignmentId   String?
-  status          DeliveryStatus @default(courier_created)
-  customerName    String
-  customerPhone   String
-  customerAddress String
-  rawResponse     Json
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@map("delivery_shipments")
 }
 
 model LandingPage {
@@ -413,7 +373,7 @@ model Setting {
   deliveryCharge              Int
   freeDeliveryThreshold       Int
   codEnabled                  Boolean  @default(true)
-  bkashEnabled                Boolean  @default(true)
+  bkashEnabled                Boolean  @default(false)
   bkashAccountNumber          String?
   bkashInstructions           String   @default("")
   nagadEnabled                Boolean  @default(false)
@@ -428,9 +388,6 @@ model Setting {
   insideDhakaCodEnabled       Boolean  @default(true)
   subDhakaCodEnabled          Boolean  @default(true)
   outsideDhakaCodEnabled      Boolean  @default(true)
-  pathaoEnabled               Boolean  @default(true)
-  steadfastEnabled            Boolean  @default(true)
-  redxEnabled                 Boolean  @default(false)
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 
