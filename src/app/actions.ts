@@ -20,7 +20,8 @@ import {
   clearCart,
 } from "@/server/store";
 import { asNumber, asString } from "@/lib/utils";
-import { initiateBkashPayment, initiateNagadPayment } from "@/server/integrations";
+import { initiateBkashPayment } from "@/server/integrations";
+import { getBkashIntegrationConfig } from "@/server/integration-config";
 import { clearSessionCookie, getCurrentUser, setSessionCookie } from "@/server/auth";
 
 const guestCookie = "easy_ecom_guest";
@@ -161,7 +162,6 @@ export async function logoutAction() {
 export async function checkoutAction(formData: FormData) {
   const paymentMethod = (asString(formData.get("paymentMethod")) || "cod") as "cod" | "bkash" | "nagad" | "rocket";
   const wantsBkash = paymentMethod === "bkash";
-  const wantsNagad = paymentMethod === "nagad";
   const customerName = asString(formData.get("customerName"));
   const customerPhone = asString(formData.get("customerPhone"));
   const customerEmail = asString(formData.get("customerEmail")) || undefined;
@@ -179,6 +179,10 @@ export async function checkoutAction(formData: FormData) {
     throw new Error("Your cart is empty");
   }
 
+  if (wantsBkash && !getBkashIntegrationConfig().enabled) {
+    throw new Error("bKash checkout is temporarily unavailable");
+  }
+
   const order = await createOrderFromCart({
     cart,
     customerName,
@@ -191,26 +195,19 @@ export async function checkoutAction(formData: FormData) {
     couponCode,
   });
 
-  if (!wantsBkash && !wantsNagad) {
+  if (!wantsBkash) {
     revalidatePath("/cart");
     revalidatePath("/checkout");
     revalidatePath("/admin");
     redirect(`/track-order?code=${order.orderCode}`);
   }
 
-  const providerReady = wantsNagad
-    ? await initiateNagadPayment({
-        orderId: order.id,
-        amount: order.total,
-        customerName,
-        customerPhone,
-      })
-    : await initiateBkashPayment({
-        orderId: order.id,
-        amount: order.total,
-        customerName,
-        customerPhone,
-      });
+  const providerReady = await initiateBkashPayment({
+    orderId: order.id,
+    amount: order.total,
+    customerName,
+    customerPhone,
+  });
 
   revalidatePath("/cart");
   revalidatePath("/checkout");

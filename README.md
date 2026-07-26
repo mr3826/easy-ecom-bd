@@ -1,53 +1,89 @@
 # Bornohin
 
-Bangladesh-focused ecommerce starter built with Next.js App Router, a protected admin dashboard, direct wallet payment flows for bKash and Nagad, and configurable delivery zones.
+Bangladesh-focused ecommerce application built with Next.js App Router, PostgreSQL, a protected admin dashboard, configurable storefront sections, wallet/manual payment options, and delivery-zone operations.
 
-## What is included
+## Application Routes
 
-- Customer storefront with home, catalog, product detail, cart, checkout, login, register, account, and tracking pages
-- Admin dashboard for products, categories, brands, inventory, orders, customers, coupons, payments, landing pages, reports, and settings
-- Landing page builder with custom slugs and attached products
-- Payment provider interfaces for bKash and Nagad with backend verification flow
-- Prisma schema for PostgreSQL
-- Demo content and local in-memory persistence so the app runs immediately
+- Shop: `https://bornohin.com/`
+- Admin: `https://bornohin.com/admin`
+- API: `https://api.bornohin.com/api/*`
+- Health check: `https://api.bornohin.com/api/health`
 
-## Demo accounts
+The shop, admin dashboard, server actions, and API route handlers are one deployable Next.js application.
 
-- Admin: `admin@easy-ecom.test` / `admin1234`
-- Customer: `amina@example.com` / `customer1234`
+## Included
 
-## Local setup
+- Customer storefront, search, product details, cart, checkout, authentication, account, and order tracking
+- Admin operations for products, categories, brands, inventory, orders, customers, coupons, payments, reports, and settings
+- Landing page builder with banners, carousels, product sections, testimonials, FAQs, and calls to action
+- PostgreSQL persistence through Prisma
+- bKash integration with signed callback verification
+- Manual COD, Nagad, and Rocket order flows controlled by admin settings
+- Persistent uploaded media served from `/uploads`
 
-1. Copy `.env.example` to `.env.local`
-2. Fill in the values you have
-3. Run `npm run dev`
+## Local Development
 
-## Notes
-
-- The local demo mode uses an in-memory store so the site is functional without a database.
-- The Prisma schema is ready for PostgreSQL once `DATABASE_URL` is configured.
-- Payment callbacks are verified in the backend route handlers before an order can become paid.
-
-## Deployment
-
-Current deployment is done locally to cPanel via FTPS using the script below.
-
-### Local cPanel deploy
+The complete local stack uses Docker:
 
 ```powershell
-$env:CPANEL_API_TOKEN = "<cPanel API token>"
-.\scripts\deploy-cpanel.ps1
+docker compose up --build
 ```
 
-Options:
-- `-SkipBuild` — skip `npm ci`, `prisma generate`, `lint`, and `build`
-- `-DryRun` — show uploads without writing to FTP
-- `-CpanelDir public_html/.next/standalone` — override the cPanel upload directory
-- `-RemoteDir /home/bornohin/public_html` — override upload target
-- `-SkipExtract` — upload the bundle but do not call the remote extractor
+Services:
 
-This script builds the Next.js standalone app, uploads it to cPanel File Manager with `CPANEL_API_TOKEN`, extracts it into the live `public_html/.next/standalone` Passenger runtime, and restarts Passenger by touching `tmp/restart.txt`. If `CPANEL_API_TOKEN` is not set, it can fall back to FTPS with `CPANEL_FTP_PASSWORD`.
+- App: `http://localhost:3000`
+- PostgreSQL: `localhost:5432`
+- Redis: `localhost:6379`
+- Prisma Studio: `http://localhost:5555`
 
-### GitHub Actions
+For a host-based development run:
 
-The repo also contains `.github/workflows/deploy.yml`, but automated deployment from GitHub Actions to this server is not currently working due to SSH/FTP access restrictions from the runner. Use the local deploy script until that is resolved.
+```powershell
+Copy-Item .env.example .env.local
+npm ci
+npm run prisma:generate
+npm run dev
+```
+
+`DATABASE_URL` is required for persistent application and test behavior.
+
+## Validation
+
+```powershell
+npm run lint
+npm test
+npm run build
+```
+
+## cPanel Deployment
+
+The production host must provide Node.js 20.9 or newer and network access to PostgreSQL. Shared-hosting MySQL/MariaDB is not compatible with the current Prisma datasource.
+
+Create a short-lived cPanel API token and keep it in a local environment variable:
+
+```powershell
+$env:CPANEL_API_TOKEN = "<short-lived token>"
+.\scripts\cpanel-preflight.ps1
+.\scripts\cpanel-preflight.ps1 -StartFullBackup
+.\scripts\deploy-cpanel.ps1 -AppRoot bornohin_app -ConfirmAppRoot bornohin_app
+```
+
+The deploy script uses cPanel HTTPS APIs. It does not use FTP, disable certificate verification, publish a PHP extractor, or delete domains/databases.
+
+See [the production cutover plan](docs/remaining-integration-execution-plan.md) before cleaning the old cPanel applications or changing Cloudflare DNS.
+
+## Production Environment
+
+Required core values:
+
+```dotenv
+NODE_ENV=production
+DATABASE_URL=postgresql://...
+AUTH_SECRET=...
+NEXT_PUBLIC_APP_URL=https://bornohin.com
+APP_URL=https://bornohin.com
+API_URL=https://api.bornohin.com
+UPLOAD_DIR=/home/bornohin/bornohin_uploads
+```
+
+bKash must remain disabled unless all provider credentials and `BKASH_WEBHOOK_SECRET` are configured. There is no production payment simulator.

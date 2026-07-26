@@ -5,8 +5,7 @@ import { siteBrand } from "@/lib/site-brand";
 
 export const metadata: Metadata = {
   title: siteBrand.name,
-  description:
-    `Frontend rebuild of the ${siteBrand.name} storefront with a centralized theme system, collection pages, product views, and responsive shopping interactions.`,
+  description: `${siteBrand.name} fashion, lifestyle, and everyday essentials in Bangladesh.`,
 };
 
 export default function RootLayout({

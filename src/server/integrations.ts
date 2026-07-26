@@ -34,7 +34,11 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function buildCallbackUrl(path: string) {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
+  const baseUrl =
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    "http://localhost:3000";
   return new URL(path, baseUrl).toString();
 }
 
@@ -91,6 +95,10 @@ export async function initiateBkashPayment(args: {
   customerPhone: string;
 }) {
   const config = getBkashIntegrationConfig();
+  if (!config.enabled) {
+    throw new Error("bKash checkout is not configured");
+  }
+
   const payment = await upsertPayment({
     orderId: args.orderId,
     provider: "bkash",
@@ -99,22 +107,13 @@ export async function initiateBkashPayment(args: {
     status: "processing",
     rawResponse: {
       provider: "bkash",
-      mode: config.enabled ? "live" : "local",
+      mode: "live",
       action: "initiate",
     },
   });
 
-  await addPaymentLog(payment.id, "init", { provider: "bkash", ...args, mode: config.enabled ? "live" : "local" });
+  await addPaymentLog(payment.id, "init", { provider: "bkash", ...args, mode: "live" });
   await updateOrderPayment(args.orderId, { paymentStatus: "processing", paymentProvider: "bkash" });
-
-  if (!config.enabled) {
-    return {
-      provider: "bkash",
-      paymentId: payment.id,
-      redirectUrl: `/payments/bkash/simulate?paymentId=${payment.id}`,
-      rawResponse: payment.rawResponse,
-    } satisfies PaymentInitiationResult;
-  }
 
   const callbackUrl = buildCallbackUrl("/api/payments/bkash/callback");
   const response = await postJson(
@@ -136,9 +135,10 @@ export async function initiateBkashPayment(args: {
   );
 
   const transactionId = pickString(response, ["paymentID", "paymentId", "transactionId", "trxId"]) || payment.transactionId;
-  const redirectUrl =
-    pickString(response, ["paymentURL", "paymentUrl", "bkashUrl", "redirectUrl"]) ||
-    `/payments/bkash/simulate?paymentId=${payment.id}`;
+  const redirectUrl = pickString(response, ["paymentURL", "paymentUrl", "bkashUrl", "redirectUrl"]);
+  if (!redirectUrl) {
+    throw new Error("bKash did not return a checkout URL");
+  }
 
   const updated = await upsertPayment({
     id: payment.id,
@@ -162,36 +162,6 @@ export async function initiateBkashPayment(args: {
     paymentId: updated.id,
     redirectUrl,
     rawResponse: response as Record<string, unknown>,
-  } satisfies PaymentInitiationResult;
-}
-
-export async function initiateNagadPayment(args: {
-  orderId: string;
-  amount: number;
-  customerName: string;
-  customerPhone: string;
-}) {
-  const payment = await upsertPayment({
-    orderId: args.orderId,
-    provider: "nagad",
-    transactionId: `NG-${Date.now()}`,
-    amount: args.amount,
-    status: "processing",
-    rawResponse: {
-      provider: "nagad",
-      action: "initiate",
-      mode: "local",
-    },
-  });
-
-  await addPaymentLog(payment.id, "init", { provider: "nagad", ...args });
-  await updateOrderPayment(args.orderId, { paymentStatus: "processing", paymentProvider: "nagad" });
-
-  return {
-    provider: "nagad",
-    paymentId: payment.id,
-    redirectUrl: `/payments/nagad/simulate?paymentId=${payment.id}`,
-    rawResponse: payment.rawResponse,
   } satisfies PaymentInitiationResult;
 }
 

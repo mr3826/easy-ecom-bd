@@ -1,7 +1,10 @@
 <#
 .SYNOPSIS
-Local cPanel deploy script for easy-ecom-bd.
-Builds the Next.js standalone app and uploads it to cPanel via explicit FTPS.
+Build and deploy the Bornohin standalone Next.js application through cPanel.
+
+.DESCRIPTION
+Uses a cPanel API token over verified HTTPS. It does not use FTP, publish a web
+extractor, disable TLS verification, delete domains, or delete databases.
 #>
 
 param(
@@ -11,350 +14,165 @@ param(
     [string]$CpanelUser = "bornohin",
     [string]$CpanelHome = "/home/bornohin",
     [string]$CpanelApiToken = $env:CPANEL_API_TOKEN,
-    [string]$CpanelDir = "public_html/.next/standalone",
-    [string]$FtpHost = "ftp.bornohinbd.com",
-    [string]$WebHost = "bornohinbd.com",
-    [int]$FtpPort = 21,
-    [string]$FtpUser = "github-deploy@admin.bornohinbd.com",
-    [string]$FtpPassword = $env:CPANEL_FTP_PASSWORD,
-    [string]$RemoteDir = "/",
+    [string]$AppRoot = "bornohin_app",
+    [string]$ConfirmAppRoot,
     [switch]$SkipBuild,
-    [switch]$DryRun,
-    [switch]$SkipExtract
+    [switch]$DryRun
 )
 
 Set-StrictMode -Version Latest
-$ErrorActionPreference = 'Stop'
-[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+$ErrorActionPreference = "Stop"
 
 if (-not $ProjectRoot) {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $ProjectRoot = Split-Path -Parent $scriptDir
 }
 if (-not $DeployDir) {
-    $DeployDir = Join-Path $ProjectRoot "deploy-package"
+    $DeployDir = Join-Path $env:TEMP "bornohin-cpanel-deploy"
 }
 
 function Write-Step { param([string]$Text) Write-Host "`n==> $Text" -ForegroundColor Cyan }
 function Write-OK { param([string]$Text) Write-Host "    $Text" -ForegroundColor Green }
-function Write-Fail { param([string]$Text) Write-Host "FAIL: $Text" -ForegroundColor Red; exit 1 }
+function Stop-Deploy { param([string]$Text) throw $Text }
 
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Write-Fail "Node.js is not installed or not in PATH." }
-if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { Write-Fail "npm is not installed or not in PATH." }
-if (-not $CpanelApiToken -and -not $FtpPassword) { Write-Fail "Set CPANEL_API_TOKEN for cPanel API deploy or CPANEL_FTP_PASSWORD for FTPS deploy." }
+if ($ConfirmAppRoot -ne $AppRoot) {
+    Stop-Deploy "Pass -ConfirmAppRoot '$AppRoot' after verifying the Passenger app root in cPanel."
+}
+if (-not $DryRun -and -not $CpanelApiToken) {
+    Stop-Deploy "Set CPANEL_API_TOKEN locally. Do not put the token in source control or chat."
+}
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Stop-Deploy "Node.js is not available." }
+if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { Stop-Deploy "npm is not available." }
+if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) { Stop-Deploy "curl.exe is not available." }
 
 if (-not $SkipBuild) {
-    Write-Step "Installing dependencies"
     Push-Location $ProjectRoot
-    try { npm ci | Write-Output } catch { Write-Fail "npm ci failed: $_" }
-    Write-OK "Dependencies installed"
+    try {
+        Write-Step "Installing locked dependencies"
+        npm ci
+        if ($LASTEXITCODE -ne 0) { Stop-Deploy "npm ci failed." }
 
-    Write-Step "Generating Prisma client"
-    try { npx prisma generate | Write-Output } catch { Write-Fail "prisma generate failed: $_" }
-    Write-OK "Prisma client generated"
+        Write-Step "Generating Prisma client"
+        npm run prisma:generate
+        if ($LASTEXITCODE -ne 0) { Stop-Deploy "Prisma generation failed." }
 
-    Write-Step "Running lint"
-    try { npm run lint | Write-Output } catch { Write-Fail "lint failed: $_" }
-    Write-OK "Lint passed"
+        Write-Step "Running lint"
+        npm run lint
+        if ($LASTEXITCODE -ne 0) { Stop-Deploy "Lint failed." }
 
-    Write-Step "Building standalone app"
-    try { npm run build | Write-Output } catch { Write-Fail "build failed: $_" }
-    Write-OK "Build completed"
-    Pop-Location
-} else {
-    Write-Step "Skipping build steps"
-}
-
-Write-Step "Preparing deploy bundle"
-if (Test-Path $DeployDir) { Remove-Item -Recurse -Force $DeployDir }
-New-Item -ItemType Directory -Path "$DeployDir\.next" | Out-Null
-Get-ChildItem -LiteralPath "$ProjectRoot\.next\standalone" -Force | Copy-Item -Destination "$DeployDir\" -Recurse -Force
-Copy-Item -LiteralPath "$ProjectRoot\.next\static" -Destination "$DeployDir\.next\static" -Recurse -Force
-Copy-Item -LiteralPath "$ProjectRoot\public" -Destination "$DeployDir\public" -Recurse -Force
-Write-OK "Deploy bundle prepared at: $DeployDir"
-
-function New-FtpRequest {
-    param(
-        [string]$Uri,
-        [string]$Method,
-        [byte[]]$Body
-    )
-    $req = [System.Net.FtpWebRequest]::Create($Uri)
-    $req.Method = $Method
-    $req.EnableSsl = $true
-    $req.UseBinary = $true
-    $req.UsePassive = $true
-    $req.KeepAlive = $false
-    $req.Timeout = 600000
-    $req.ReadWriteTimeout = 600000
-    $req.Credentials = [System.Net.NetworkCredential]::new($FtpUser, $FtpPassword)
-    if ($Body) { $req.ContentLength = $Body.Length }
-    return $req
-}
-
-function Ensure-FtpDirectory {
-    param([string]$Path)
-    if ([string]::IsNullOrEmpty($Path) -or $Path -eq '/' -or $Path -eq '\') { return }
-    $segments = ($Path.Trim('/').Trim('\') -split '[\\/]') | Where-Object { $_ }
-    $current = ''
-    foreach ($segment in $segments) {
-        $current = "$current/$segment"
-        $uri = "ftp://${FtpHost}:${FtpPort}${current}/"
-        try {
-            $req = New-FtpRequest -Uri $uri -Method 'MKD'
-            $resp = $req.GetResponse()
-            $resp.Close()
-        } catch [System.Net.WebException] {
-            $ex = $_.Exception
-            if ($ex.Response -and $ex.Response.StatusDescription -match '550|File exists') {
-            } else {
-                Write-Host "    MKD $current -> $($ex.Message)" -ForegroundColor DarkGray
-            }
-        }
+        Write-Step "Building standalone application"
+        npm run build
+        if ($LASTEXITCODE -ne 0) { Stop-Deploy "Build failed." }
+    } finally {
+        Pop-Location
     }
 }
 
-function Upload-FtpItem {
-    param(
-        [string]$LocalPath,
-        [string]$RemotePath
-    )
-    if ($DryRun) {
-        Write-Host "    [dry-run] $LocalPath -> $RemotePath"
-        return
-    }
-    if (-not (Test-Path -LiteralPath $LocalPath)) {
-        Write-Host "    skip missing: $LocalPath" -ForegroundColor DarkGray
-        return
-    }
-    if (Test-Path -LiteralPath $LocalPath -PathType Container) {
-        $items = Get-ChildItem -LiteralPath $LocalPath -Force
-        foreach ($item in $items) {
-            $name = $item.Name
-            if ($RemotePath -eq '/') {
-                $childRemote = "/$name"
-            } else {
-                $childRemote = "$RemotePath/$name"
-            }
-            Upload-FtpItem -LocalPath $item.FullName -RemotePath $childRemote
-        }
-        return
-    }
-    if (-not (Test-Path -LiteralPath $LocalPath -PathType Leaf)) {
-        Write-Host "    skip non-file: $LocalPath" -ForegroundColor DarkGray
-        return
-    }
-    $relative = $LocalPath.Substring($DeployDir.Length + 1)
-    $targetPath = "$RemotePath/$relative".Replace('\', '/')
-    $targetDir = Split-Path -Parent $targetPath
-    if ($targetDir -notmatch '^/$') { Ensure-FtpDirectory -Path $targetDir }
-    $uri = "ftp://${FtpHost}:${FtpPort}$targetPath"
-    $maxAttempts = 3
-    $attempt = 0
-    while ($attempt -lt $maxAttempts) {
-        try {
-            $bytes = [System.IO.File]::ReadAllBytes($LocalPath)
-            $req = New-FtpRequest -Uri $uri -Method 'STOR' -Body $bytes
-            $stream = $req.GetRequestStream()
-            $stream.Write($bytes, 0, $bytes.Length)
-            $stream.Close()
-            $resp = $req.GetResponse()
-            $resp.Close()
-            Write-Host "    uploaded: $relative"
-            return
-        } catch [System.Net.WebException] {
-            $attempt++
-            if ($attempt -ge $maxAttempts) {
-                Write-Host "    FAILED upload after $attempt attempts: ${relative}: $($_.Exception.Message)" -ForegroundColor Red
-                throw
-            }
-            Write-Host "    retry $attempt/$maxAttempts for ${relative}: $($_.Exception.Message)" -ForegroundColor Yellow
-            Start-Sleep -Seconds 2
-        } catch {
-            $attempt++
-            if ($attempt -ge $maxAttempts) {
-                Write-Host "    FAILED upload after $attempt attempts: ${relative}: $($_.Exception.Message)" -ForegroundColor Red
-                throw
-            }
-            Write-Host "    retry $attempt/$maxAttempts for ${relative}: $($_.Exception.Message)" -ForegroundColor Yellow
-            Start-Sleep -Seconds 2
-        }
-    }
+$standaloneDir = Join-Path $ProjectRoot ".next\standalone"
+$serverEntry = Join-Path $standaloneDir "server.js"
+if (-not (Test-Path -LiteralPath $serverEntry -PathType Leaf)) {
+    Stop-Deploy "Standalone server.js was not found. Run a successful production build first."
 }
 
-function Invoke-CurlUpload {
-    param(
-        [string]$LocalPath,
-        [string]$RemoteUri,
-        [string]$Label
-    )
-    curl.exe -T $LocalPath $RemoteUri --user $cred --ssl-reqd --insecure
-    if ($LASTEXITCODE -ne 0) {
-        Write-Fail "$Label upload failed with curl exit code $LASTEXITCODE"
+Write-Step "Preparing release bundle"
+if (Test-Path -LiteralPath $DeployDir) {
+    $resolvedDeployDir = (Resolve-Path -LiteralPath $DeployDir).Path
+    $resolvedTemp = (Resolve-Path -LiteralPath $env:TEMP).Path
+    if (-not $resolvedDeployDir.StartsWith($resolvedTemp, [System.StringComparison]::OrdinalIgnoreCase)) {
+        Stop-Deploy "Refusing to clean a deploy directory outside the current temporary directory."
     }
+    Remove-Item -LiteralPath $resolvedDeployDir -Recurse -Force
 }
 
-Write-Step "Creating deploy archive"
-$rootRemote = $RemoteDir.TrimEnd('/')
-if ([string]::IsNullOrEmpty($rootRemote)) { $rootRemote = '/' }
+New-Item -ItemType Directory -Path (Join-Path $DeployDir ".next") -Force | Out-Null
+Get-ChildItem -LiteralPath $standaloneDir -Force |
+    Where-Object { $_.Name -notin @("deploy-package", ".kilo") } |
+    Copy-Item -Destination $DeployDir -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $ProjectRoot ".next\static") -Destination (Join-Path $DeployDir ".next\static") -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $ProjectRoot "public") -Destination (Join-Path $DeployDir "public") -Recurse -Force
+New-Item -ItemType Directory -Path (Join-Path $DeployDir "tmp") -Force | Out-Null
 
-$zipPath = Join-Path $env:TEMP "deploy-package.zip"
-if (Test-Path $zipPath) { Remove-Item $zipPath }
-Compress-Archive -Path (Join-Path $DeployDir '*') -DestinationPath $zipPath -Force
-Write-OK "Created deploy zip: $zipPath"
+$archivePath = Join-Path $env:TEMP "bornohin-release.zip"
+if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath -Force }
+Compress-Archive -Path (Join-Path $DeployDir "*") -DestinationPath $archivePath -Force
+Write-OK "Release archive created at $archivePath"
 
-$phpExtract = @'
-<?php
-$zip = new ZipArchive();
-$zipFile = __DIR__ . '/deploy-package.zip';
-$res = $zip->open($zipFile);
-if ($res === TRUE) {
-    $zip->extractTo(__DIR__);
-    $zip->close();
-    if (!is_dir(__DIR__ . '/tmp')) {
-        @mkdir(__DIR__ . '/tmp', 0755, true);
-    }
-    @touch(__DIR__ . '/tmp/restart.txt');
-    @unlink($zipFile);
-    @unlink(__FILE__);
-    echo 'OK';
-} else {
-    http_response_code(500);
-    echo 'FAIL';
-}
-?>
-'@
-$phpPath = Join-Path $env:TEMP "extract-deploy.php"
-Set-Content -Path $phpPath -Value $phpExtract -Encoding ASCII
-
-function Invoke-CpanelUpload {
-    param(
-        [string]$LocalPath,
-        [string]$Dir,
-        [string]$Label
-    )
-    if ($DryRun) {
-        Write-Host "    [dry-run] cPanel upload $LocalPath -> $Dir"
-        return
-    }
-    $encodedDir = [System.Uri]::EscapeDataString($Dir)
-    $uploadUrl = "https://${CpanelHost}:2083/json-api/cpanel?cpanel_jsonapi_user=${CpanelUser}&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=Fileman&cpanel_jsonapi_func=uploadfiles&dir=${encodedDir}&overwrite=1"
-    $authHeader = "Authorization: cpanel ${CpanelUser}:$CpanelApiToken"
-    $response = curl.exe -sS -H $authHeader -F "uploader_file_input=@$LocalPath" $uploadUrl
-    if ($LASTEXITCODE -ne 0 -or $response -notmatch '"result"\s*:\s*1') {
-        $snippet = if ($response) { $response.Substring(0, [Math]::Min(500, $response.Length)) } else { "" }
-        Write-Fail "$Label cPanel upload failed: $snippet"
-    }
-}
-
-function Invoke-CpanelFileOp {
-    param(
-        [string]$Op,
-        [string]$SourceFile,
-        [string]$DestFile = ""
-    )
-    $encodedSource = [System.Uri]::EscapeDataString($SourceFile)
-    $query = "cpanel_jsonapi_user=${CpanelUser}&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=Fileman&cpanel_jsonapi_func=fileop&filelist=1&multiform=1&doubledecode=0&op=${Op}&sourcefiles=${encodedSource}"
-    if ($DestFile) {
-        $encodedDest = [System.Uri]::EscapeDataString($DestFile)
-        $query = "$query&destfiles=${encodedDest}"
-    }
-    $requestUrl = "https://${CpanelHost}:2083/json-api/cpanel?$query"
-    $headers = @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" }
-    $response = Invoke-WebRequest -Uri $requestUrl -Headers $headers -UseBasicParsing -TimeoutSec 180
-    if ($response.StatusCode -lt 200 -or $response.StatusCode -ge 300 -or $response.Content -notmatch '"result"\s*:\s*1') {
-        $snippet = $response.Content.Substring(0, [Math]::Min(500, $response.Content.Length))
-        Write-Fail "cPanel file operation ${Op} failed: $snippet"
-    }
-}
-
-if ($CpanelApiToken) {
-    Write-Step "Uploading deploy bundle to cPanel via Fileman API"
-    Invoke-CpanelUpload -LocalPath $zipPath -Dir $CpanelDir -Label "deploy-package.zip"
-    Write-OK "Uploaded deploy-package.zip"
-
-    $absoluteCpanelDir = "$($CpanelHome.TrimEnd('/'))/$($CpanelDir.Trim('/'))"
-    $remoteZip = "$absoluteCpanelDir/deploy-package.zip"
-
-    if (-not $DryRun -and -not $SkipExtract) {
-        Write-Step "Extracting deploy bundle on cPanel"
-        Invoke-CpanelFileOp -Op "extract" -SourceFile $remoteZip -DestFile $absoluteCpanelDir
-        Write-OK "Remote extraction completed"
-
-        Write-Step "Cleaning remote deployment artifacts"
-        Invoke-CpanelFileOp -Op "unlink" -SourceFile $remoteZip
-        Write-OK "Removed remote deploy-package.zip"
-
-        $restartPath = Join-Path $env:TEMP "restart.txt"
-        Set-Content -Path $restartPath -Value (Get-Date -Format o) -Encoding ASCII
-        Invoke-CpanelUpload -LocalPath $restartPath -Dir "$CpanelDir/tmp" -Label "restart.txt"
-        Remove-Item -LiteralPath $restartPath -Force
-        Write-OK "Restart triggered via $CpanelDir/tmp/restart.txt"
-    }
-
-    Write-Step "Cleaning up"
-    Remove-Item -Recurse -Force $DeployDir | Out-Null
-    if (Test-Path $zipPath) { Remove-Item $zipPath }
-    if (Test-Path $phpPath) { Remove-Item $phpPath }
-    Write-OK "Cleaned deploy-package, zip, and extractor"
-    Write-Host "`nDeployment finished." -ForegroundColor Green
+$absoluteAppRoot = "$($CpanelHome.TrimEnd("/"))/$($AppRoot.Trim("/"))"
+if ($DryRun) {
+    Write-Host "    [dry-run] upload $archivePath to $absoluteAppRoot/bornohin-release.zip"
+    Write-Host "    [dry-run] extract archive and touch $absoluteAppRoot/tmp/restart.txt"
+    Remove-Item -LiteralPath $archivePath -Force
+    Remove-Item -LiteralPath $DeployDir -Recurse -Force
     exit 0
 }
 
-$cred = "$FtpUser`:$FtpPassword"
-$ftpZipUri = "ftp://${FtpHost}:${FtpPort}${rootRemote}/deploy-package.zip"
-Invoke-CurlUpload -LocalPath $zipPath -RemoteUri $ftpZipUri -Label "deploy-package.zip"
-Write-OK "Uploaded deploy-package.zip"
+$authorization = "Authorization: cpanel ${CpanelUser}:$CpanelApiToken"
+$uploadUrl = "https://${CpanelHost}:2083/execute/Fileman/upload_files"
 
-$ftpPhpUri = "ftp://${FtpHost}:${FtpPort}${rootRemote}/extract-deploy.php"
-Invoke-CurlUpload -LocalPath $phpPath -RemoteUri $ftpPhpUri -Label "extract-deploy.php"
-Write-OK "Uploaded extract-deploy.php"
-
-$protocol = "https"
-$hostForUrl = $WebHost
-if ($rootRemote -ne '/') {
-    $targetDir = $rootRemote.TrimStart('/')
-} else {
-    $targetDir = ''
+Write-Step "Uploading release through cPanel UAPI"
+$uploadResponse = curl.exe --fail-with-body --silent --show-error `
+    -H $authorization `
+    -F "file-1=@$archivePath;filename=bornohin-release.zip" `
+    -F "dir=$AppRoot" `
+    $uploadUrl
+if ($LASTEXITCODE -ne 0 -or $uploadResponse -notmatch '"status"\s*:\s*1') {
+    Stop-Deploy "cPanel upload failed: $($uploadResponse.Substring(0, [Math]::Min(500, $uploadResponse.Length)))"
 }
-$extractUrl = "${protocol}://$hostForUrl/extract-deploy.php"
-if (-not [string]::IsNullOrEmpty($targetDir)) {
-    $extractUrl = "${protocol}://$hostForUrl/$targetDir/extract-deploy.php"
-}
-Write-Host "    Visit this URL to extract the deployment package:"
-Write-Host "    $extractUrl" -ForegroundColor Yellow
+Write-OK "Release uploaded"
 
-if (-not $DryRun -and -not $SkipExtract) {
-    Write-Step "Extracting deploy bundle on cPanel"
-    try {
-        $extractResponse = Invoke-WebRequest -Uri $extractUrl -UseBasicParsing -TimeoutSec 180
-        if ($extractResponse.StatusCode -lt 200 -or $extractResponse.StatusCode -ge 300 -or $extractResponse.Content -notmatch 'OK') {
-            Write-Fail "Remote extraction failed with HTTP $($extractResponse.StatusCode): $($extractResponse.Content)"
-        }
-        Write-OK "Remote extraction completed"
-    } catch {
-        Write-Fail "Remote extraction request failed: $_"
+function Invoke-CpanelFileOperation {
+    param(
+        [string]$Operation,
+        [string]$Source,
+        [string]$Destination = ""
+    )
+
+    $query = @{
+        cpanel_jsonapi_user = $CpanelUser
+        cpanel_jsonapi_apiversion = "2"
+        cpanel_jsonapi_module = "Fileman"
+        cpanel_jsonapi_func = "fileop"
+        filelist = "1"
+        multiform = "1"
+        doubledecode = "0"
+        op = $Operation
+        sourcefiles = $Source
+    }
+    if ($Destination) { $query.destfiles = $Destination }
+
+    $queryString = ($query.GetEnumerator() | ForEach-Object {
+        "$([Uri]::EscapeDataString($_.Key))=$([Uri]::EscapeDataString($_.Value))"
+    }) -join "&"
+    $response = Invoke-WebRequest `
+        -Uri "https://${CpanelHost}:2083/json-api/cpanel?$queryString" `
+        -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
+        -TimeoutSec 300
+
+    if ($response.StatusCode -notin 200..299 -or $response.Content -notmatch '"result"\s*:\s*1') {
+        Stop-Deploy "cPanel file operation '$Operation' failed."
     }
 }
 
-$restartPath = '/tmp/restart.txt'
-if ($rootRemote -ne '/') { $restartPath = "$rootRemote/tmp/restart.txt" }
-try {
-    $uri = "ftp://${FtpHost}:${FtpPort}$restartPath"
-    $req = New-FtpRequest -Uri $uri -Method 'STOR'
-    $stream = $req.GetRequestStream()
-    $stream.Close()
-    $resp = $req.GetResponse()
-    $resp.Close()
-    Write-OK "Restart triggered via $restartPath"
-} catch {
-    Write-Host "    restart not triggered via FTP: $($_.Exception.Message)" -ForegroundColor DarkGray
+Write-Step "Extracting release into the confirmed Passenger app root"
+$remoteArchive = "$absoluteAppRoot/bornohin-release.zip"
+Invoke-CpanelFileOperation -Operation "extract" -Source $remoteArchive -Destination $absoluteAppRoot
+Invoke-CpanelFileOperation -Operation "unlink" -Source $remoteArchive
+Write-OK "Release extracted and archive removed"
+
+Write-Step "Restarting Passenger"
+$restartFile = Join-Path $env:TEMP "restart.txt"
+Set-Content -LiteralPath $restartFile -Value (Get-Date -Format o) -Encoding ASCII
+$restartResponse = curl.exe --fail-with-body --silent --show-error `
+    -H $authorization `
+    -F "file-1=@$restartFile;filename=restart.txt" `
+    -F "dir=$AppRoot/tmp" `
+    $uploadUrl
+if ($LASTEXITCODE -ne 0 -or $restartResponse -notmatch '"status"\s*:\s*1') {
+    Stop-Deploy "Passenger restart trigger failed."
 }
+Write-OK "Passenger restart requested"
 
-Write-Step "Cleaning up"
-Remove-Item -Recurse -Force $DeployDir | Out-Null
-if (Test-Path $zipPath) { Remove-Item $zipPath }
-if (Test-Path $phpPath) { Remove-Item $phpPath }
-Write-OK "Cleaned deploy-package and zip"
-
-Write-Host "`nDeployment finished." -ForegroundColor Green
+Remove-Item -LiteralPath $restartFile -Force
+Remove-Item -LiteralPath $archivePath -Force
+Remove-Item -LiteralPath $DeployDir -Recurse -Force
+Write-Host "`nDeployment upload completed. Run the live smoke checks before DNS cutover." -ForegroundColor Green

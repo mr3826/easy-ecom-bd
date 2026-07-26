@@ -4,8 +4,6 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
-const uploadRoot = path.resolve(process.env.UPLOAD_DIR || "/uploads");
-
 const contentTypeByExtension: Record<string, string> = {
   ".avif": "image/avif",
   ".gif": "image/gif",
@@ -20,10 +18,21 @@ function getContentType(filePath: string) {
   return contentTypeByExtension[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
 }
 
-function resolveSafePath(segments: string[]) {
+function getUploadRoot() {
+  const configuredPath = process.env.UPLOAD_DIR?.trim() || "/uploads";
+  return path.normalize(configuredPath);
+}
+
+function resolveSafePath(uploadRoot: string, segments: string[]) {
   const relative = segments.join("/");
   const resolved = path.resolve(uploadRoot, relative);
-  if (!resolved.startsWith(uploadRoot)) {
+  const relativeToRoot = path.relative(uploadRoot, resolved);
+  if (
+    !relativeToRoot ||
+    relativeToRoot.startsWith(`..${path.sep}`) ||
+    relativeToRoot === ".." ||
+    path.isAbsolute(relativeToRoot)
+  ) {
     throw new Error("Invalid upload path");
   }
   return resolved;
@@ -35,14 +44,13 @@ export async function GET(
 ) {
   const params = await Promise.resolve(context.params);
   const segments = params.path ?? [];
-  console.log("[uploads]", { segments, uploadRoot });
   if (!segments.length) {
     return NextResponse.json({ error: "Missing upload path" }, { status: 404 });
   }
 
   let absolutePath: string;
   try {
-    absolutePath = resolveSafePath(segments);
+    absolutePath = resolveSafePath(getUploadRoot(), segments);
   } catch {
     return NextResponse.json({ error: "Invalid upload path" }, { status: 400 });
   }
