@@ -1,4 +1,7 @@
 import { randomUUID } from "crypto";
+import { access, mkdtemp } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
 import { afterEach, expect, test } from "vitest";
 import { getPrisma } from "@/server/db";
 import {
@@ -28,11 +31,24 @@ import {
   replaceProductImages,
   clearCart,
 } from "@/server/store";
+import { getFileStorage, resetFileStorageForTests } from "@/server/storage";
 
 const prisma = getPrisma();
 
 function unique(prefix: string) {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
+}
+
+function makeTestFile(name: string, content: string, type = "image/png") {
+  const bytes = Buffer.from(content);
+  return {
+    name,
+    type,
+    size: bytes.byteLength,
+    async arrayBuffer() {
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    },
+  } as File;
 }
 
 async function cleanupTestData() {
@@ -376,6 +392,79 @@ test("inventory and order state changes are durable", async () => {
   expect(logs.some((log) => log.entity === "order_payment" && log.entityId === order.id)).toBe(true);
 });
 
+test("delivery cancellation restores reserved inventory", async () => {
+  const { actor, product } = await createCatalogItem(4);
+  const cart = await getOrCreateCart(unique("test-cart"), actor?.id);
+  await addToCart(cart.guestKey, product.id, 2, actor?.id, actor ?? null);
+
+  const order = await createOrderFromCart(
+    {
+      cart: await getOrCreateCart(cart.guestKey, actor?.id),
+      customerName: "Delivery Cancel Test",
+      customerPhone: "01700000005",
+      customerEmail: `delivery-${unique("customer")}@test.local`,
+      district: "Dhaka",
+      shippingAddress: "Delivery cancellation test address",
+      paymentProvider: "cod",
+    },
+    actor ?? undefined,
+  );
+
+  const reserved = await prisma.product.findUnique({ where: { id: product.id } });
+  expect(reserved?.stock).toBe(2);
+
+  const cancelled = await updateOrderDelivery(order.id, "cancelled", actor ?? undefined);
+  expect(cancelled?.deliveryStatus).toBe("cancelled");
+
+  const restored = await prisma.product.findUnique({ where: { id: product.id } });
+  expect(restored?.stock).toBe(4);
+
+  const refreshedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+  expect(refreshedOrder?.inventoryReleasedAt).toBeTruthy();
+});
+
+test("replacing product images removes orphaned local files but preserves shared references", async () => {
+  const originalUploadDir = process.env.UPLOAD_DIR;
+  const uploadDir = await mkdtemp(join(tmpdir(), "easy-ecom-uploads-"));
+  process.env.UPLOAD_DIR = uploadDir;
+  resetFileStorageForTests();
+
+  try {
+    const { actor, brand, product } = await createCatalogItem(3);
+    const storage = getFileStorage();
+
+    const shared = await storage.save(makeTestFile("shared.png", "shared"), `products/${product.id}`);
+    const orphan = await storage.save(makeTestFile("orphan.png", "orphan"), `products/${product.id}`);
+    const retained = await storage.save(makeTestFile("retained.png", "retained"), `products/${product.id}`);
+
+    await upsertBrand(
+      {
+        id: brand.id,
+        name: brand.name,
+        slug: brand.slug,
+        description: brand.description,
+        logoUrl: shared.url,
+        isActive: brand.isActive,
+      },
+      actor ?? undefined,
+    );
+
+    await replaceProductImages(product.id, [shared.url, orphan.url, retained.url], product.name);
+    await replaceProductImages(product.id, [shared.url, retained.url], product.name);
+
+    await expect(access(join(uploadDir, orphan.key))).rejects.toHaveProperty("code", "ENOENT");
+    await expect(access(join(uploadDir, shared.key))).resolves.toBeUndefined();
+    await expect(access(join(uploadDir, retained.key))).resolves.toBeUndefined();
+  } finally {
+    resetFileStorageForTests();
+    if (originalUploadDir === undefined) {
+      delete process.env.UPLOAD_DIR;
+    } else {
+      process.env.UPLOAD_DIR = originalUploadDir;
+    }
+  }
+});
+
 test("product stock validation rejects negative inventory", async () => {
   const { actor, product } = await createCatalogItem(1);
 
@@ -478,6 +567,13 @@ test("settings allow nullable fields to be cleared and reject negative charges",
     const cleared = await getSettings();
     expect(cleared.logoUrl).toBeNull();
     expect(cleared.supportEmail).toBeNull();
+
+    await expect(
+      updateSettings({ metaPixelId: '12345";alert(1)//' }, actor ?? undefined),
+    ).rejects.toThrow(/Meta Pixel ID/);
+    await expect(
+      updateSettings({ gtmContainerId: 'GTM-ABC123"><script>alert(1)</script>' }, actor ?? undefined),
+    ).rejects.toThrow(/GTM container ID/);
 
     await expect(
       updateSettings({ outsideDhakaDeliveryCharge: -1 }, actor ?? undefined),

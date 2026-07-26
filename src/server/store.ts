@@ -26,8 +26,10 @@ import { getPrisma, isDatabaseConfigured } from "@/server/db";
 import { recordAuditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/auth";
 import { money, slugify } from "@/lib/utils";
+import { normalizeGtmContainerId, normalizeMetaPixelId } from "@/lib/analytics-ids";
 import { createSeedState } from "@/server/seed";
 import { siteBrand } from "@/lib/site-brand";
+import { deleteStoredUploadFile } from "@/server/storage";
 import { normalizeProductMetadata } from "@/lib/product-admin";
 
 type Actor = Pick<SessionUser, "id" | "email"> | null | undefined;
@@ -460,20 +462,50 @@ export async function upsertProduct(
   return record as unknown as Product;
 }
 
+async function isUploadReferencedElsewhere(tx: Prisma.TransactionClient, url: string, productId: string) {
+  const [otherProductImage, brand, setting, landingPage, landingPageSection] = await Promise.all([
+    tx.productImage.findFirst({ where: { url, productId: { not: productId } }, select: { id: true } }),
+    tx.brand.findFirst({ where: { logoUrl: url }, select: { id: true } }),
+    tx.setting.findFirst({ where: { logoUrl: url }, select: { id: true } }),
+    tx.landingPage.findFirst({ where: { bannerImageUrl: url }, select: { id: true } }),
+    tx.landingPageSection.findFirst({ where: { imageUrl: url }, select: { id: true } }),
+  ]);
+  return Boolean(otherProductImage || brand || setting || landingPage || landingPageSection);
+}
+
 export async function replaceProductImages(productId: string, imageUrls: string[], alt: string) {
   const prisma = getPrisma();
-  await prisma.productImage.deleteMany({ where: { productId } });
-  if (!imageUrls.length) {
-    return [];
-  }
-  await prisma.productImage.createMany({
-    data: imageUrls.map((url, index) => ({
-      productId,
-      url,
-      alt,
-      sortOrder: index,
-    })),
+  const normalizedUrls = Array.from(new Set(imageUrls.map((url) => url.trim()).filter(Boolean)));
+
+  const removableUploadUrls = await prisma.$transaction(async (tx) => {
+    const existingImages = await tx.productImage.findMany({ where: { productId } });
+    const removedUrls = existingImages
+      .map((image) => image.url)
+      .filter((url) => !normalizedUrls.includes(url));
+
+    await tx.productImage.deleteMany({ where: { productId } });
+    if (normalizedUrls.length) {
+      await tx.productImage.createMany({
+        data: normalizedUrls.map((url, index) => ({
+          productId,
+          url,
+          alt,
+          sortOrder: index,
+        })),
+      });
+    }
+
+    const removable: string[] = [];
+    for (const url of removedUrls) {
+      if (url.startsWith("/uploads/") && !(await isUploadReferencedElsewhere(tx, url, productId))) {
+        removable.push(url);
+      }
+    }
+    return removable;
   });
+
+  await Promise.all(removableUploadUrls.map((url) => deleteStoredUploadFile(url)));
+
   return prisma.productImage.findMany({
     where: { productId },
     orderBy: { sortOrder: "asc" },
@@ -744,6 +776,16 @@ function validateSettings(settings: Settings) {
     }
   }
 
+  const normalizedMetaPixelId = settings.metaPixelId ? normalizeMetaPixelId(settings.metaPixelId) : null;
+  if (settings.metaPixelId && !normalizedMetaPixelId) {
+    throw new Error("Meta Pixel ID must be numeric");
+  }
+
+  const normalizedGtmContainerId = settings.gtmContainerId ? normalizeGtmContainerId(settings.gtmContainerId) : null;
+  if (settings.gtmContainerId && !normalizedGtmContainerId) {
+    throw new Error("GTM container ID must use the GTM-XXXXXXX format");
+  }
+
   const mobilePayments: Array<[string, boolean, string | null | undefined, string]> = [
     ["bKash", settings.bkashEnabled, settings.bkashAccountNumber, settings.bkashInstructions],
     ["Nagad", settings.nagadEnabled, settings.nagadAccountNumber, settings.nagadInstructions],
@@ -789,8 +831,8 @@ export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
       deliveryAreas: next.deliveryAreas,
       returnRefundPolicy: next.returnRefundPolicy,
       confirmationMessageTemplate: next.confirmationMessageTemplate,
-      metaPixelId: next.metaPixelId,
-      gtmContainerId: next.gtmContainerId,
+      metaPixelId: next.metaPixelId ? normalizeMetaPixelId(next.metaPixelId) : null,
+      gtmContainerId: next.gtmContainerId ? normalizeGtmContainerId(next.gtmContainerId) : null,
       deliveryCharge: next.deliveryCharge,
       freeDeliveryThreshold: next.freeDeliveryThreshold,
       codEnabled: next.codEnabled,
@@ -1594,22 +1636,30 @@ export async function updateOrderPayment(
 
 export async function updateOrderDelivery(orderId: string, deliveryStatus: DeliveryStatus, actor?: Actor) {
   const prisma = getPrisma();
-  const existing = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
-  if (!existing) return null;
-  const record = await prisma.order.update({
-    where: { id: orderId },
-    data: { deliveryStatus },
-    include: { items: true },
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    if (!existing) return null;
+    if (existing.deliveryStatus === deliveryStatus) {
+      return existing as unknown as Order;
+    }
+    if (deliveryStatus === "cancelled") {
+      await releaseOrderInventory(tx, orderId, actor);
+    }
+    const record = await tx.order.update({
+      where: { id: orderId },
+      data: { deliveryStatus },
+      include: { items: true },
+    });
+    await recordAuditLog({
+      actor,
+      action: "update",
+      entity: "order_delivery",
+      entityId: orderId,
+      oldValue: asJson(existing),
+      newValue: asJson(record),
+    });
+    return record as unknown as Order;
   });
-  await recordAuditLog({
-    actor,
-    action: "update",
-    entity: "order_delivery",
-    entityId: orderId,
-    oldValue: asJson(existing),
-    newValue: asJson(record),
-  });
-  return record as unknown as Order;
 }
 
 export async function listPayments() {

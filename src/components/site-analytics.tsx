@@ -1,15 +1,14 @@
 /* eslint-disable @next/next/next-script-for-ga, @next/next/no-img-element */
 
+import { normalizeGtmContainerId, normalizeMetaPixelId } from "@/lib/analytics-ids";
 import { getSettings } from "@/server/store";
-
-function sanitizeId(value?: string | null) {
-  return value?.trim() || "";
-}
 
 export async function SiteAnalytics() {
   const settings = await getSettings();
-  const metaPixelId = sanitizeId(settings.metaPixelId);
-  const gtmContainerId = sanitizeId(settings.gtmContainerId);
+  const metaPixelId = normalizeMetaPixelId(settings.metaPixelId);
+  const gtmContainerId = normalizeGtmContainerId(settings.gtmContainerId);
+  const gtmContainerIdLiteral = gtmContainerId ? JSON.stringify(gtmContainerId) : null;
+  const metaPixelIdLiteral = metaPixelId ? JSON.stringify(metaPixelId) : null;
 
   if (!metaPixelId && !gtmContainerId) {
     return null;
@@ -31,7 +30,7 @@ export async function SiteAnalytics() {
                   j.async=true;
                   j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;
                   f.parentNode.insertBefore(j,f);
-                })(window,document,'script','dataLayer','${gtmContainerId}');
+                })(window,document,'script','dataLayer',${gtmContainerIdLiteral});
               `,
             }}
           />
@@ -60,7 +59,7 @@ export async function SiteAnalytics() {
                 t.src=v;s=b.getElementsByTagName(e)[0];
                 s.parentNode.insertBefore(t,s)}(window, document,'script',
                 'https://connect.facebook.net/en_US/fbevents.js');
-                fbq('init', '${metaPixelId}');
+                fbq('init', ${metaPixelIdLiteral});
                 fbq('track', 'PageView');
               `,
             }}
