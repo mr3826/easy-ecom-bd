@@ -301,7 +301,7 @@ export const storefrontQuickTopics = [
 export const storefrontServices = [
   { title: "Fast delivery", copy: "Dhaka and nationwide dispatch with clear order status." },
   { title: "Easy returns", copy: "A simple return process for eligible products." },
-  { title: "Secure payment", copy: "Cash on delivery and mobile wallet flow." },
+  { title: "Secure payment", copy: "Cash on delivery and bKash checkout." },
   { title: "Friendly support", copy: "Live help through phone and Messenger." },
 ];
 
@@ -334,9 +334,8 @@ export const storefrontPolicyPages: Record<string, StaticPage> = {
     title: "Get in touch with the store team",
     intro: "The reference site pushes contact information into the header, footer, and order flow so shoppers can reach support quickly.",
     body: [
-      "Address: মাকসুদ টাওয়ার লেভেল ১, NCC ব্যাংকের নিচে ৬৫ এলিফ্যান্ট রোড, স্টার্ন মল্লিকা এবং স্টার হোটেল সংলগ্ন, ঢাকা ১২০৫।",
-      "Phone: +8809639279024",
-      `Email: ${siteBrand.supportEmail}`,
+      "Store contact details are loaded from the live shop settings and shown in the shell, footer, and contact actions.",
+      "Use the page controls below for the current tracking, browsing, and support links.",
     ],
   },
   faq: {
@@ -345,7 +344,7 @@ export const storefrontPolicyPages: Record<string, StaticPage> = {
     intro: "The public FAQ page is intentionally compact, with a couple of direct answers instead of a long support article.",
     body: [
       "How do I order? Add a product, review the cart, and proceed to checkout.",
-      "Can I pay cash on delivery? The storefront surfaces COD alongside mobile money options.",
+      "Can I pay cash on delivery? The storefront surfaces COD alongside bKash.",
       "Do you ship nationwide? The layout presents nationwide delivery as a core store promise.",
     ],
   },

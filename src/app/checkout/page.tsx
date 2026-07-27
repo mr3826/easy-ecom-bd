@@ -24,9 +24,12 @@ export default async function CheckoutPage() {
   const supportDigits = settings.contactNumber.replace(/\D/g, "");
   const paymentMethods = [
     { key: "cod", name: "Cash on Delivery", description: "Pay when the parcel arrives", enabled: settings.codEnabled },
-    { key: "bkash", name: "bKash", description: settings.bkashInstructions || "Mobile wallet checkout after order creation", enabled: settings.bkashEnabled && bkashReady },
-    { key: "nagad", name: "Nagad", description: settings.nagadInstructions || "Manual mobile payment instructions", enabled: settings.nagadEnabled },
-    { key: "rocket", name: "Rocket", description: settings.rocketInstructions || "Manual mobile payment instructions", enabled: settings.rocketEnabled },
+    {
+      key: "bkash",
+      name: "bKash",
+      description: settings.bkashInstructions || "bKash checkout after order creation",
+      enabled: settings.bkashEnabled && bkashReady,
+    },
   ];
 
   return (
@@ -139,7 +142,7 @@ export default async function CheckoutPage() {
 
             <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
               <span className="rounded-full bg-slate-50 px-3 py-2">COD depends on delivery zone</span>
-              <span className="rounded-full bg-slate-50 px-3 py-2">MFS methods follow shop settings</span>
+              <span className="rounded-full bg-slate-50 px-3 py-2">bKash follows shop settings</span>
               <span className="rounded-full bg-slate-50 px-3 py-2">Support answers fast</span>
             </div>
 

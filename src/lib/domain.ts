@@ -1,6 +1,6 @@
 export type UserRole = "admin" | "super_admin" | "customer";
 
-export type PaymentProviderKey = "cod" | "bkash" | "nagad" | "rocket";
+export type PaymentProviderKey = "cod" | "bkash";
 
 export type OrderStatus =
   | "draft"
@@ -274,12 +274,6 @@ export interface Settings {
   bkashEnabled: boolean;
   bkashAccountNumber?: string | null;
   bkashInstructions: string;
-  nagadEnabled: boolean;
-  nagadAccountNumber?: string | null;
-  nagadInstructions: string;
-  rocketEnabled: boolean;
-  rocketAccountNumber?: string | null;
-  rocketInstructions: string;
   insideDhakaDeliveryCharge: number;
   subDhakaDeliveryCharge: number;
   outsideDhakaDeliveryCharge: number;
@@ -389,9 +383,7 @@ export const paymentProviders: Array<{
   description: string;
 }> = [
   { key: "cod", name: "Cash on Delivery", description: "Collect payment during delivery" },
-  { key: "bkash", name: "bKash", description: "Mobile financial service instructions or checkout" },
-  { key: "nagad", name: "Nagad", description: "Mobile financial service instructions" },
-  { key: "rocket", name: "Rocket", description: "Mobile financial service instructions" },
+  { key: "bkash", name: "bKash", description: "Mobile financial service checkout" },
 ];
 
 export const deliveryZones: Array<{

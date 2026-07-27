@@ -36,8 +36,6 @@ export default async function AdminPaymentsPage() {
         {[
           { name: "COD", enabled: state.settings.codEnabled, account: "Zone controlled", instructions: "Collected during delivery" },
           { name: "bKash", enabled: state.settings.bkashEnabled, account: state.settings.bkashAccountNumber, instructions: state.settings.bkashInstructions },
-          { name: "Nagad", enabled: state.settings.nagadEnabled, account: state.settings.nagadAccountNumber, instructions: state.settings.nagadInstructions },
-          { name: "Rocket", enabled: state.settings.rocketEnabled, account: state.settings.rocketAccountNumber, instructions: state.settings.rocketInstructions },
         ].map((method) => (
           <div key={method.name} className="rounded-3xl border border-[color:var(--border)] bg-white p-4 text-sm">
             <div className="flex items-center justify-between gap-3">

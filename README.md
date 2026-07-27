@@ -18,7 +18,7 @@ The shop, admin dashboard, server actions, and API route handlers are one deploy
 - Landing page builder with banners, carousels, product sections, testimonials, FAQs, and calls to action
 - PostgreSQL persistence through Prisma
 - bKash integration with signed callback verification
-- Manual COD, Nagad, and Rocket order flows controlled by admin settings
+- Manual COD and bKash order flows controlled by admin settings
 - Persistent uploaded media served from `/uploads`
 
 ## Local Development

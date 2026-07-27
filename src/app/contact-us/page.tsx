@@ -3,15 +3,24 @@ import { PublicShell } from "@/components/public-shell";
 import { ContentPage } from "@/components/content-page";
 import { storefrontPolicyPages } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
+import { getSettings } from "@/server/store";
 
 export const dynamic = "force-dynamic";
 
-export default function ContactPage() {
+export default async function ContactPage() {
   const page = storefrontPolicyPages["contact-us"];
+  const settings = await getSettings();
+  const supportEmail = settings.supportEmail ?? siteBrand.supportEmail;
+  const body = [
+    `Store address: ${settings.address}`,
+    `Phone: ${settings.contactNumber}`,
+    `Email: ${supportEmail}`,
+    `Business hours: ${settings.businessHours}`,
+  ];
 
   return (
     <PublicShell>
-      <ContentPage eyebrow={page.eyebrow} title={page.title} intro={page.intro} body={page.body} actions={[{ href: "/track-order", label: "Track order" }, { href: "/shop", label: "Browse catalog", variant: "outline" }]} />
+      <ContentPage eyebrow={page.eyebrow} title={page.title} intro={page.intro} body={body} actions={[{ href: "/track-order", label: "Track order" }, { href: "/shop", label: "Browse catalog", variant: "outline" }]} />
       <section className="mx-auto max-w-5xl px-4 pb-10 sm:px-6 lg:px-8">
         <div className="grid gap-4 md:grid-cols-3">
           {["Store address", "Phone support", "Email support"].map((title) => (
@@ -22,7 +31,7 @@ export default function ContactPage() {
           ))}
         </div>
         <div className="mt-5 flex flex-wrap gap-3">
-          <a href="tel:09639279024" className="rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white">
+          <a href={`tel:${settings.contactNumber.replace(/\D/g, "")}`} className="rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white">
             Call support
           </a>
           <a href={siteBrand.messengerUrl} target="_blank" rel="noreferrer" className="rounded-full border border-[color:var(--border)] bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)]">

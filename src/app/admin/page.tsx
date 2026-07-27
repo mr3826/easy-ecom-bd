@@ -71,8 +71,6 @@ export default async function AdminDashboardPage() {
           <h2 className="text-xl font-semibold text-[color:var(--foreground)]">Configuration</h2>
           <div className="mt-5 space-y-3 text-sm text-[color:var(--muted)]">
             <p>bKash: {state.settings.bkashEnabled ? "enabled" : "disabled"}</p>
-            <p>Nagad: {state.settings.nagadEnabled ? "enabled" : "disabled"}</p>
-            <p>Rocket: {state.settings.rocketEnabled ? "enabled" : "disabled"}</p>
             <p>COD: {state.settings.codEnabled ? "enabled" : "disabled"}</p>
           </div>
         </section>

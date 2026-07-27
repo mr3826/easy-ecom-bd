@@ -103,9 +103,9 @@ export async function SiteFooter() {
 
       <div className="border-t border-white/10 bg-[color:var(--footer-background)] sm:hidden">
         <nav className="grid grid-cols-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--footer-foreground)]">
-          <Link href="tel:09639279024" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
+          <a href={`tel:${settings.contactNumber.replace(/\D/g, "")}`} className="flex flex-col items-center gap-2 px-2 py-3 text-center">
             <span className="text-[10px]">Phone</span>
-          </Link>
+          </a>
           <a href={siteBrand.messengerUrl} className="flex flex-col items-center gap-2 px-2 py-3 text-center">
             <span className="text-[10px]">Messenger</span>
           </a>

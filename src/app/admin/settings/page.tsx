@@ -134,20 +134,6 @@ export default async function AdminSettingsPage({
             <input name="bkashAccountNumber" aria-label="bKash account number" placeholder="bKash account/merchant number" defaultValue={settings.bkashAccountNumber ?? ""} className={inputClass} />
             <input name="bkashInstructions" aria-label="bKash instructions" placeholder="bKash instructions" defaultValue={settings.bkashInstructions} className={inputClass} />
           </div>
-          <label className="flex items-center gap-3 text-sm">
-            <input name="nagadEnabled" type="checkbox" defaultChecked={settings.nagadEnabled} /> Nagad enabled
-          </label>
-          <div className="grid gap-3 md:grid-cols-2">
-            <input name="nagadAccountNumber" aria-label="Nagad account number" placeholder="Nagad account number" defaultValue={settings.nagadAccountNumber ?? ""} className={inputClass} />
-            <input name="nagadInstructions" aria-label="Nagad instructions" placeholder="Nagad instructions" defaultValue={settings.nagadInstructions} className={inputClass} />
-          </div>
-          <label className="flex items-center gap-3 text-sm">
-            <input name="rocketEnabled" type="checkbox" defaultChecked={settings.rocketEnabled} /> Rocket enabled
-          </label>
-          <div className="grid gap-3 md:grid-cols-2">
-            <input name="rocketAccountNumber" aria-label="Rocket account number" placeholder="Rocket account number" defaultValue={settings.rocketAccountNumber ?? ""} className={inputClass} />
-            <input name="rocketInstructions" aria-label="Rocket instructions" placeholder="Rocket instructions" defaultValue={settings.rocketInstructions} className={inputClass} />
-          </div>
         </fieldset>
 
         <fieldset className="grid gap-3 rounded-3xl border border-[color:var(--border)] bg-white p-4 md:col-span-2">

@@ -541,12 +541,6 @@ export async function saveSettingsAction(formData: FormData) {
       bkashEnabled,
       bkashAccountNumber: readTrimmedString(formData, "bkashAccountNumber") || null,
       bkashInstructions: readTrimmedString(formData, "bkashInstructions"),
-      nagadEnabled: asString(formData.get("nagadEnabled")) === "on",
-      nagadAccountNumber: readTrimmedString(formData, "nagadAccountNumber") || null,
-      nagadInstructions: readTrimmedString(formData, "nagadInstructions"),
-      rocketEnabled: asString(formData.get("rocketEnabled")) === "on",
-      rocketAccountNumber: readTrimmedString(formData, "rocketAccountNumber") || null,
-      rocketInstructions: readTrimmedString(formData, "rocketInstructions"),
       insideDhakaDeliveryCharge: parseRequiredNonNegativeInteger(
         formData,
         "insideDhakaDeliveryCharge",
@@ -586,6 +580,11 @@ export async function createManualOrderAction(formData: FormData) {
   await requireAdminMutation("createManualOrderAction", actor.id);
   const productIds = formData.getAll("productId").map((item) => asString(item));
   const quantities = formData.getAll("quantity").map((item) => asNumber(item, 1));
+  const rawPaymentProvider = asString(formData.get("paymentProvider"));
+  if (rawPaymentProvider !== "cod" && rawPaymentProvider !== "bkash") {
+    throw new Error("Unsupported payment method");
+  }
+  const paymentProvider = rawPaymentProvider as "cod" | "bkash";
   await createManualOrder({
     customerName: asString(formData.get("customerName")),
     customerPhone: asString(formData.get("customerPhone")),
@@ -593,7 +592,7 @@ export async function createManualOrderAction(formData: FormData) {
     district: asString(formData.get("district")),
     shippingAddress: asString(formData.get("shippingAddress")),
     status: asString(formData.get("status")) as "draft" | "pending" | "confirmed" | "cancelled" | "delivered",
-    paymentProvider: asString(formData.get("paymentProvider")) as "cod" | "bkash" | "nagad" | "rocket",
+    paymentProvider,
     paymentStatus: asString(formData.get("paymentStatus")) as "pending" | "processing" | "paid" | "failed" | "cancelled" | "refunded",
     deliveryZone: asString(formData.get("deliveryZone")) as "inside_dhaka" | "sub_dhaka" | "outside_dhaka",
     discountAmount: asNumber(formData.get("discountAmount")),

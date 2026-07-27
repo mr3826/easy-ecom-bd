@@ -153,9 +153,10 @@ function Invoke-CpanelFileOperation {
     }
 }
 
-function Sync-CpanelAppApiUrl {
+function Sync-CpanelAppPassengerConfig {
     param(
-        [string]$DesiredApiUrl
+        [string]$DesiredApiUrl,
+        [string]$DesiredAppRoot
     )
 
     $htaccessDir = "/home/bornohin/public_html"
@@ -168,8 +169,14 @@ function Sync-CpanelAppApiUrl {
         Stop-Deploy "Failed to read the live cPanel .htaccess file."
     }
 
+    $updatedContent = $readResponse.data.content
     $updatedContent = [regex]::Replace(
-        $readResponse.data.content,
+        $updatedContent,
+        '(?m)^PassengerAppRoot\s+".*"$',
+        "PassengerAppRoot `"$DesiredAppRoot`""
+    )
+    $updatedContent = [regex]::Replace(
+        $updatedContent,
         '(?m)^SetEnv API_URL\s+.*$',
         "SetEnv API_URL $DesiredApiUrl"
     )
@@ -192,7 +199,7 @@ function Sync-CpanelAppApiUrl {
         Stop-Deploy "Failed to synchronize the live API_URL in cPanel."
     }
 
-    Write-OK "Live API_URL synced to $DesiredApiUrl"
+    Write-OK "Live PassengerAppRoot and API_URL synced"
 }
 
 function Sync-CpanelReadinessFallback {
@@ -322,7 +329,7 @@ Invoke-CpanelFileOperation -Operation "extract" -Source $remoteArchive -Destinat
 Invoke-CpanelFileOperation -Operation "unlink" -Source $remoteArchive
 Write-OK "Release extracted and archive removed"
 
-Sync-CpanelAppApiUrl -DesiredApiUrl "https://bornohin.com/api"
+Sync-CpanelAppPassengerConfig -DesiredApiUrl "https://bornohin.com/api" -DesiredAppRoot $absoluteAppRoot
 Sync-CpanelReadinessFallback
 
 Write-Step "Restarting Passenger"

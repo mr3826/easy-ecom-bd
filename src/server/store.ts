@@ -100,12 +100,6 @@ async function getSettingsRow() {
       bkashEnabled: false,
       bkashAccountNumber: null,
       bkashInstructions: "",
-      nagadEnabled: false,
-      nagadAccountNumber: null,
-      nagadInstructions: "",
-      rocketEnabled: false,
-      rocketAccountNumber: null,
-      rocketInstructions: "",
       insideDhakaDeliveryCharge: 80,
       subDhakaDeliveryCharge: 100,
       outsideDhakaDeliveryCharge: 130,
@@ -788,8 +782,6 @@ function validateSettings(settings: Settings) {
 
   const mobilePayments: Array<[string, boolean, string | null | undefined, string]> = [
     ["bKash", settings.bkashEnabled, settings.bkashAccountNumber, settings.bkashInstructions],
-    ["Nagad", settings.nagadEnabled, settings.nagadAccountNumber, settings.nagadInstructions],
-    ["Rocket", settings.rocketEnabled, settings.rocketAccountNumber, settings.rocketInstructions],
   ];
   for (const [name, enabled, accountNumber, instructions] of mobilePayments) {
     if (enabled && !accountNumber?.trim()) throw new Error(`${name} account number is required when enabled`);
@@ -839,12 +831,6 @@ export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
       bkashEnabled: next.bkashEnabled,
       bkashAccountNumber: next.bkashAccountNumber,
       bkashInstructions: next.bkashInstructions,
-      nagadEnabled: next.nagadEnabled,
-      nagadAccountNumber: next.nagadAccountNumber,
-      nagadInstructions: next.nagadInstructions,
-      rocketEnabled: next.rocketEnabled,
-      rocketAccountNumber: next.rocketAccountNumber,
-      rocketInstructions: next.rocketInstructions,
       insideDhakaDeliveryCharge: next.insideDhakaDeliveryCharge,
       subDhakaDeliveryCharge: next.subDhakaDeliveryCharge,
       outsideDhakaDeliveryCharge: next.outsideDhakaDeliveryCharge,
@@ -1189,8 +1175,7 @@ function assertPaymentMethodAvailable(settings: Settings, provider: PaymentProvi
     return;
   }
   if (provider === "bkash" && !settings.bkashEnabled) throw new Error("bKash is disabled");
-  if (provider === "nagad" && !settings.nagadEnabled) throw new Error("Nagad is disabled");
-  if (provider === "rocket" && !settings.rocketEnabled) throw new Error("Rocket is disabled");
+  if (provider !== "bkash") throw new Error("Unsupported payment provider");
 }
 
 async function reserveOrderInventory(tx: Prisma.TransactionClient, orderId: string, actor?: Actor) {

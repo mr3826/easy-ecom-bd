@@ -186,7 +186,11 @@ export async function logoutAction() {
 
 export async function checkoutAction(formData: FormData) {
   const requestHeaders = await requireActionOrigin("checkoutAction");
-  const paymentMethod = (asString(formData.get("paymentMethod")) || "cod") as "cod" | "bkash" | "nagad" | "rocket";
+  const rawPaymentMethod = asString(formData.get("paymentMethod")) || "cod";
+  if (rawPaymentMethod !== "cod" && rawPaymentMethod !== "bkash") {
+    throw new Error("Unsupported payment method");
+  }
+  const paymentMethod = rawPaymentMethod as "cod" | "bkash";
   const wantsBkash = paymentMethod === "bkash";
   const customerName = asString(formData.get("customerName"));
   const customerPhone = asString(formData.get("customerPhone"));
