@@ -48,7 +48,7 @@ export async function PublicShell({
   const cookieStore = await cookies();
   const hasDatabase = Boolean(process.env.DATABASE_URL);
   const guestKey = cookieStore.get("easy_ecom_guest")?.value ?? "guest-preview";
-  const user = hasDatabase ? await getCurrentUser() : null;
+  const user = await getCurrentUser();
   const cartSummary = hasDatabase
     ? await getCartSummary(await getOrCreateCart(guestKey, user?.id))
     : buildFallbackCartSummary();
@@ -65,6 +65,15 @@ export async function PublicShell({
         cartSummary={cartSummary}
         categoryRail={categoryRail}
         showCategoryRail={showCategoryRail}
+        currentUser={
+          user
+            ? {
+                name: user.name,
+                email: user.email,
+                role: user.role,
+              }
+            : null
+        }
       />
       <main className="pb-20 sm:pb-0">{children}</main>
       <SiteFooter />

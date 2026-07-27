@@ -15,5 +15,14 @@ export default async function AdminLayout({
     redirect("/login?next=/admin");
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <AdminShell
+      user={{
+        name: user.name,
+        email: user.email,
+      }}
+    >
+      {children}
+    </AdminShell>
+  );
 }

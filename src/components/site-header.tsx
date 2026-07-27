@@ -8,6 +8,7 @@ import { money } from "@/lib/utils";
 import { storefrontCategoryRail, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
 import { SiteLogo } from "@/components/site-logo";
+import { LogoutButton } from "@/components/logout-button";
 import { addToCartAction, clearCartAction, removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
 import { readWishlistItems, removeWishlistItem, type WishlistItem } from "@/lib/wishlist";
 
@@ -42,6 +43,11 @@ type SiteHeaderProps = {
   cartSummary: CartSummary;
   categoryRail?: Array<{ href: string; label: string }>;
   showCategoryRail?: boolean;
+  currentUser?: {
+    name: string;
+    email: string;
+    role: "customer" | "admin" | "super_admin";
+  } | null;
 };
 
 export function SiteHeader({
@@ -53,6 +59,7 @@ export function SiteHeader({
   cartSummary,
   categoryRail,
   showCategoryRail = true,
+  currentUser = null,
 }: SiteHeaderProps) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -63,6 +70,9 @@ export function SiteHeader({
   const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
 
   const cartItems = cartSummary.items;
+  const isAdmin = currentUser?.role === "admin" || currentUser?.role === "super_admin";
+  const accountHref = isAdmin ? "/admin" : "/account";
+  const accountLabel = isAdmin ? "Admin dashboard" : "My account";
 
   useEffect(() => {
     const syncWishlist = () => setWishlistItems(readWishlistItems());
@@ -101,7 +111,7 @@ export function SiteHeader({
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[color:var(--border)] bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-[color:var(--border)] bg-white/95">
       <div className="mx-auto flex max-w-7xl items-center gap-3 px-4 py-4 sm:gap-4 sm:px-6 lg:px-8">
         <Link href="/" aria-label={storeName} className="flex min-w-0 items-center gap-2 sm:gap-3">
           <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[#ece7e0] bg-white p-1.5 shadow-[0_12px_24px_rgba(139,0,0,0.08)] sm:h-14 sm:w-14 sm:rounded-[1.15rem]">
@@ -177,7 +187,7 @@ export function SiteHeader({
             aria-controls="account-popover"
           >
             <CircleUserRound className="h-5 w-5 text-[color:var(--brand)]" />
-            Account
+            <span className="max-w-28 truncate">{currentUser?.name.split(" ")[0] || "Account"}</span>
             <ChevronDown className="h-4 w-4 text-[color:var(--muted)]" />
           </button>
         </div>
@@ -212,22 +222,39 @@ export function SiteHeader({
             className="absolute right-4 top-28 w-[min(92vw,20rem)] rounded-[1.5rem] border border-[color:var(--border)] bg-white p-3 shadow-[0_24px_80px_rgba(139,0,0,0.14)] lg:right-8 lg:top-24"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="grid gap-3">
-              <Link
-                href="/login"
-                className="inline-flex items-center justify-center rounded-2xl border border-[color:var(--border)] bg-white px-5 py-3 text-base font-semibold text-[color:var(--brand)] transition hover:border-[color:var(--brand)]"
-                onClick={() => setAccountOpen(false)}
-              >
-                Log In
-              </Link>
-              <Link
-                href="/register"
-                className="inline-flex items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-3 text-base font-semibold text-white shadow-[0_12px_24px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
-                onClick={() => setAccountOpen(false)}
-              >
-                Create Account
-              </Link>
-            </div>
+            {currentUser ? (
+              <div className="grid gap-3">
+                <div className="border-b border-[color:var(--border)] px-2 pb-3">
+                  <p className="truncate text-sm font-semibold text-[color:var(--foreground)]">{currentUser.name}</p>
+                  <p className="mt-1 truncate text-xs text-[color:var(--muted)]">{currentUser.email}</p>
+                </div>
+                <Link
+                  href={accountHref}
+                  className="inline-flex items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-3 text-base font-semibold text-white shadow-[0_12px_24px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
+                  onClick={() => setAccountOpen(false)}
+                >
+                  {accountLabel}
+                </Link>
+                <LogoutButton />
+              </div>
+            ) : (
+              <div className="grid gap-3">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center justify-center rounded-2xl border border-[color:var(--border)] bg-white px-5 py-3 text-base font-semibold text-[color:var(--brand)] transition hover:border-[color:var(--brand)]"
+                  onClick={() => setAccountOpen(false)}
+                >
+                  Log In
+                </Link>
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-3 text-base font-semibold text-white shadow-[0_12px_24px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
+                  onClick={() => setAccountOpen(false)}
+                >
+                  Create Account
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -546,6 +573,43 @@ export function SiteHeader({
                   </Link>
                 ))}
               </div>
+            </div>
+
+            <div className="border-b border-[color:var(--border)] p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--muted)]">Account</p>
+              {currentUser ? (
+                <div className="mt-3 grid gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[color:var(--foreground)]">{currentUser.name}</p>
+                    <p className="mt-1 truncate text-xs text-[color:var(--muted)]">{currentUser.email}</p>
+                  </div>
+                  <Link
+                    href={accountHref}
+                    className="inline-flex items-center justify-center rounded-2xl bg-[color:var(--brand)] px-4 py-3 text-sm font-semibold text-white"
+                    onClick={closeAllOverlays}
+                  >
+                    {accountLabel}
+                  </Link>
+                  <LogoutButton />
+                </div>
+              ) : (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <Link
+                    href="/login"
+                    className="inline-flex items-center justify-center rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[color:var(--brand)]"
+                    onClick={closeAllOverlays}
+                  >
+                    Log In
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="inline-flex items-center justify-center rounded-2xl bg-[color:var(--brand)] px-4 py-3 text-center text-sm font-semibold text-white"
+                    onClick={closeAllOverlays}
+                  >
+                    Create Account
+                  </Link>
+                </div>
+              )}
             </div>
 
             <div className="p-4 text-sm text-[color:var(--muted)]">

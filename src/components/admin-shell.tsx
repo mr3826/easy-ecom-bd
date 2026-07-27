@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { SiteLogo } from "@/components/site-logo";
+import { LogoutButton } from "@/components/logout-button";
 import { getSettings } from "@/server/store";
 import {
   LayoutDashboard,
@@ -32,8 +33,13 @@ const nav = [
 
 export async function AdminShell({
   children,
+  user,
 }: {
   children: ReactNode;
+  user: {
+    name: string;
+    email: string;
+  };
 }) {
   const settings = await getSettings();
   return (
@@ -70,11 +76,16 @@ export async function AdminShell({
                   </Link>
                 );
               })}
+              <div className="mt-2 border-t border-[color:var(--border)] pt-3">
+                <p className="truncate px-1 text-sm font-semibold text-[color:var(--foreground)]">{user.name}</p>
+                <p className="mt-1 truncate px-1 text-xs text-[color:var(--muted)]">{user.email}</p>
+                <LogoutButton className="mt-3" />
+              </div>
             </div>
           </details>
         </div>
 
-        <aside className="hidden border-r border-[color:var(--border)] bg-white/90 px-5 py-6 backdrop-blur lg:block">
+        <aside className="hidden min-h-screen border-r border-[color:var(--border)] bg-white/90 px-5 py-6 backdrop-blur lg:flex lg:flex-col">
           <div className="mb-8 rounded-[1.75rem] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4 shadow-[0_18px_40px_rgba(61,39,35,0.06)]">
             <div className="flex items-center gap-3">
               <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[1.25rem] border border-[color:var(--border)] bg-white p-2">
@@ -104,6 +115,11 @@ export async function AdminShell({
               );
             })}
           </nav>
+          <div className="mt-auto border-t border-[color:var(--border)] pt-5">
+            <p className="truncate text-sm font-semibold text-[color:var(--foreground)]">{user.name}</p>
+            <p className="mt-1 truncate text-xs text-[color:var(--muted)]">{user.email}</p>
+            <LogoutButton className="mt-3" />
+          </div>
         </aside>
         <main className="bg-transparent">
           <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">{children}</div>
