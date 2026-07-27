@@ -180,3 +180,7 @@ export async function requireAuth(roles?: Array<SessionUser["role"]>) {
 export async function requireAdmin() {
   return requireAuth(["admin", "super_admin"]);
 }
+
+export function getPostLoginRedirectPath(role: SessionUser["role"]) {
+  return role === "admin" || role === "super_admin" ? "/admin" : "/account";
+}

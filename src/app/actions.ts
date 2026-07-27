@@ -22,7 +22,7 @@ import {
 import { asNumber, asString } from "@/lib/utils";
 import { initiateBkashPayment } from "@/server/integrations";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
-import { clearSessionCookie, getCurrentUser, setSessionCookie } from "@/server/auth";
+import { clearSessionCookie, getCurrentUser, getPostLoginRedirectPath, setSessionCookie } from "@/server/auth";
 import { assertRateLimit, buildSecurityKey, getClientIp, requireSameOrigin } from "@/server/security";
 
 const guestCookie = "easy_ecom_guest";
@@ -175,7 +175,7 @@ export async function loginAction(formData: FormData) {
 
   await setSessionCookie(user.id);
   revalidatePath("/");
-  redirect(user.role === "admin" ? "/admin" : "/account");
+  redirect(getPostLoginRedirectPath(user.role));
 }
 
 export async function logoutAction() {

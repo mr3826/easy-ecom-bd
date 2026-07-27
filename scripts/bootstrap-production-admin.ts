@@ -13,12 +13,12 @@ function required(name: string) {
 
 async function main() {
   const databaseUrl = required("DATABASE_URL");
-  const email = required("ADMIN_EMAIL").toLowerCase();
+  const email = (process.env.ADMIN_EMAIL?.trim() || "admin@bornohin.com").toLowerCase();
   const password = required("ADMIN_PASSWORD");
   const name = process.env.ADMIN_NAME?.trim() || "Bornohin Admin";
 
-  if (password.length < 14) {
-    throw new Error("ADMIN_PASSWORD must contain at least 14 characters");
+  if (password.length < 12) {
+    throw new Error("ADMIN_PASSWORD must contain at least 12 characters");
   }
 
   const prisma = new PrismaClient({
