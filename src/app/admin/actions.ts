@@ -29,6 +29,7 @@ import {
 } from "@/server/store";
 import { getFileStorage } from "@/server/storage";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
+import { assertRateLimit, buildSecurityKey, getClientIp, requireSameOrigin } from "@/server/security";
 import { asNumber, asString } from "@/lib/utils";
 import type { ProductVariantGroup } from "@/lib/domain";
 import { parseProductUploadCsv } from "@/lib/product-import";
@@ -42,6 +43,16 @@ import {
 
 async function guard() {
   return requireAdmin();
+}
+
+async function requireAdminMutation(operation: string, actorId: string) {
+  const requestHeaders = await requireSameOrigin(operation);
+  assertRateLimit({
+    scope: operation,
+    key: buildSecurityKey(getClientIp(requestHeaders), actorId),
+    limit: 300,
+    windowMs: 10 * 60 * 1000,
+  });
 }
 
 function readTrimmedString(formData: FormData, name: string) {
@@ -193,6 +204,7 @@ function buildLookupMap<T extends { id: string; name: string; slug?: string }>(i
 
 export async function saveCategoryAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveCategoryAction", actor.id);
   await upsertCategory({
     id: asString(formData.get("id")) || undefined,
     name: asString(formData.get("name")),
@@ -206,6 +218,7 @@ export async function saveCategoryAction(formData: FormData) {
 
 export async function deleteCategoryAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("deleteCategoryAction", actor.id);
   const id = asString(formData.get("id"));
   await deleteCategory(id, actor);
   revalidatePath("/admin/categories");
@@ -213,6 +226,7 @@ export async function deleteCategoryAction(formData: FormData) {
 
 export async function saveBrandAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveBrandAction", actor.id);
   await upsertBrand({
     id: asString(formData.get("id")) || undefined,
     name: asString(formData.get("name")),
@@ -226,12 +240,14 @@ export async function saveBrandAction(formData: FormData) {
 
 export async function deleteBrandAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("deleteBrandAction", actor.id);
   await deleteBrand(asString(formData.get("id")), actor);
   revalidatePath("/admin/brands");
 }
 
 export async function saveProductAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveProductAction", actor.id);
   const productId = readTrimmedString(formData, "id");
   const existingProduct = productId ? await getProduct(productId) : null;
   const existingMetadata = normalizeProductMetadata(existingProduct?.metadata ?? null);
@@ -368,6 +384,7 @@ export async function saveProductAction(formData: FormData) {
 
 export async function bulkUploadProductsAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("bulkUploadProductsAction", actor.id);
   const file = formData.get("productFile");
   if (!(file instanceof File) || file.size === 0) {
     throw new Error("Product file is required");
@@ -451,12 +468,14 @@ export async function bulkUploadProductsAction(formData: FormData) {
 
 export async function deleteProductAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("deleteProductAction", actor.id);
   await deleteProduct(asString(formData.get("id")), actor);
   revalidatePath("/admin/products");
 }
 
 export async function adjustInventoryAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("adjustInventoryAction", actor.id);
   await setProductStock(
     asString(formData.get("productId")),
     asNumber(formData.get("change")),
@@ -469,6 +488,7 @@ export async function adjustInventoryAction(formData: FormData) {
 
 export async function saveCouponAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveCouponAction", actor.id);
   await upsertCoupon({
     id: asString(formData.get("id")) || undefined,
     code: asString(formData.get("code")),
@@ -484,6 +504,7 @@ export async function saveCouponAction(formData: FormData) {
 
 export async function saveSettingsAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveSettingsAction", actor.id);
   try {
     const deliveryAreas = parseCsvList(formData.get("deliveryAreas"));
     if (!deliveryAreas.length) {
@@ -562,6 +583,7 @@ export async function saveSettingsAction(formData: FormData) {
 
 export async function createManualOrderAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("createManualOrderAction", actor.id);
   const productIds = formData.getAll("productId").map((item) => asString(item));
   const quantities = formData.getAll("quantity").map((item) => asNumber(item, 1));
   await createManualOrder({
@@ -587,6 +609,7 @@ export async function createManualOrderAction(formData: FormData) {
 
 export async function updateOrderStatusAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("updateOrderStatusAction", actor.id);
   await updateOrderStatus(
     asString(formData.get("orderId")),
     asString(formData.get("status")) as "draft" | "pending" | "confirmed" | "cancelled" | "delivered",
@@ -599,6 +622,7 @@ export async function updateOrderStatusAction(formData: FormData) {
 
 export async function saveLandingPageAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveLandingPageAction", actor.id);
   const landingPage = await upsertLandingPage({
     id: asString(formData.get("id")) || undefined,
     slug: asString(formData.get("slug")),
@@ -622,6 +646,7 @@ export async function saveLandingPageAction(formData: FormData) {
 
 export async function saveLandingPageSectionAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveLandingPageSectionAction", actor.id);
   const landingPageId = asString(formData.get("landingPageId"));
   const type = asString(formData.get("type")) as
     | "banner"
@@ -655,6 +680,7 @@ export async function saveLandingPageSectionAction(formData: FormData) {
 
 export async function toggleOrderPaymentAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("toggleOrderPaymentAction", actor.id);
   const orderId = asString(formData.get("orderId"));
   const status = asString(formData.get("status")) as
     | "pending"
@@ -674,6 +700,7 @@ export async function toggleOrderPaymentAction(formData: FormData) {
 
 export async function toggleOrderDeliveryAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("toggleOrderDeliveryAction", actor.id);
   const orderId = asString(formData.get("orderId"));
   const status = asString(formData.get("status")) as
     | "pending"

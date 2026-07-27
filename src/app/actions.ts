@@ -23,6 +23,7 @@ import { asNumber, asString } from "@/lib/utils";
 import { initiateBkashPayment } from "@/server/integrations";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
 import { clearSessionCookie, getCurrentUser, setSessionCookie } from "@/server/auth";
+import { assertRateLimit, buildSecurityKey, getClientIp, requireSameOrigin } from "@/server/security";
 
 const guestCookie = "easy_ecom_guest";
 
@@ -41,6 +42,10 @@ async function getGuestKey() {
   return value;
 }
 
+async function requireActionOrigin(operation: string) {
+  return requireSameOrigin(operation);
+}
+
 async function resolveProductFromFormValue(productKey: string) {
   const byId = await getProduct(productKey);
   if (byId) {
@@ -51,6 +56,7 @@ async function resolveProductFromFormValue(productKey: string) {
 }
 
 export async function addToCartAction(formData: FormData) {
+  await requireActionOrigin("addToCartAction");
   const productId = asString(formData.get("productId"));
   const quantity = asNumber(formData.get("quantity"), 1);
   const user = await getCurrentUser();
@@ -69,6 +75,7 @@ export async function addToCartAction(formData: FormData) {
 }
 
 export async function updateCartQuantityAction(formData: FormData) {
+  await requireActionOrigin("updateCartQuantityAction");
   const productId = asString(formData.get("productId"));
   const quantity = asNumber(formData.get("quantity"), 1);
   const guestKey = await getGuestKey();
@@ -82,6 +89,7 @@ export async function updateCartQuantityAction(formData: FormData) {
 }
 
 export async function removeCartItemAction(formData: FormData) {
+  await requireActionOrigin("removeCartItemAction");
   const productId = asString(formData.get("productId"));
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
@@ -94,6 +102,7 @@ export async function removeCartItemAction(formData: FormData) {
 }
 
 export async function clearCartAction() {
+  await requireActionOrigin("clearCartAction");
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
   await clearCart(guestKey, user?.id, user ?? null);
@@ -123,6 +132,14 @@ export async function registerAction(formData: FormData) {
     throw new Error(parsed.error.issues[0]?.message || "Invalid registration details");
   }
 
+  const requestHeaders = await requireActionOrigin("registerAction");
+  assertRateLimit({
+    scope: "registerAction",
+    key: buildSecurityKey(getClientIp(requestHeaders), parsed.data.email.toLowerCase()),
+    limit: 8,
+    windowMs: 15 * 60 * 1000,
+  });
+
   const existing = await findUserByEmail(parsed.data.email);
   if (existing) {
     throw new Error("An account already exists for this email address");
@@ -143,6 +160,13 @@ export async function registerAction(formData: FormData) {
 export async function loginAction(formData: FormData) {
   const email = asString(formData.get("email"));
   const password = asString(formData.get("password"));
+  const requestHeaders = await requireActionOrigin("loginAction");
+  assertRateLimit({
+    scope: "loginAction",
+    key: buildSecurityKey(getClientIp(requestHeaders), email.toLowerCase()),
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
   const user = await findUserByEmail(email);
 
   if (!user || !compareSync(password, user.passwordHash)) {
@@ -155,11 +179,13 @@ export async function loginAction(formData: FormData) {
 }
 
 export async function logoutAction() {
+  await requireActionOrigin("logoutAction");
   await clearSessionCookie();
   redirect("/");
 }
 
 export async function checkoutAction(formData: FormData) {
+  const requestHeaders = await requireActionOrigin("checkoutAction");
   const paymentMethod = (asString(formData.get("paymentMethod")) || "cod") as "cod" | "bkash" | "nagad" | "rocket";
   const wantsBkash = paymentMethod === "bkash";
   const customerName = asString(formData.get("customerName"));
@@ -171,6 +197,19 @@ export async function checkoutAction(formData: FormData) {
   const couponCode = asString(formData.get("couponCode")) || undefined;
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
+  assertRateLimit({
+    scope: "checkoutAction",
+    key: buildSecurityKey(
+      getClientIp(requestHeaders),
+      guestKey,
+      user?.id,
+      customerEmail?.toLowerCase(),
+      customerPhone,
+      paymentMethod,
+    ),
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
   const cart = await getOrCreateCart(guestKey, user?.id);
   const summary = getCartSummary(cart);
   const resolvedSummary = await summary;

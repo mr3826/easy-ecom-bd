@@ -6,8 +6,11 @@ import {
   updateOrderPayment,
   upsertPayment,
 } from "@/server/store";
-import type { PaymentProviderKey } from "@/lib/domain";
+import type { PaymentProviderKey, PaymentStatus } from "@/lib/domain";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
+import { buildPaymentCallbackFingerprint } from "@/server/security";
+
+export { buildPaymentCallbackFingerprint } from "@/server/security";
 
 export interface PaymentInitiationResult {
   provider: PaymentProviderKey;
@@ -85,6 +88,26 @@ async function findPayment(reference: PaymentLookup) {
     if (byTransaction) return byTransaction;
   }
   return null;
+}
+
+function getVerificationState(rawResponse: unknown) {
+  if (!rawResponse || typeof rawResponse !== "object" || Array.isArray(rawResponse)) {
+    return null;
+  }
+
+  const verificationState = (rawResponse as Record<string, unknown>).verificationState;
+  if (!verificationState || typeof verificationState !== "object" || Array.isArray(verificationState)) {
+    return null;
+  }
+
+  const fingerprint = (verificationState as Record<string, unknown>).fingerprint;
+  if (typeof fingerprint !== "string" || !fingerprint.trim()) {
+    return null;
+  }
+
+  return {
+    fingerprint,
+  };
 }
 
 export async function initiateBkashPayment(args: {
@@ -166,12 +189,18 @@ export async function initiateBkashPayment(args: {
 
 export async function confirmPayment(
   reference: string | PaymentLookup,
-  status: "paid" | "failed" | "cancelled" | "refunded",
+  status: PaymentStatus,
   verificationPayload: Record<string, unknown>,
 ) {
   const lookup = typeof reference === "string" ? { paymentId: reference } : reference;
   const payment = await findPayment(lookup);
   if (!payment) return null;
+
+  const fingerprint = buildPaymentCallbackFingerprint(payment, status, verificationPayload);
+  const verificationState = getVerificationState(payment.rawResponse);
+  if (verificationState?.fingerprint === fingerprint) {
+    return payment;
+  }
 
   const updated = await upsertPayment({
     id: payment.id,
@@ -180,7 +209,15 @@ export async function confirmPayment(
     transactionId: payment.transactionId,
     amount: payment.amount,
     status,
-    rawResponse: { ...(payment.rawResponse as Record<string, unknown>), verificationPayload },
+    rawResponse: {
+      ...(payment.rawResponse as Record<string, unknown>),
+      verificationPayload,
+      verificationState: {
+        fingerprint,
+        status,
+        confirmedAt: new Date().toISOString(),
+      },
+    },
   });
   await addPaymentLog(updated.id, "verification", verificationPayload);
   await updateOrderPayment(updated.orderId, { paymentStatus: status, paymentProvider: updated.provider });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { confirmPayment, verifyProviderSignature } from "@/server/integrations";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
+import { assertRateLimit, buildSecurityKey, getClientIp } from "@/server/security";
 
 export async function POST(
   request: NextRequest,
@@ -35,6 +36,13 @@ export async function POST(
     return NextResponse.json({ ok: false, error: "Invalid signature" }, { status: 401 });
   }
 
+  assertRateLimit({
+    scope: "paymentCallback",
+    key: buildSecurityKey(provider, paymentId || transactionId || "unknown", getClientIp(request.headers)),
+    limit: 120,
+    windowMs: 10 * 60 * 1000,
+  });
+
   const payment = await confirmPayment(
     {
       paymentId,
@@ -45,7 +53,7 @@ export async function POST(
       provider,
       source: "callback",
       body,
-      form: Object.fromEntries(form.entries()),
+      form: Object.fromEntries([...form.entries()].sort(([left], [right]) => left.localeCompare(right))),
     },
   );
 
