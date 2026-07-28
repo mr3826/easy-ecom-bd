@@ -66,6 +66,100 @@ function Get-LiveVersion {
     }
 }
 
+function Invoke-CpanelApi2 {
+    param([string]$Module, [string]$Function, [hashtable]$Arguments = @{})
+
+    $query = @{
+        cpanel_jsonapi_user = $CpanelUser
+        cpanel_jsonapi_apiversion = "2"
+        cpanel_jsonapi_module = $Module
+        cpanel_jsonapi_func = $Function
+    }
+    foreach ($key in $Arguments.Keys) { $query[$key] = $Arguments[$key] }
+
+    $queryString = ($query.GetEnumerator() | ForEach-Object {
+        "$([Uri]::EscapeDataString($_.Key))=$([Uri]::EscapeDataString([string]$_.Value))"
+    }) -join "&"
+
+    return Invoke-RestMethod -Uri "https://${CpanelHost}:2083/json-api/cpanel?$queryString" `
+        -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } -TimeoutSec 120
+}
+
+# Kills only Next processes whose parent is init. A healthy Passenger-parented
+# process has the Passenger agent as its parent and is never matched. No '%':
+# an unescaped percent sign truncates a crontab command at that character.
+$script:ReapCommand = 'ps -eo pid,ppid,args | awk ''$2==1 && /next-server/ {print $1}'' | xargs -r kill'
+
+function Get-ReaperLineKeys {
+    $response = Invoke-CpanelApi2 -Module "Cron" -Function "fetchcron"
+    return @($response.cpanelresult.data |
+        Where-Object { $_.command -and $_.command.Contains("next-server") } |
+        ForEach-Object { $_.linekey })
+}
+
+function Remove-Reaper {
+    # The linekey changes whenever the crontab is rewritten, so it is re-read
+    # here rather than remembered from when the entry was added. Trusting a
+    # stale key is how a kill-every-minute cron once survived a deploy.
+    foreach ($attempt in 1..3) {
+        $keys = Get-ReaperLineKeys
+        if (-not $keys.Count) { return $true }
+        foreach ($key in $keys) {
+            Invoke-CpanelApi2 -Module "Cron" -Function "remove_line" -Arguments @{ linekey = $key } | Out-Null
+        }
+    }
+    return -not (Get-ReaperLineKeys).Count
+}
+
+<#
+Last-resort restart for a process that cannot be asked to exit over HTTP —
+either it predates /api/deploy/restart or it is wedged. Runs the reaper once a
+minute for as long as it takes, then removes itself and proves it is gone.
+#>
+function Invoke-OrphanReaper {
+    param([scriptblock]$IsLive, [int]$TimeoutSeconds = 240)
+
+    Write-Warn "Falling back to the orphan reaper (the app cannot restart itself)."
+    Add-DeployLog "reaper_installed" @{}
+
+    $installed = Invoke-CpanelApi2 -Module "Cron" -Function "add_line" -Arguments @{
+        command = $script:ReapCommand
+        minute  = "*"
+        hour    = "*"
+        day     = "*"
+        month   = "*"
+        weekday = "*"
+    }
+    if (-not $installed) { Stop-Deploy "Could not install the orphan reaper cron entry." }
+
+    $live = $false
+    try {
+        $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+        while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 10
+            if (& $IsLive) { $live = $true; break }
+        }
+    } finally {
+        # Runs even on Ctrl-C or a throw above. Leaving this cron behind would
+        # kill the application every minute, forever.
+        $removed = Remove-Reaper
+        Add-DeployLog "reaper_removed" @{ confirmed = $removed }
+        if ($removed) {
+            Write-OK "Orphan reaper removed and its absence confirmed"
+        } else {
+            Write-Host @"
+
+    !! THE ORPHAN REAPER COULD NOT BE REMOVED AUTOMATICALLY !!
+    A cron entry is still killing the application every minute. Remove it now:
+      cPanel > Cron Jobs > delete the entry containing 'next-server'
+    Command: $($script:ReapCommand)
+"@ -ForegroundColor Red
+        }
+    }
+
+    return $live
+}
+
 # Asks the process that answers this request to exit. It is the only restart
 # path that still reaches a process orphaned to PPID 1.
 function Request-AppRestart {
@@ -291,6 +385,22 @@ function Sync-CpanelAppPassengerConfig {
         "SetEnv API_URL $DesiredApiUrl"
     )
 
+    # The app reads DEPLOY_RESTART_TOKEN from the environment; SetEnv here is how
+    # every other secret on this host reaches Passenger. Without it in sync the
+    # restart endpoint 404s and the next deploy has to fall back to the reaper.
+    if ($RestartToken) {
+        $tokenLine = "SetEnv DEPLOY_RESTART_TOKEN $RestartToken"
+        if ($updatedContent -match '(?m)^SetEnv DEPLOY_RESTART_TOKEN\s+.*$') {
+            $updatedContent = [regex]::Replace($updatedContent, '(?m)^SetEnv DEPLOY_RESTART_TOKEN\s+.*$', $tokenLine)
+        } else {
+            $updatedContent = [regex]::Replace(
+                $updatedContent,
+                '(?m)^SetEnv API_URL\s+.*$',
+                "SetEnv API_URL $DesiredApiUrl`n$tokenLine"
+            )
+        }
+    }
+
     if ($updatedContent -eq $readResponse.data.content) {
         return
     }
@@ -477,10 +587,16 @@ $restartRequests = 0
 $liveVersion = $null
 $sawVersionEndpoint = $false
 
+$startedWaiting = Get-Date
 while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 5
     $version = Get-LiveVersion
-    if (-not $version) { continue }
+    if (-not $version) {
+        # A build without /api/version will never answer. Stop waiting on it and
+        # let the reaper handle it rather than burning the whole deadline.
+        if (-not $sawVersionEndpoint -and ((Get-Date) - $startedWaiting).TotalSeconds -gt 60) { break }
+        continue
+    }
     $sawVersionEndpoint = $true
 
     if ($version.commit -eq $releaseCommit -and $version.status -eq "ready") {
@@ -504,10 +620,23 @@ while ((Get-Date) -lt $deadline) {
 }
 
 if (-not $liveVersion) {
+    # Either the running build predates /api/version and cannot be asked to
+    # exit, or it answered and refused to. Both end the same way: kill it.
     if (-not $sawVersionEndpoint) {
-        # Falls through to the asset probe below, which is all the previous build
-        # supports. Expected exactly once: on the deploy that introduces the endpoint.
-        Write-Warn "No /api/version response during the wait; falling back to the static-asset probe."
+        Write-Warn "The running build has no /api/version, so it cannot be asked to exit."
+    }
+
+    $reaped = Invoke-OrphanReaper -IsLive {
+        $probe = Get-LiveVersion
+        $probe -and $probe.commit -eq $releaseCommit -and $probe.status -eq "ready"
+    }
+
+    if ($reaped) {
+        $liveVersion = Get-LiveVersion
+        Add-DeployLog "new_build_answering" @{
+            commit = $liveVersion.commit; processId = $liveVersion.pid; via = "reaper"
+        }
+        Write-OK "New build answering after reap: pid $($liveVersion.pid)"
     } else {
         $lastSeen = Get-LiveVersion
         Stop-Deploy @"
@@ -515,9 +644,10 @@ The release uploaded and extracted, but production is still serving the previous
 build.
 
   expected commit : $releaseCommit
-  serving commit  : $($lastSeen.commit)
-  serving pid     : $($lastSeen.pid)  (up since $($lastSeen.startedAt))
+  serving commit  : $(if ($lastSeen) { $lastSeen.commit } else { "unknown (no /api/version)" })
+  serving pid     : $(if ($lastSeen) { "$($lastSeen.pid)  (up since $($lastSeen.startedAt))" } else { "unknown" })
   self-restarts   : $restartRequests requested$(if (-not $RestartToken) { "  [DEPLOY_RESTART_TOKEN not set]" })
+  orphan reaper   : ran and timed out
 
 Nothing was rolled back and no data was touched. The previous build is still
 running and healthy, so the site is up — the deploy is incomplete, not broken.
@@ -526,8 +656,6 @@ Finish it by restarting the application:
   cPanel > Setup Node.js App > $AppRoot > Restart
 or over SSH:
   cloudlinux-selector restart --json --interpreter nodejs --user $CpanelUser --app-root $AppRoot
-If the process is orphaned to PPID 1, only a kill will clear it:
-  ps -eo pid,ppid,args | awk '`$2==1 && /next-server/ {print `$1}' | xargs -r kill
 "@
     }
 }
