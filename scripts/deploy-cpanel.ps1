@@ -46,6 +46,12 @@ if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { Stop-Deploy "npm is 
 if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) { Stop-Deploy "curl.exe is not available." }
 
 if (-not $SkipBuild) {
+    # eslint exhausts the default V8 heap on this project and exits 134, which
+    # aborts the deploy below. Raise it unless the caller already tuned it.
+    if ($env:NODE_OPTIONS -notmatch "max-old-space-size") {
+        $env:NODE_OPTIONS = "$($env:NODE_OPTIONS) --max-old-space-size=8192".Trim()
+    }
+
     Push-Location $ProjectRoot
     try {
         Write-Step "Installing locked dependencies"

@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { access, mkdtemp } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test as baseTest } from "vitest";
 import { getPrisma } from "@/server/db";
 import {
   addToCart,
@@ -33,7 +33,14 @@ import {
 } from "@/server/store";
 import { getFileStorage, resetFileStorageForTests } from "@/server/storage";
 
-const prisma = getPrisma();
+// These are integration tests: they need a live Postgres and they delete rows
+// matching the `test-` / `TEST-` / `@test.local` fixtures. Without DATABASE_URL
+// getPrisma() throws at import and takes the whole suite down, which reads as a
+// broken build rather than an absent database. Skip instead, so a missing local
+// database is reported as "skipped" and never as "passed".
+const hasDatabase = Boolean(process.env.DATABASE_URL?.trim());
+const test = baseTest.skipIf(!hasDatabase);
+const prisma = hasDatabase ? getPrisma() : (undefined as unknown as ReturnType<typeof getPrisma>);
 
 function unique(prefix: string) {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
@@ -113,6 +120,7 @@ async function createCatalogItem(stock = 5) {
 }
 
 afterEach(async () => {
+  if (!hasDatabase) return;
   await cleanupTestData();
 });
 
