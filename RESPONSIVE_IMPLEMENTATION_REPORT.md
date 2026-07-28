@@ -8,7 +8,7 @@ The mobile-first sweep already live on `bornohin.com` did real work, but an audi
 
 The root cause of the class of defect was structural: the sweep applied fixes as copy-pasted utility strings across ~40 call sites rather than building a shared primitive layer, so anything it missed was missed everywhere simultaneously. This pass fixed the non-functioning foundations, added a deliberately small primitive layer (three components), and put automated guards under each finding.
 
-**Result: 3 P0 and 5 of 6 P1 findings fixed and verified; 50 Playwright assertions passing; zero horizontal overflow across 15 routes × 9 widths.** One P1 (`F14`, login rate-limit error surfacing) is documented and deliberately left open as an auth concern rather than a responsive one.
+**Result: 3 P0 and 7 P1 findings fixed and verified; 57 unit tests and 62 Playwright assertions passing; zero horizontal overflow across 15 routes × 9 widths.** A follow-up batch then closed the last open P1 (`F14`, login error surfacing), made deployment prove which build is actually live, and validated the COD path with a real order. No finding is left open.
 
 ## Findings fixed
 
@@ -105,11 +105,34 @@ Overflow matrix — all passing:
 
 ## Deployment
 
-Deployed to `https://bornohin.com` and confirmed live. Commit `fa6089c`, BUILD_ID `OltvbT2HjQcApouQfFBrT`, CSS chunk `1ml02lit94b2i.css`.
+Deployed to `https://bornohin.com`. The first release of this work went out as `fa6089c`; the follow-up batch as `6124598`.
 
-**The deploy initially failed its own liveness check** — and that was the correct outcome. Files uploaded and extracted, but the site kept serving the previous build (`2-_i8m2cygyy0.css`). The verification step added in the prior session caught it instead of reporting a false success.
+**The `fa6089c` deploy failed its own liveness check** — the correct outcome. Files uploaded and extracted, but the site kept serving the previous build. The verification step caught it instead of reporting a false success. Root cause: two `next-server` processes orphaned to PPID 1 (~7.5h uptime), invisible to Passenger, so `restart.txt`, the cPanel Restart button and `cloudlinux-selector restart` all reported success without recycling anything. Cleared by killing the orphans by hand.
 
-Root cause was the same as last time: **two `next-server` processes orphaned to PPID 1** (~7.5h uptime). Because their parent is init, Passenger can no longer see them, so `restart.txt`, the cPanel Restart button and `cloudlinux-selector restart` all report success without recycling anything. Resolved by killing only the PPID=1 orphans — a healthy Passenger-parented process is never matched — after which Passenger respawned on the new build.
+That manual step is what the follow-up batch removed. The `6124598` deploy ran start to finish without intervention:
+
+```
+==> Recording what production is serving right now
+    Live: commit 4ca6583… pid 62320 up since 19:07:11
+==> Stopping the old build and waiting for the new one
+    pid 62320 still on commit 4ca6583… (status stale)
+    asked pid 62320 to exit (attempt 1, http 404)
+    That build has no restart endpoint; going straight to the reaper.
+    Orphan reaper removed and its absence confirmed
+    New build answering after reap: pid 226271
+==> Confirming every process serves the new build
+    All 1 sampled response(s) on commit 6124598…, pid(s) 226271
+==> Verifying the new static assets are reachable
+    New build is serving (3ty-gl3kx_p_1.css)
+```
+
+Along the way `/api/version` reported exactly the condition it exists to catch, on a run that would previously have looked fine:
+
+```json
+{"status":"stale","commit":"4ca6583…","extractedCommit":"1242b30…","pid":62320}
+```
+
+A process running one commit, with a newer release already extracted beside it, answering `409`.
 
 Two host-specific traps worth recording, both of which cost time previously:
 
@@ -185,7 +208,11 @@ The operational risk was that a successful-looking deploy keeps serving the old 
 
 The deploy script now records the pre-deploy commit and pid, extracts, then **polls `/api/version` and asks any stale process to exit** — up to six times — rather than trusting a restart command's exit code. It then samples the endpoint ten times to catch two processes serving different builds, fails if any pre-deploy pid still answers, corroborates with the static-asset probe, and appends every observation to `deploy-log.jsonl` with old/new commits, pids, timestamps and results. A failure states plainly that nothing was rolled back and the old build is still healthy.
 
-**Known bootstrapping gap:** the build currently live has neither endpoint, so the *next* deploy cannot self-restart and may still need a manual kill. Every deploy after that is deterministic. The script detects and reports this rather than pretending otherwise.
+**The orphan reaper.** `/api/deploy/restart` only reaches a process that still answers HTTP, which leaves two gaps: a build predating the endpoint, and one wedged enough to serve requests but ignore the shutdown. Both are covered by installing a once-a-minute cron that kills the old process, polling until the new commit answers, then removing itself and **proving its own absence**. Removal re-reads the linekey rather than trusting the one from installation — the key changes whenever the crontab is rewritten.
+
+**It selects by process age, not by parent.** The first version filtered on `PPID==1` on the theory that orphaning was the problem. It is not the whole problem: this host ignores `tmp/restart.txt` for healthy Passenger-parented processes too, so the filter skipped the ordinary case entirely and the deploy failed with the old build still serving. Anything older than two minutes predates the deploy; a freshly spawned process is far younger, and the reaper is removed within seconds of one answering.
+
+**This was earned the hard way.** Two runs crashed *inside the reaper's own cleanup* and left a kill-every-minute cron on production until it was removed by hand. Both were the same family of PowerShell fault under `Set-StrictMode`: cron environment lines such as `MAILTO=` come back with no `command` property at all, and a one-element array unwraps to a scalar on return so `.Count` is fatal. `-SelfTestReaper` now exercises the entire install → detect → remove → confirm-absence path with a command that touches nothing, so the most dangerous code here can be verified without pointing it at a live application.
 
 ### 4. One controlled COD order
 
@@ -214,10 +241,11 @@ Stated plainly rather than omitted:
 3. **The visual baseline is opt-in and Windows-only.** It will not protect anyone who does not run it, and needs regenerating on another platform.
 4. **Not verified on physical hardware.** All mobile results come from Chromium emulation at 375×667 with touch and DPR 2. Real iOS Safari behaviour for the F4 zoom fix is inferred from the 16px rule being provably applied, not observed on a device.
 5. **bKash is unverified end to end** — see above. It is also switched off in production.
-6. **`/api/deploy/restart` is a self-shutdown endpoint.** It is off unless `DEPLOY_RESTART_TOKEN` is set, compares digests in constant time, and returns 404 when unconfigured — but it is still a documented way to drop a process. Use a long random token and rotate it with the rest.
-7. **`@layer` is load-bearing in two directions.** The input rule is *deliberately unlayered* to beat Tailwind utilities, while the element resets are *deliberately layered* to lose to them. Both are commented in `globals.css`; read them before editing that file.
-8. **Dormant Nagad schema retained** — enum value plus three settings columns, all disabled and unreferenced by `src/`.
-9. **Dev-server caching** — a container restart is required before rendered output can be trusted. New route files in particular are invisible until then.
+6. **`/api/deploy/restart` is a self-shutdown endpoint.** It is off unless `DEPLOY_RESTART_TOKEN` is set, compares digests in constant time, and returns 404 when unconfigured — but it is still a documented way to drop a process. Use a long random token and rotate it with the rest. **The token must stay stable across deploys:** the running process holds the value it was spawned with, so changing it means the next deploy gets a 401 and falls back to the reaper.
+7. **The reaper is a blunt instrument.** It kills any `next-server` older than two minutes, so it must not run while an unrelated long-lived Next process shares the account. It only ever runs when the app cannot restart itself, and always removes itself afterwards.
+8. **`@layer` is load-bearing in two directions.** The input rule is *deliberately unlayered* to beat Tailwind utilities, while the element resets are *deliberately layered* to lose to them. Both are commented in `globals.css`; read them before editing that file.
+9. **Dormant Nagad schema retained** — enum value plus three settings columns, all disabled and unreferenced by `src/`.
+10. **Dev-server caching** — a container restart is required before rendered output can be trusted. New route files in particular are invisible until then.
 
 ## Changed files
 
