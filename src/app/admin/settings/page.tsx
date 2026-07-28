@@ -42,7 +42,7 @@ export default async function AdminSettingsPage({
         </div>
       ) : null}
 
-      <form action={saveSettingsAction} className="grid gap-5 rounded-[2rem] border border-[color:var(--border)] bg-white p-4 sm:p-6 md:grid-cols-2">
+      <form action={saveSettingsAction} className="grid gap-5 rounded-[2rem] border border-[color:var(--border)] bg-white p-4 sm:p-6 sm:grid-cols-2">
         <label className="grid gap-2 text-sm">
           <span>Store name</span>
           <input name="storeName" required defaultValue={settings.storeName} className={inputClass} />
@@ -73,7 +73,7 @@ export default async function AdminSettingsPage({
           <span>Business hours</span>
           <input name="businessHours" required defaultValue={settings.businessHours} className={inputClass} />
         </label>
-        <label className="grid gap-2 text-sm md:col-span-2">
+        <label className="grid gap-2 text-sm sm:col-span-2">
           <span>Shop address</span>
           <textarea name="address" required rows={2} defaultValue={settings.address} className={inputClass} />
         </label>
@@ -85,7 +85,7 @@ export default async function AdminSettingsPage({
           <span>Return/refund policy</span>
           <textarea name="returnRefundPolicy" required rows={4} defaultValue={settings.returnRefundPolicy} className={inputClass} />
         </label>
-        <label className="grid gap-2 text-sm md:col-span-2">
+        <label className="grid gap-2 text-sm sm:col-span-2">
           <span>Order confirmation message</span>
           <textarea
             name="confirmationMessageTemplate"
@@ -103,7 +103,7 @@ export default async function AdminSettingsPage({
           <span>GTM container ID</span>
           <input name="gtmContainerId" placeholder="GTM-XXXXXXX" defaultValue={settings.gtmContainerId ?? ""} className={inputClass} />
         </label>
-        <label className="grid gap-2 text-sm md:col-span-2">
+        <label className="grid gap-2 text-sm sm:col-span-2">
           <span>Free delivery threshold</span>
           <input
             name="freeDeliveryThreshold"
@@ -116,7 +116,7 @@ export default async function AdminSettingsPage({
           />
         </label>
 
-        <fieldset className="grid gap-3 rounded-3xl border border-[color:var(--border)] bg-white p-4 md:col-span-2">
+        <fieldset className="grid gap-3 rounded-3xl border border-[color:var(--border)] bg-white p-4 sm:col-span-2">
           <legend className="px-1 font-semibold text-[color:var(--foreground)]">Payment methods</legend>
           <label className="flex items-center gap-3 text-sm">
             <input name="codEnabled" type="checkbox" defaultChecked={settings.codEnabled} /> COD enabled
@@ -130,15 +130,15 @@ export default async function AdminSettingsPage({
             />
             {bkashReady ? "bKash enabled" : "bKash unavailable until gateway credentials are configured"}
           </label>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             <input name="bkashAccountNumber" aria-label="bKash account number" placeholder="bKash account/merchant number" defaultValue={settings.bkashAccountNumber ?? ""} className={inputClass} />
             <input name="bkashInstructions" aria-label="bKash instructions" placeholder="bKash instructions" defaultValue={settings.bkashInstructions} className={inputClass} />
           </div>
         </fieldset>
 
-        <fieldset className="grid gap-3 rounded-3xl border border-[color:var(--border)] bg-white p-4 md:col-span-2">
+        <fieldset className="grid gap-3 rounded-3xl border border-[color:var(--border)] bg-white p-4 sm:col-span-2">
           <legend className="px-1 font-semibold text-[color:var(--foreground)]">Delivery zones</legend>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-3">
             <label className="grid gap-2 text-sm">
               <span>Inside Dhaka charge</span>
               <input name="insideDhakaDeliveryCharge" type="number" required min={0} step={1} defaultValue={settings.insideDhakaDeliveryCharge} className={inputClass} />

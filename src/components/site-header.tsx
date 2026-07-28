@@ -196,15 +196,15 @@ export function SiteHeader({
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--brand)]"
+            className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--brand)]"
             aria-label="Open search"
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-5 w-5" />
           </button>
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-[color:var(--brand)] text-white"
+            className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full bg-[color:var(--brand)] text-white"
             aria-label="Open navigation menu"
           >
             <Menu className="h-5 w-5" />
@@ -219,7 +219,7 @@ export function SiteHeader({
             role="dialog"
             aria-modal="true"
             aria-label="Account options"
-            className="absolute right-4 top-28 w-[min(92vw,20rem)] rounded-[1.5rem] border border-[color:var(--border)] bg-white p-3 shadow-[0_24px_80px_rgba(139,0,0,0.14)] lg:right-8 lg:top-24"
+            className="absolute right-4 top-24 w-[min(92vw,20rem)] rounded-[1.5rem] border border-[color:var(--border)] bg-white p-3 shadow-[0_24px_80px_rgba(139,0,0,0.14)] sm:top-28 lg:right-8 lg:top-24"
             onClick={(event) => event.stopPropagation()}
           >
             {currentUser ? (
@@ -297,7 +297,7 @@ export function SiteHeader({
               <button
                 type="button"
                 onClick={closeAllOverlays}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
+                className="touch-target inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
                 aria-label="Close cart drawer"
               >
                 <X className="h-5 w-5" />
@@ -343,7 +343,7 @@ export function SiteHeader({
                               <input type="hidden" name="quantity" value={item.quantity - 1} />
                               <button
                                 type="submit"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+                                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
                                 aria-label={`Decrease quantity for ${item.product.name}`}
                               >
                                 <Minus className="h-4 w-4" />
@@ -354,20 +354,20 @@ export function SiteHeader({
                               <input type="hidden" name="productId" value={item.productId} />
                               <button
                                 type="submit"
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+                                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
                                 aria-label={`Remove ${item.product.name} from cart`}
                               >
                                 <Minus className="h-4 w-4" />
                               </button>
                             </form>
                           )}
-                          <span className="min-w-8 text-center text-lg font-medium text-[color:var(--foreground)]">{item.quantity}</span>
+                          <span className="min-w-10 text-center text-lg font-medium text-[color:var(--foreground)]">{item.quantity}</span>
                           <form action={updateCartQuantityAction}>
                             <input type="hidden" name="productId" value={item.productId} />
                             <input type="hidden" name="quantity" value={item.quantity + 1} />
                             <button
                               type="submit"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+                              className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white text-[color:var(--muted)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
                               aria-label={`Increase quantity for ${item.product.name}`}
                             >
                               <Plus className="h-4 w-4" />
@@ -377,7 +377,7 @@ export function SiteHeader({
                             <input type="hidden" name="productId" value={item.productId} />
                             <button
                               type="submit"
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
+                              className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
                               aria-label={`Remove ${item.product.name} from cart`}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -452,7 +452,7 @@ export function SiteHeader({
               <button
                 type="button"
                 onClick={closeAllOverlays}
-                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
+                className="touch-target inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
                 aria-label="Close wishlist drawer"
               >
                 <X className="h-5 w-5" />
@@ -488,7 +488,7 @@ export function SiteHeader({
                       <button
                         type="button"
                         onClick={() => setWishlistItems(removeWishlistItem(item.id))}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
+                        className="touch-target inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--brand)] transition hover:bg-[color:var(--brand-soft)]"
                         aria-label={`Remove ${item.name} from wishlist`}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -533,10 +533,10 @@ export function SiteHeader({
               <button
                 type="button"
                 onClick={closeAllOverlays}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-white"
+                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white"
                 aria-label="Close navigation menu"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
@@ -612,7 +612,7 @@ export function SiteHeader({
               )}
             </div>
 
-            <div className="p-4 text-sm text-[color:var(--muted)]">
+            <div className="safe-bottom p-4 text-sm text-[color:var(--muted)]">
               <p className="font-semibold uppercase tracking-[0.2em] text-[color:var(--foreground)]">Need help?</p>
               <p className="mt-2 leading-6">Call {contactNumber} or email {supportEmail} for store support.</p>
             </div>
@@ -637,10 +637,10 @@ export function SiteHeader({
               <button
                 type="button"
                 onClick={() => setSearchOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-white"
+                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white"
                 aria-label="Close search dialog"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 

@@ -10,6 +10,9 @@ import { getBkashIntegrationConfig } from "@/server/integration-config";
 
 export const dynamic = "force-dynamic";
 
+const fieldClass =
+  "w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3.5 text-sm text-[color:var(--foreground)] outline-none transition placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60";
+
 export default async function CheckoutPage() {
   const cookieStore = await cookies();
   const guestKey = cookieStore.get("easy_ecom_guest")?.value ?? "guest-preview";
@@ -34,12 +37,12 @@ export default async function CheckoutPage() {
 
   return (
     <PublicShell>
-      <section className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_380px] lg:px-8">
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Checkout</p>
-              <h1 className="mt-2 text-3xl font-semibold text-slate-950">Complete your order</h1>
+      <section className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)] lg:px-8">
+        <div className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--brand)]">Checkout</p>
+              <h1 className="mt-2 text-2xl font-black uppercase tracking-tight text-[color:var(--foreground)] sm:text-3xl">Complete your order</h1>
             </div>
             <StatusPill
               label={paymentMethods.some((method) => method.enabled) ? "Payments available" : "Payments off"}
@@ -47,137 +50,143 @@ export default async function CheckoutPage() {
             />
           </div>
 
-          <form action={checkoutAction} className="mt-8 grid gap-5">
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Name</span>
+          <form action={checkoutAction} className="mt-7 grid gap-5">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+                <span className="font-medium">Name</span>
                 <input
                   name="customerName"
                   required
                   defaultValue={user?.name ?? ""}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                  className={fieldClass}
                 />
               </label>
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Phone</span>
+              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+                <span className="font-medium">Phone</span>
                 <input
                   name="customerPhone"
                   required
                   defaultValue={user?.phone ?? ""}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                  className={fieldClass}
                 />
               </label>
             </div>
 
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">District</span>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+                <span className="font-medium">District</span>
                 <input
                   name="district"
                   required
                   placeholder="Dhaka"
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                  className={fieldClass}
                 />
               </label>
-              <label className="grid gap-2 text-sm">
-                <span className="font-medium text-slate-700">Email</span>
+              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+                <span className="font-medium">Email</span>
                 <input
                   name="customerEmail"
                   type="email"
                   defaultValue={user?.email ?? ""}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                  className={fieldClass}
                 />
               </label>
             </div>
 
-            <label className="grid gap-2 text-sm">
-              <span className="font-medium text-slate-700">Shipping address</span>
+            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+              <span className="font-medium">Shipping address</span>
               <textarea
                 name="shippingAddress"
                 rows={4}
                 required
                 placeholder="House, road, area, landmark"
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                className={fieldClass}
               />
             </label>
 
-            <label className="grid gap-2 text-sm">
-              <span className="font-medium text-slate-700">Coupon code</span>
+            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+              <span className="font-medium">Coupon code</span>
               <input
                 name="couponCode"
                 placeholder="Optional"
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                className={fieldClass}
               />
             </label>
 
-            <label className="grid gap-2 text-sm">
-              <span className="font-medium text-slate-700">Notes</span>
+            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
+              <span className="font-medium">Notes</span>
               <textarea
                 name="notes"
                 rows={3}
                 placeholder="Delivery instructions or product note"
-                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3"
+                className={fieldClass}
               />
             </label>
 
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2">
               {paymentMethods.map((method, index) => (
-                <label key={method.key} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value={method.key}
-                      defaultChecked={index === 0}
-                      disabled={!method.enabled}
-                    />
-                    <div>
-                      <p className="font-semibold text-slate-950">{method.name}</p>
-                      <p className="text-sm text-slate-600">{method.enabled ? method.description : "Disabled by shop"}</p>
-                    </div>
-                  </div>
+                <label
+                  key={method.key}
+                  className={`flex min-h-14 cursor-pointer items-start gap-3 rounded-3xl border p-4 transition ${
+                    index === 0
+                      ? "border-[color:var(--brand)]/40 bg-[color:var(--brand-soft)]"
+                      : "border-[color:var(--border)] bg-[color:var(--surface-soft)]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value={method.key}
+                    defaultChecked={index === 0}
+                    disabled={!method.enabled}
+                    className="mt-1 h-4 w-4 text-[color:var(--brand)] focus:ring-[color:var(--brand)]/40"
+                  />
+                  <span className="grid gap-1">
+                    <span className="text-sm font-semibold text-[color:var(--foreground)]">{method.name}</span>
+                    <span className="text-xs leading-5 text-[color:var(--muted)]">{method.enabled ? method.description : "Disabled by shop"}</span>
+                  </span>
                 </label>
               ))}
             </div>
 
-            <div className="grid gap-2 text-sm text-slate-600 sm:grid-cols-3">
-              <span className="rounded-full bg-slate-50 px-3 py-2">COD depends on delivery zone</span>
-              <span className="rounded-full bg-slate-50 px-3 py-2">bKash follows shop settings</span>
-              <span className="rounded-full bg-slate-50 px-3 py-2">Support answers fast</span>
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-xs text-[color:var(--muted)] sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0">
+              <span className="shrink-0 rounded-full bg-[color:var(--surface-soft)] px-3 py-2">COD depends on delivery zone</span>
+              <span className="shrink-0 rounded-full bg-[color:var(--surface-soft)] px-3 py-2">bKash follows shop settings</span>
+              <span className="shrink-0 rounded-full bg-[color:var(--surface-soft)] px-3 py-2">Support answers fast</span>
             </div>
 
-            <button className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white hover:bg-slate-800">
+            <button className="touch-target inline-flex w-full items-center justify-center rounded-full bg-[color:var(--brand)] px-5 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-[color:var(--accent)]">
               Place order and continue
             </button>
           </form>
         </div>
 
-        <aside className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-slate-950">Order total</h2>
+        <aside className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:p-6">
+          <h2 className="text-xl font-semibold text-[color:var(--foreground)]">Order total</h2>
           <dl className="mt-5 space-y-3 text-sm">
-            <div className="flex items-center justify-between">
-              <dt className="text-slate-500">Subtotal</dt>
-              <dd className="font-medium text-slate-950">{money(summary.subtotal)}</dd>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-[color:var(--muted)]">Subtotal</dt>
+              <dd className="font-medium text-[color:var(--foreground)]">{money(summary.subtotal)}</dd>
             </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-slate-500">Delivery fee</dt>
-              <dd className="font-medium text-slate-950">{deliveryFee === 0 ? "Free" : money(deliveryFee)}</dd>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-[color:var(--muted)]">Delivery fee</dt>
+              <dd className="font-medium text-[color:var(--foreground)]">{deliveryFee === 0 ? "Free" : money(deliveryFee)}</dd>
             </div>
-            <div className="flex items-center justify-between">
-              <dt className="text-slate-500">Free over</dt>
-              <dd className="font-medium text-slate-950">{money(settings.freeDeliveryThreshold)}</dd>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-[color:var(--muted)]">Free over</dt>
+              <dd className="font-medium text-[color:var(--foreground)]">{money(settings.freeDeliveryThreshold)}</dd>
             </div>
           </dl>
 
-          <div className="mt-5 rounded-3xl bg-slate-950 p-5 text-white">
-            <p className="text-sm uppercase tracking-[0.2em] text-slate-400">Estimated total</p>
-            <p className="mt-3 text-3xl font-semibold">{money(summary.subtotal + deliveryFee)}</p>
+          <div className="mt-5 rounded-3xl bg-[color:var(--brand)] p-5 text-white">
+            <p className="text-[11px] uppercase tracking-[0.3em] text-white/75">Estimated total</p>
+            <p className="mt-3 text-2xl font-black sm:text-3xl">{money(summary.subtotal + deliveryFee)}</p>
           </div>
 
           <div className="mt-5 grid gap-3">
             <a
               href={`tel:${supportDigits}`}
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-50"
+              className="touch-target inline-flex items-center justify-center gap-2 rounded-full border border-[color:var(--border)] bg-white px-4 py-3 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
             >
               <PhoneCall className="h-4 w-4" />
               Call support
@@ -186,14 +195,14 @@ export default async function CheckoutPage() {
               href={`https://wa.me/${supportDigits}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600"
+              className="touch-target inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--brand)]"
             >
               <MessageCircleMore className="h-4 w-4" />
               WhatsApp support
             </a>
           </div>
 
-          <p className="mt-4 text-sm leading-6 text-slate-600">
+          <p className="mt-4 text-sm leading-6 text-[color:var(--muted)]">
             Delivery charge is calculated by zone on the backend. Disabled payment methods are rejected even if a
             custom form submission attempts to use them.
           </p>

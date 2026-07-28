@@ -81,15 +81,15 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
             </div>
           ) : null}
 
-          <div className="absolute inset-0 flex items-end p-4">
-            <div className="max-w-[72%] text-white">
+          <div className="absolute inset-0 flex items-end p-3 sm:p-4">
+            <div className="max-w-[72%] min-w-0 text-white">
               <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/78">
                 {displayCollectionLabel}
               </p>
-              <h3 className="mt-2 text-lg font-black leading-tight sm:text-xl">{product.name}</h3>
+              <h3 className="mt-1.5 text-sm font-black leading-tight sm:text-base">{product.name}</h3>
             </div>
-            <div className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/14 text-white backdrop-blur">
-              <ShoppingBag className="h-5 w-5" />
+            <div className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/14 text-white backdrop-blur">
+              <ShoppingBag className="h-4 w-4" />
             </div>
           </div>
         </div>
@@ -119,7 +119,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
             <button
               type="button"
               disabled
-              className="inline-flex w-full items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]"
+              className="touch-target inline-flex min-h-[2.75rem] w-full items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]"
             >
               Sold Out
             </button>
@@ -129,7 +129,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
               <input type="hidden" name="quantity" value="1" />
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
+                className="touch-target inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
               >
                 {buttonLabel}
                 <ShoppingBag className="h-4 w-4" />
@@ -138,7 +138,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
           ) : (
             <Link
               href={href}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
+              className="touch-target inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
             >
               {buttonLabel}
               <ArrowRight className="h-4 w-4" />

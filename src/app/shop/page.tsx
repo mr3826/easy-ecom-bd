@@ -61,18 +61,18 @@ export default async function ShopPage({
               </div>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
+            <div className="mt-5 grid gap-3 overflow-x-auto pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)] sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:text-sm">
               {brandRail.map((entry) => (
                 <Link
                   key={entry.href}
                   href={entry.href}
-                  className={`rounded-full border px-3 py-2 ${entry.href.endsWith(`brand=${brand}`) ? "border-[color:var(--brand)] bg-[color:var(--brand)] text-white" : "border-[color:var(--border)] bg-white text-[color:var(--foreground)]"}`}
+                  className="touch-target inline-flex items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-4 py-2.5 text-[color:var(--foreground)] whitespace-nowrap transition hover:border-[color:var(--brand)] hover:bg-[color:var(--brand)] hover:text-white"
                 >
                   {entry.label}
                 </Link>
               ))}
               {query || category || brand ? (
-                <Link href="/shop" className="rounded-full bg-[color:var(--accent)] px-3 py-2 text-white">
+                <Link href="/shop" className="touch-target inline-flex items-center justify-center rounded-full bg-[color:var(--accent)] px-4 py-2.5 text-white whitespace-nowrap">
                   Clear filters
                 </Link>
               ) : null}

@@ -143,7 +143,7 @@ export function ProductEditorForm({
         </section>
 
         {isEditing ? (
-          <div className="rounded-[2rem] border border-[color:var(--brand)]/20 bg-[color:var(--brand-soft)] p-5 shadow-[0_20px_60px_rgba(139,0,0,0.08)]">
+          <div className="rounded-[2rem] border border-[color:var(--brand)]/20 bg-[color:var(--brand-soft)] p-4 shadow-[0_20px_60px_rgba(139,0,0,0.08)]">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--brand)]">Editing mode</p>
@@ -153,7 +153,7 @@ export function ProductEditorForm({
               </div>
               <Link
                 href={createHref}
-                className="inline-flex w-fit items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
+                className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
               >
                 Create new product
               </Link>
@@ -161,404 +161,402 @@ export function ProductEditorForm({
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.95fr)]">
-          <div className="grid gap-6">
-            <SectionCard
-              title="Product Information"
-              description="Core product details, pricing, and upload-backed image management."
-            >
-              <div className="grid gap-4">
-                <FieldLabel label="Product name" hint="Required">
+        <div className="grid gap-6">
+          <SectionCard
+            title="Product Information"
+            description="Core product details, pricing, and upload-backed image management."
+          >
+            <div className="grid gap-4">
+              <FieldLabel label="Product name" hint="Required">
+                <input
+                  name="name"
+                  defaultValue={product?.name ?? ""}
+                  placeholder="Enter product name"
+                  className={fieldClass}
+                />
+              </FieldLabel>
+
+              <FieldLabel label="Slug" hint="Optional">
+                <input
+                  name="slug"
+                  defaultValue={product?.slug ?? ""}
+                  placeholder="auto-generated from name"
+                  className={fieldClass}
+                />
+              </FieldLabel>
+
+              <FieldLabel label="Description" hint="Required">
+                <textarea
+                  name="description"
+                  rows={5}
+                  defaultValue={product?.description ?? ""}
+                  placeholder="Describe your product in detail"
+                  className={textareaClass}
+                />
+              </FieldLabel>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FieldLabel label="Selling price" hint="Required">
                   <input
-                    name="name"
-                    defaultValue={product?.name ?? ""}
-                    placeholder="Enter product name"
-                    className={fieldClass}
-                  />
-                </FieldLabel>
-
-                <FieldLabel label="Slug" hint="Optional">
-                  <input
-                    name="slug"
-                    defaultValue={product?.slug ?? ""}
-                    placeholder="auto-generated from name"
-                    className={fieldClass}
-                  />
-                </FieldLabel>
-
-                <FieldLabel label="Description" hint="Required">
-                  <textarea
-                    name="description"
-                    rows={5}
-                    defaultValue={product?.description ?? ""}
-                    placeholder="Describe your product in detail"
-                    className={textareaClass}
-                  />
-                </FieldLabel>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FieldLabel label="Selling price" hint="Required">
-                    <input
-                      name="price"
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={product?.price ?? 0}
-                      className={fieldClass}
-                    />
-                  </FieldLabel>
-                  <FieldLabel label="Compare at price" hint="Optional">
-                    <input
-                      name="compareAtPrice"
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={product?.compareAtPrice ?? ""}
-                      className={fieldClass}
-                    />
-                  </FieldLabel>
-                </div>
-
-                <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4">
-                  <ProductImageUploader productName={product?.name ?? "New product"} existingImages={existingImages} />
-                </div>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Inventory & Stock"
-              description="Keep SKU and stock levels aligned with the current warehouse state."
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <FieldLabel label="SKU" hint="Required">
-                  <input name="sku" defaultValue={product?.sku ?? ""} placeholder="SKU" className={fieldClass} />
-                </FieldLabel>
-                <FieldLabel label="Weight grams" hint="Legacy stock weight">
-                  <input
-                    name="weightGrams"
+                    name="price"
                     type="number"
                     min="0"
                     step="1"
-                    defaultValue={product?.weightGrams ?? 0}
+                    defaultValue={product?.price ?? 0}
                     className={fieldClass}
                   />
                 </FieldLabel>
-                <FieldLabel label="Available quantity" hint="Required">
+                <FieldLabel label="Compare at price" hint="Optional">
                   <input
-                    name="stock"
+                    name="compareAtPrice"
                     type="number"
                     min="0"
                     step="1"
-                    defaultValue={product?.stock ?? 0}
-                    className={fieldClass}
-                  />
-                </FieldLabel>
-                <FieldLabel label="Low stock threshold" hint="Alert level">
-                  <input
-                    name="lowStockThreshold"
-                    type="number"
-                    min="0"
-                    step="1"
-                    defaultValue={product?.lowStockThreshold ?? 5}
+                    defaultValue={product?.compareAtPrice ?? ""}
                     className={fieldClass}
                   />
                 </FieldLabel>
               </div>
-            </SectionCard>
 
-            <SectionCard
-              title="Additional Details"
-              description="Search and merchandising metadata that powers the admin list and future storefront integrations."
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <FieldLabel label="Product condition" hint="Merchandise state">
-                  <select name="condition" defaultValue={selectedMetadata.condition} className={selectClass}>
-                    {productConditionOptions.map((option) => (
+              <div className="rounded-[1.5rem] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4">
+                <ProductImageUploader productName={product?.name ?? "New product"} existingImages={existingImages} />
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Inventory & Stock"
+            description="Keep SKU and stock levels aligned with the current warehouse state."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FieldLabel label="SKU" hint="Required">
+                <input name="sku" defaultValue={product?.sku ?? ""} placeholder="SKU" className={fieldClass} />
+              </FieldLabel>
+              <FieldLabel label="Weight grams" hint="Legacy stock weight">
+                <input
+                  name="weightGrams"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={product?.weightGrams ?? 0}
+                  className={fieldClass}
+                />
+              </FieldLabel>
+              <FieldLabel label="Available quantity" hint="Required">
+                <input
+                  name="stock"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={product?.stock ?? 0}
+                  className={fieldClass}
+                />
+              </FieldLabel>
+              <FieldLabel label="Low stock threshold" hint="Alert level">
+                <input
+                  name="lowStockThreshold"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={product?.lowStockThreshold ?? 5}
+                  className={fieldClass}
+                />
+              </FieldLabel>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Additional Details"
+            description="Search and merchandising metadata that powers the admin list and future storefront integrations."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FieldLabel label="Product condition" hint="Merchandise state">
+                <select name="condition" defaultValue={selectedMetadata.condition} className={selectClass}>
+                  {productConditionOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </FieldLabel>
+
+              <FieldLabel label="Brand / manufacturer" hint="Required">
+                <select name="brandId" defaultValue={brandId} className={selectClass}>
+                  {brands.map((brand) => (
+                    <option key={brand.id} value={brand.id}>
+                      {brand.name}
+                    </option>
+                  ))}
+                </select>
+              </FieldLabel>
+
+              <FieldLabel label="Tags" hint="Comma separated">
+                <input
+                  name="tags"
+                  defaultValue={product?.tags.join(", ") ?? ""}
+                  placeholder="top-seller, bundle"
+                  className={fieldClass}
+                />
+              </FieldLabel>
+
+              <FieldLabel label="Search keywords" hint="Comma separated">
+                <input
+                  name="searchKeywords"
+                  defaultValue={product?.searchKeywords?.join(", ") ?? ""}
+                  placeholder="cotton, dress, summer"
+                  className={fieldClass}
+                />
+              </FieldLabel>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ToggleField
+                  name="featured"
+                  label="Featured product"
+                  hint="Promote this product in featured listings."
+                  defaultChecked={product?.featured ?? false}
+                />
+                <ToggleField
+                  name="isActive"
+                  label="Visible in catalog"
+                  hint="Hide or show the product in admin-managed listings."
+                  defaultChecked={product?.isActive ?? true}
+                />
+              </div>
+            </div>
+          </SectionCard>
+        </div>
+
+        <div className="grid gap-6">
+          <SectionCard
+            title="Product Categories"
+            description="Keep the existing single-category mapping while preserving the screenshot-style grouped layout."
+          >
+            <div className="grid gap-4">
+              <FieldLabel label="Category" hint="Required">
+                <select name="categoryId" defaultValue={categoryId} className={selectClass}>
+                  {categories.length ? (
+                    categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">No categories available</option>
+                  )}
+                </select>
+              </FieldLabel>
+              <p className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4 text-xs leading-5 text-[color:var(--muted)]">
+                This pass keeps one primary category and one brand record per product. Multi-category support can be added later if the storefront needs it.
+              </p>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Product Variants"
+            description="Structured metadata for size, color, or bundle options without promoting variants to first-class tables yet."
+          >
+            <ProductVariantEditor initialGroups={selectedMetadata.variantGroups} />
+          </SectionCard>
+
+          <SectionCard
+            title="Business Rules"
+            description="Order and return logic that should round-trip through the backend now."
+          >
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FieldLabel label="Minimum order quantity" hint="Required">
+                <input
+                  name="minOrderQuantity"
+                  type="number"
+                  min="1"
+                  step="1"
+                  defaultValue={selectedMetadata.minOrderQuantity}
+                  className={fieldClass}
+                />
+              </FieldLabel>
+              <FieldLabel label="Maximum order quantity" hint="Optional">
+                <input
+                  name="maxOrderQuantity"
+                  type="number"
+                  min="1"
+                  step="1"
+                  defaultValue={selectedMetadata.maxOrderQuantity ?? ""}
+                  className={fieldClass}
+                />
+              </FieldLabel>
+              <ToggleField
+                name="returnable"
+                label="Returnable"
+                hint="Allow customers to request returns."
+                defaultChecked={selectedMetadata.returnable}
+              />
+              <FieldLabel label="Return window (days)" hint="Optional">
+                <input
+                  name="returnWindowDays"
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={selectedMetadata.returnWindowDays ?? ""}
+                  className={fieldClass}
+                />
+              </FieldLabel>
+              <FieldLabel label="Warranty text" className="sm:col-span-2">
+                <textarea
+                  name="warrantyText"
+                  rows={3}
+                  defaultValue={selectedMetadata.warrantyText ?? ""}
+                  placeholder="Optional warranty or after-sales policy"
+                  className={textareaClass}
+                />
+              </FieldLabel>
+              <FieldLabel label="Expiry date" hint="Optional">
+                <input
+                  name="expiryDate"
+                  type="date"
+                  defaultValue={selectedMetadata.expiryDate ?? ""}
+                  className={fieldClass}
+                />
+              </FieldLabel>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            title="Shipping & Delivery"
+            description="Physical product and packaging details for local fulfillment."
+          >
+            <div className="grid gap-4">
+              <ToggleField
+                name="isPhysical"
+                label="Physical product"
+                hint="Disable this for service or digital items."
+                defaultChecked={selectedMetadata.isPhysical}
+              />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FieldLabel label="Handling time (days)" hint="Optional">
+                  <input
+                    name="handlingTimeDays"
+                    type="number"
+                    min="0"
+                    step="1"
+                    defaultValue={selectedMetadata.handlingTimeDays ?? ""}
+                    className={fieldClass}
+                  />
+                </FieldLabel>
+                <FieldLabel label="Shipping class" hint="Optional">
+                  <input
+                    name="shippingClass"
+                    defaultValue={selectedMetadata.shippingClass ?? ""}
+                    placeholder="standard, fragile, oversized"
+                    className={fieldClass}
+                  />
+                </FieldLabel>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                <FieldLabel label="Package weight" hint="Optional">
+                  <input
+                    name="packageWeight"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    defaultValue={selectedMetadata.packageWeight ?? ""}
+                    className={fieldClass}
+                  />
+                </FieldLabel>
+                <FieldLabel label="Weight unit">
+                  <select
+                    name="packageWeightUnit"
+                    defaultValue={selectedMetadata.packageWeightUnit ?? "kg"}
+                    className={selectClass}
+                  >
+                    {productWeightUnitOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
                     ))}
                   </select>
                 </FieldLabel>
+              </div>
 
-                <FieldLabel label="Brand / manufacturer" hint="Required">
-                  <select name="brandId" defaultValue={brandId} className={selectClass}>
-                    {brands.map((brand) => (
-                      <option key={brand.id} value={brand.id}>
-                        {brand.name}
+              <div className="grid gap-4 sm:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,0.8fr)]">
+                <FieldLabel label="Length">
+                  <input
+                    name="packageLength"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    defaultValue={selectedMetadata.packageLength ?? ""}
+                    className={fieldClass}
+                  />
+                </FieldLabel>
+                <FieldLabel label="Width">
+                  <input
+                    name="packageWidth"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    defaultValue={selectedMetadata.packageWidth ?? ""}
+                    className={fieldClass}
+                  />
+                </FieldLabel>
+                <FieldLabel label="Height">
+                  <input
+                    name="packageHeight"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    defaultValue={selectedMetadata.packageHeight ?? ""}
+                    className={fieldClass}
+                  />
+                </FieldLabel>
+                <FieldLabel label="Unit">
+                  <select
+                    name="packageDimensionsUnit"
+                    defaultValue={selectedMetadata.packageDimensionsUnit ?? "cm"}
+                    className={selectClass}
+                  >
+                    {productDimensionUnitOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
                 </FieldLabel>
-
-                <FieldLabel label="Tags" hint="Comma separated">
-                  <input
-                    name="tags"
-                    defaultValue={product?.tags.join(", ") ?? ""}
-                    placeholder="top-seller, bundle"
-                    className={fieldClass}
-                  />
-                </FieldLabel>
-
-                <FieldLabel label="Search keywords" hint="Comma separated">
-                  <input
-                    name="searchKeywords"
-                    defaultValue={product?.searchKeywords?.join(", ") ?? ""}
-                    placeholder="cotton, dress, summer"
-                    className={fieldClass}
-                  />
-                </FieldLabel>
-
-                <div className="grid gap-3 md:col-span-2 md:grid-cols-2">
-                  <ToggleField
-                    name="featured"
-                    label="Featured product"
-                    hint="Promote this product in featured listings."
-                    defaultChecked={product?.featured ?? false}
-                  />
-                  <ToggleField
-                    name="isActive"
-                    label="Visible in catalog"
-                    hint="Hide or show the product in admin-managed listings."
-                    defaultChecked={product?.isActive ?? true}
-                  />
-                </div>
               </div>
-            </SectionCard>
-          </div>
 
-          <div className="grid gap-6">
-            <SectionCard
-              title="Product Categories"
-              description="Keep the existing single-category mapping while preserving the screenshot-style grouped layout."
-            >
-              <div className="grid gap-4">
-                <FieldLabel label="Category" hint="Required">
-                  <select name="categoryId" defaultValue={categoryId} className={selectClass}>
-                    {categories.length ? (
-                      categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
-                      ))
-                    ) : (
-                      <option value="">No categories available</option>
-                    )}
-                  </select>
-                </FieldLabel>
-                <p className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4 text-xs leading-5 text-[color:var(--muted)]">
-                  This pass keeps one primary category and one brand record per product. Multi-category support can be added later if the storefront needs it.
-                </p>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Product Variants"
-              description="Structured metadata for size, color, or bundle options without promoting variants to first-class tables yet."
-            >
-              <ProductVariantEditor initialGroups={selectedMetadata.variantGroups} />
-            </SectionCard>
-
-            <SectionCard
-              title="Business Rules"
-              description="Order and return logic that should round-trip through the backend now."
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <FieldLabel label="Minimum order quantity" hint="Required">
-                  <input
-                    name="minOrderQuantity"
-                    type="number"
-                    min="1"
-                    step="1"
-                    defaultValue={selectedMetadata.minOrderQuantity}
-                    className={fieldClass}
-                  />
-                </FieldLabel>
-                <FieldLabel label="Maximum order quantity" hint="Optional">
-                  <input
-                    name="maxOrderQuantity"
-                    type="number"
-                    min="1"
-                    step="1"
-                    defaultValue={selectedMetadata.maxOrderQuantity ?? ""}
-                    className={fieldClass}
-                  />
-                </FieldLabel>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <ToggleField
-                  name="returnable"
-                  label="Returnable"
-                  hint="Allow customers to request returns."
-                  defaultChecked={selectedMetadata.returnable}
+                  name="taxEnabled"
+                  label="Tax enabled"
+                  hint="Track whether tax should be applied later in checkout integrations."
+                  defaultChecked={selectedMetadata.taxEnabled}
                 />
-                <FieldLabel label="Return window (days)" hint="Optional">
-                  <input
-                    name="returnWindowDays"
-                    type="number"
-                    min="0"
-                    step="1"
-                    defaultValue={selectedMetadata.returnWindowDays ?? ""}
-                    className={fieldClass}
-                  />
-                </FieldLabel>
-                <FieldLabel label="Warranty text" className="md:col-span-2">
-                  <textarea
-                    name="warrantyText"
-                    rows={3}
-                    defaultValue={selectedMetadata.warrantyText ?? ""}
-                    placeholder="Optional warranty or after-sales policy"
-                    className={textareaClass}
-                  />
-                </FieldLabel>
-                <FieldLabel label="Expiry date" hint="Optional">
-                  <input
-                    name="expiryDate"
-                    type="date"
-                    defaultValue={selectedMetadata.expiryDate ?? ""}
-                    className={fieldClass}
-                  />
-                </FieldLabel>
-              </div>
-            </SectionCard>
-
-            <SectionCard
-              title="Shipping & Delivery"
-              description="Physical product and packaging details for local fulfillment."
-            >
-              <div className="grid gap-4">
                 <ToggleField
-                  name="isPhysical"
-                  label="Physical product"
-                  hint="Disable this for service or digital items."
-                  defaultChecked={selectedMetadata.isPhysical}
+                  name="discountEnabled"
+                  label="Discount enabled"
+                  hint="Controls whether this product can participate in discount logic."
+                  defaultChecked={selectedMetadata.discountEnabled}
                 />
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <FieldLabel label="Handling time (days)" hint="Optional">
-                    <input
-                      name="handlingTimeDays"
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={selectedMetadata.handlingTimeDays ?? ""}
-                      className={fieldClass}
-                    />
-                  </FieldLabel>
-                  <FieldLabel label="Shipping class" hint="Optional">
-                    <input
-                      name="shippingClass"
-                      defaultValue={selectedMetadata.shippingClass ?? ""}
-                      placeholder="standard, fragile, oversized"
-                      className={fieldClass}
-                    />
-                  </FieldLabel>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                  <FieldLabel label="Package weight" hint="Optional">
-                    <input
-                      name="packageWeight"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue={selectedMetadata.packageWeight ?? ""}
-                      className={fieldClass}
-                    />
-                  </FieldLabel>
-                  <FieldLabel label="Weight unit">
-                    <select
-                      name="packageWeightUnit"
-                      defaultValue={selectedMetadata.packageWeightUnit ?? "kg"}
-                      className={selectClass}
-                    >
-                      {productWeightUnitOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </FieldLabel>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,0.8fr)]">
-                  <FieldLabel label="Length">
-                    <input
-                      name="packageLength"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue={selectedMetadata.packageLength ?? ""}
-                      className={fieldClass}
-                    />
-                  </FieldLabel>
-                  <FieldLabel label="Width">
-                    <input
-                      name="packageWidth"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue={selectedMetadata.packageWidth ?? ""}
-                      className={fieldClass}
-                    />
-                  </FieldLabel>
-                  <FieldLabel label="Height">
-                    <input
-                      name="packageHeight"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      defaultValue={selectedMetadata.packageHeight ?? ""}
-                      className={fieldClass}
-                    />
-                  </FieldLabel>
-                  <FieldLabel label="Unit">
-                    <select
-                      name="packageDimensionsUnit"
-                      defaultValue={selectedMetadata.packageDimensionsUnit ?? "cm"}
-                      className={selectClass}
-                    >
-                      {productDimensionUnitOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </FieldLabel>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-2">
-                  <ToggleField
-                    name="taxEnabled"
-                    label="Tax enabled"
-                    hint="Track whether tax should be applied later in checkout integrations."
-                    defaultChecked={selectedMetadata.taxEnabled}
-                  />
-                  <ToggleField
-                    name="discountEnabled"
-                    label="Discount enabled"
-                    hint="Controls whether this product can participate in discount logic."
-                    defaultChecked={selectedMetadata.discountEnabled}
-                  />
-                </div>
               </div>
-            </SectionCard>
-          </div>
+            </div>
+          </SectionCard>
         </div>
 
         {isEditing ? (
-          <div className="flex flex-col gap-3 rounded-[2rem] border border-[color:var(--border)] bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 rounded-[2rem] border border-[color:var(--border)] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm leading-6 text-[color:var(--muted)]">
               Images are saved locally, metadata is persisted in the product record, and storefront changes stay untouched until the follow-up integration pass.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
                 type="submit"
-                className="rounded-full bg-[color:var(--brand)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
+                className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-[color:var(--brand)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
               >
                 Update product
               </button>
               <Link
                 href={createHref}
-                className="rounded-full border border-[color:var(--border)] px-6 py-3 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
+                className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] px-6 py-3 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
               >
                 Reset form
               </Link>

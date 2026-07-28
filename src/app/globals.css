@@ -31,6 +31,42 @@
   --font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, monospace;
 }
 
+:root {
+  color-scheme: light;
+  --tap-min: 2.75rem;
+  --safe-bottom: max(env(safe-area-inset-bottom), 0px);
+}
+
+html,
+body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+.touch-target {
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
+}
+
+.safe-bottom {
+  padding-bottom: max(0.75rem, var(--safe-bottom));
+}
+
+.scroll-pad-bottom {
+  scroll-padding-bottom: calc(4.5rem + var(--safe-bottom));
+}
+
 html {
   scroll-behavior: smooth;
 }

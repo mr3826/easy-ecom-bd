@@ -149,18 +149,18 @@ export function HomeHeroSlider({ slides }: { slides: HomeHeroSlide[] }) {
               <button
                 type="button"
                 onClick={() => goToSlide(activeIndex - 1)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-white/90 text-[color:var(--foreground)] shadow-[0_10px_25px_rgba(15,23,42,0.08)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white/90 text-[color:var(--foreground)] shadow-[0_10px_25px_rgba(15,23,42,0.08)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
                 aria-label="Previous slide"
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 type="button"
                 onClick={() => goToSlide(activeIndex + 1)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] bg-white/90 text-[color:var(--foreground)] shadow-[0_10px_25px_rgba(15,23,42,0.08)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
+                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white/90 text-[color:var(--foreground)] shadow-[0_10px_25px_rgba(15,23,42,0.08)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
                 aria-label="Next slide"
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-5 w-5" />
               </button>
             </div>
           </div>

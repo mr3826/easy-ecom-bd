@@ -31,7 +31,7 @@ export default async function AdminDashboardPage() {
         </Link>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Products" value={`${products.length}`} delta="Live catalog" tone="slate" />
         <MetricCard label="Orders" value={`${orders.length}`} delta={`${pendingOrders} pending, ${confirmedOrders} confirmed`} tone="emerald" />
         <MetricCard label="Revenue" value={money(grossSales)} delta="Gross sales" tone="amber" />

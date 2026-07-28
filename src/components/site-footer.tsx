@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Home, MessageCircleMore, Phone, ShoppingBag, Store } from "lucide-react";
 import { SiteLogo } from "@/components/site-logo";
 import { getSettings } from "@/server/store";
 import { storefrontCollections, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
@@ -102,21 +103,26 @@ export async function SiteFooter() {
       </div>
 
       <div className="border-t border-white/10 bg-[color:var(--footer-background)] sm:hidden">
-        <nav className="grid grid-cols-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--footer-foreground)]">
-          <a href={`tel:${settings.contactNumber.replace(/\D/g, "")}`} className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Phone</span>
+        <nav className="safe-bottom grid grid-cols-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--footer-foreground)]">
+          <a href={`tel:${settings.contactNumber.replace(/\D/g, "")}`} className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Call store support">
+            <Phone className="h-5 w-5" aria-hidden="true" />
+            <span>Call</span>
           </a>
-          <a href={siteBrand.messengerUrl} className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Messenger</span>
+          <a href={siteBrand.messengerUrl} className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Open Messenger">
+            <MessageCircleMore className="h-5 w-5" aria-hidden="true" />
+            <span>Chat</span>
           </a>
-          <Link href="/" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Home</span>
+          <Link href="/" className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Go to home">
+            <Home className="h-5 w-5" aria-hidden="true" />
+            <span>Home</span>
           </Link>
-          <Link href="/shop" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Shop</span>
+          <Link href="/shop" className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Browse shop">
+            <Store className="h-5 w-5" aria-hidden="true" />
+            <span>Shop</span>
           </Link>
-          <Link href="/cart" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Cart</span>
+          <Link href="/cart" className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Open cart">
+            <ShoppingBag className="h-5 w-5" aria-hidden="true" />
+            <span>Cart</span>
           </Link>
         </nav>
       </div>
