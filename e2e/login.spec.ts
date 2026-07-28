@@ -111,7 +111,13 @@ test.describe("login error handling", () => {
     }
   });
 
-  test("valid credentials still sign in", async ({ page }) => {
+  test("valid credentials still sign in", async ({ page, baseURL }) => {
+    // The defaults are the local seed accounts; anywhere else needs real ones
+    // passed in, and a failure there would say "wrong password", not "broken".
+    const explicit = Boolean(process.env.E2E_ADMIN_EMAIL && process.env.E2E_ADMIN_PASSWORD);
+    const local = Boolean(baseURL && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL));
+    test.skip(!local && !explicit, "set E2E_ADMIN_EMAIL/E2E_ADMIN_PASSWORD to run this off localhost");
+
     const email = process.env.E2E_ADMIN_EMAIL ?? "admin@easy-ecom.test";
     const password = process.env.E2E_ADMIN_PASSWORD ?? "admin1234";
 
