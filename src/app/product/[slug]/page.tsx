@@ -197,7 +197,7 @@ export default async function ProductPage({
       ) : null}
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {siblingCollections.map((entry) => (
             <Link key={entry.slug} href={`/shop?category=${entry.slug}`} className="rounded-[2rem] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 shadow-[0_10px_24px_rgba(15,23,42,0.04)]">
               <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--brand)]">{entry.subtitle}</p>

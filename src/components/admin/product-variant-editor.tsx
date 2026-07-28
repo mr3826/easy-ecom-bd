@@ -88,10 +88,10 @@ export function ProductVariantEditor({
                 <button
                   type="button"
                   onClick={() => removeGroup(group.id)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/60 hover:text-rose-500"
+                  className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/60 hover:text-rose-500"
                   aria-label={`Remove variant group ${index + 1}`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-5 w-5" />
                 </button>
               ) : null}
             </div>
@@ -116,7 +116,7 @@ export function ProductVariantEditor({
                   className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] outline-none ring-0 placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60"
                 />
               </label>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
                   <span>Price adjustment</span>
                   <input

@@ -20,7 +20,7 @@ export default async function AdminProductNewPage({
   const selectedImages = selected ? productImages.filter((image) => image.productId === selected.id) : [];
 
   return (
-    <div className="space-y-8 text-slate-100">
+    <div className="space-y-8 text-[color:var(--foreground)]">
       <ProductEditorForm
         product={selected}
         categories={categories}

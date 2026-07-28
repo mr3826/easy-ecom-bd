@@ -22,7 +22,7 @@ export default async function ContactPage() {
     <PublicShell>
       <ContentPage eyebrow={page.eyebrow} title={page.title} intro={page.intro} body={body} actions={[{ href: "/track-order", label: "Track order" }, { href: "/shop", label: "Browse catalog", variant: "outline" }]} />
       <section className="mx-auto max-w-5xl px-4 pb-10 sm:px-6 lg:px-8">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-3">
           {["Store address", "Phone support", "Email support"].map((title) => (
             <div key={title} className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[color:var(--brand)]">{title}</p>

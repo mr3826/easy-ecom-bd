@@ -115,11 +115,13 @@ export function ProductImageUploader({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setRetainedImages((current) => current.filter((item) => item.id !== image.id))}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/60 hover:text-rose-500"
+                  onClick={() => {
+                    setRetainedImages((current) => current.filter((item) => item.id !== image.id));
+                  }}
+                  className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/60 hover:text-rose-500"
                   aria-label={`Remove saved image ${image.alt || productName}`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-5 w-5" />
                 </button>
               </figcaption>
             </figure>

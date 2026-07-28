@@ -272,18 +272,18 @@ export default async function AdminProductsPage({
                         <div className="flex items-center justify-end gap-3">
                           <Link
                             href={`/admin/products/new?edit=${product.id}`}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-[color:var(--brand)]/40 hover:text-[color:var(--brand)]"
+                            className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-[color:var(--brand)]/40 hover:text-[color:var(--brand)]"
                             aria-label={`Edit ${product.name}`}
                           >
-                            <PencilLine className="h-4 w-4" />
+                            <PencilLine className="h-5 w-5" />
                           </Link>
                           <form action={deleteProductAction}>
                             <input type="hidden" name="id" value={product.id} />
                             <button
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/40 hover:text-rose-500"
+                              className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/40 hover:text-rose-500"
                               aria-label={`Delete ${product.name}`}
                             >
-                              <Trash2 className="h-4 w-4" />
+                              <Trash2 className="h-5 w-5" />
                             </button>
                           </form>
                         </div>
