@@ -15,6 +15,7 @@ param(
     [string]$CpanelHome = "/home/bornohin",
     [string]$CpanelApiToken = $env:CPANEL_API_TOKEN,
     [string]$AppRoot = "bornohin_app",
+    [string]$AppUrl = "https://bornohin.com",
     [string]$ConfirmAppRoot,
     [switch]$SkipBuild,
     [switch]$DryRun
@@ -98,12 +99,44 @@ Copy-Item -LiteralPath (Join-Path $ProjectRoot ".next\static") -Destination (Joi
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "public") -Destination (Join-Path $DeployDir "public") -Recurse -Force
 New-Item -ItemType Directory -Path (Join-Path $DeployDir "tmp") -Force | Out-Null
 
+$absoluteAppRoot = "$($CpanelHome.TrimEnd("/"))/$($AppRoot.Trim("/"))"
+
+# RELEASE.json is not part of the standalone output, so without this it survives
+# every extraction untouched and keeps describing whatever shipped first. Write it
+# into the bundle so the rollback commit recorded on the server is real.
+$buildIdPath = Join-Path $ProjectRoot ".next\BUILD_ID"
+$releaseCommit = (& git -C $ProjectRoot rev-parse HEAD 2>$null)
+$previousRelease = $null
+if (-not $DryRun) {
+    try {
+        $releaseUri = "https://${CpanelHost}:2083/execute/Fileman/get_file_content" +
+            "?dir=$([Uri]::EscapeDataString($absoluteAppRoot))&file=RELEASE.json"
+        $existing = Invoke-RestMethod -Uri $releaseUri -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } -TimeoutSec 60
+        if ($existing.status -eq 1 -and $existing.data.content) {
+            $previousRelease = ($existing.data.content | ConvertFrom-Json).releaseCommit
+        }
+    } catch {
+        Write-Host "    Could not read the previous RELEASE.json; rollbackCommit will be null." -ForegroundColor Yellow
+    }
+}
+@{
+    releaseCommit  = $releaseCommit
+    rollbackCommit = $previousRelease
+    buildId        = if (Test-Path -LiteralPath $buildIdPath) { (Get-Content -LiteralPath $buildIdPath -Raw).Trim() } else { $null }
+    nextVersion    = (Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw | ConvertFrom-Json).dependencies.next
+    deployedAt     = (Get-Date).ToUniversalTime().ToString("o")
+} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $DeployDir "RELEASE.json") -Encoding UTF8
+
+# Remembered before the bundle is cleaned up, to probe after the restart.
+$probeAsset = Get-ChildItem -LiteralPath (Join-Path $DeployDir ".next\static\chunks") -Filter "*.css" -File -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+$probeAssetName = if ($probeAsset) { $probeAsset.Name } else { $null }
+
 $archivePath = Join-Path $env:TEMP "bornohin-release.zip"
 if (Test-Path -LiteralPath $archivePath) { Remove-Item -LiteralPath $archivePath -Force }
 Compress-Archive -Path (Join-Path $DeployDir "*") -DestinationPath $archivePath -Force
 Write-OK "Release archive created at $archivePath"
 
-$absoluteAppRoot = "$($CpanelHome.TrimEnd("/"))/$($AppRoot.Trim("/"))"
 if ($DryRun) {
     Write-Host "    [dry-run] upload $archivePath to $absoluteAppRoot/bornohin-release.zip"
     Write-Host "    [dry-run] extract archive and touch $absoluteAppRoot/tmp/restart.txt"
@@ -360,4 +393,43 @@ Write-OK "Passenger restart requested"
 Remove-Item -LiteralPath $restartFile -Force
 Remove-Item -LiteralPath $archivePath -Force
 Remove-Item -LiteralPath $DeployDir -Recurse -Force
-Write-Host "`nDeployment upload completed. Run the live smoke checks before DNS cutover." -ForegroundColor Green
+
+# tmp/restart.txt is Phusion Passenger's mechanism. This host runs LiteSpeed with
+# the CloudLinux Node.js selector, which ignores it: the old process keeps serving
+# while the new release sits unused on disk, and the deploy reports success for a
+# release the site never received. A stale process also 404s the new static
+# chunks, so their reachability is a reliable liveness probe.
+Write-Step "Verifying the new build is live"
+if (-not $probeAssetName) {
+    Write-Host "    No CSS chunk available to probe; skipping liveness check." -ForegroundColor Yellow
+} else {
+    $probeUrl = "$($AppUrl.TrimEnd('/'))/_next/static/chunks/$probeAssetName"
+    $live = $false
+    foreach ($attempt in 1..12) {
+        Start-Sleep -Seconds 5
+        try {
+            if ((Invoke-WebRequest -Uri $probeUrl -TimeoutSec 30 -SkipHttpErrorCheck).StatusCode -eq 200) {
+                $live = $true
+                break
+            }
+        } catch {
+            # Keep polling; the app may still be coming back up.
+        }
+    }
+    if (-not $live) {
+        Stop-Deploy @"
+The release uploaded and extracted, but the running application is still serving
+the previous build. $probeUrl never became reachable.
+
+Restart the application to finish the deploy:
+  cPanel > Setup Node.js App > $AppRoot > Restart
+or over SSH:
+  cloudlinux-selector restart --json --interpreter nodejs --user $CpanelUser --app-root $AppRoot
+
+No rollback is needed. The previous build is still running and healthy.
+"@
+    }
+    Write-OK "New build is serving ($probeAssetName)"
+}
+
+Write-Host "`nDeployment completed. Run the live smoke checks before DNS cutover." -ForegroundColor Green
