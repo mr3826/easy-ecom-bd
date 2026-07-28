@@ -19,7 +19,8 @@ param(
     [string]$ConfirmAppRoot,
     [string]$RestartToken = $env:DEPLOY_RESTART_TOKEN,
     [switch]$SkipBuild,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$SelfTestReaper
 )
 
 Set-StrictMode -Version Latest
@@ -112,14 +113,16 @@ function Remove-Reaper {
     # The linekey changes whenever the crontab is rewritten, so it is re-read
     # here rather than remembered from when the entry was added. Trusting a
     # stale key is how a kill-every-minute cron once survived a deploy.
+    # Every call site wraps in @(): PowerShell unwraps a one-element array on
+    # return, and .Count on the resulting scalar is fatal under StrictMode.
     foreach ($attempt in 1..3) {
-        $keys = Get-ReaperLineKeys
+        $keys = @(Get-ReaperLineKeys)
         if (-not $keys.Count) { return $true }
         foreach ($key in $keys) {
             Invoke-CpanelApi2 -Module "Cron" -Function "remove_line" -Arguments @{ linekey = $key } | Out-Null
         }
     }
-    return -not (Get-ReaperLineKeys).Count
+    return -not @(Get-ReaperLineKeys).Count
 }
 
 <#
@@ -144,7 +147,7 @@ function Invoke-OrphanReaper {
     # Confirm by reading it back. A truthy API response is not proof the entry
     # exists, and an unnoticed failure here would strand the deploy waiting on a
     # reaper that was never running.
-    if (-not $installed -or -not (Get-ReaperLineKeys).Count) {
+    if (-not $installed -or -not @(Get-ReaperLineKeys).Count) {
         Remove-Reaper | Out-Null
         Stop-Deploy "Could not install the orphan reaper cron entry."
     }
@@ -201,6 +204,29 @@ if (-not $DryRun -and -not $CpanelApiToken) {
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Stop-Deploy "Node.js is not available." }
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { Stop-Deploy "npm is not available." }
 if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) { Stop-Deploy "curl.exe is not available." }
+
+<#
+Exercises the cron install / detect / remove path with a command that touches
+nothing. That path has the worst failure mode in this script — a crash between
+installing the reaper and removing it leaves a cron killing the application
+every minute — so it gets a way to be tested without pointing it at production.
+#>
+if ($SelfTestReaper) {
+    Write-Step "Reaper self-test — harmless command, no process is touched"
+    $script:ReapCommand = "echo next-server-selftest > /dev/null"
+
+    $before = @(Get-ReaperLineKeys).Count
+    if ($before) { Stop-Deploy "A reaper-like cron entry already exists; clear it before self-testing." }
+
+    $result = Invoke-OrphanReaper -IsLive { $true } -TimeoutSeconds 30
+    $after = @(Get-ReaperLineKeys).Count
+
+    if (-not $result) { Stop-Deploy "Self-test failed: the reaper never reported success." }
+    if ($after) { Stop-Deploy "Self-test FAILED: $after reaper entr(y/ies) left behind. Remove them in cPanel > Cron Jobs." }
+
+    Write-OK "Self-test passed: entry installed, detected, removed, and absence confirmed."
+    exit 0
+}
 
 $releaseCommit = (& git -C $ProjectRoot rev-parse HEAD 2>$null)
 if (-not $releaseCommit) { Stop-Deploy "Could not resolve the release commit with git rev-parse HEAD." }
