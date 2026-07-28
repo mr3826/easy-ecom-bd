@@ -100,6 +100,43 @@ Overflow matrix — all passing:
       × 320, 360, 375, 390, 412, 768, 1024, 1280, 1440 px
 ```
 
+## Deployment
+
+Deployed to `https://bornohin.com` and confirmed live. Commit `fa6089c`, BUILD_ID `OltvbT2HjQcApouQfFBrT`, CSS chunk `1ml02lit94b2i.css`.
+
+**The deploy initially failed its own liveness check** — and that was the correct outcome. Files uploaded and extracted, but the site kept serving the previous build (`2-_i8m2cygyy0.css`). The verification step added in the prior session caught it instead of reporting a false success.
+
+Root cause was the same as last time: **two `next-server` processes orphaned to PPID 1** (~7.5h uptime). Because their parent is init, Passenger can no longer see them, so `restart.txt`, the cPanel Restart button and `cloudlinux-selector restart` all report success without recycling anything. Resolved by killing only the PPID=1 orphans — a healthy Passenger-parented process is never matched — after which Passenger respawned on the new build.
+
+Two host-specific traps worth recording, both of which cost time previously:
+
+- `Cron` is missing from UAPI on this host; the legacy API2 endpoint works. `Fileman` also lacks `trash_files`/`unlink_files` — use API2 `fileop&op=unlink`.
+- **An unescaped `%` in a crontab command terminates the line**, silently turning the remainder into stdin. Every probe command here is `%`-free for that reason.
+
+Cleanup completed: cron entry removed (crontab back to its original single `MAILTO=` line), both probe logs deleted from `/home/bornohin/`.
+
+### Production verification (post-deploy, against `https://bornohin.com`)
+
+```
+$ E2E_BASE_URL=https://bornohin.com npx playwright test \
+    e2e/foundations.spec.ts e2e/overflow.spec.ts --project=desktop-1280 --no-deps
+  22 passed (1.4m)
+
+$ E2E_BASE_URL=https://bornohin.com npx playwright test \
+    e2e/admin.spec.ts e2e/storefront.spec.ts --project=mobile-375
+  12 passed (18.7s)
+
+$ E2E_BASE_URL=https://bornohin.com npx playwright test \
+    e2e/admin.spec.ts --project=desktop-1280
+  6 passed, 1 skipped (10.5s)
+```
+
+Smoke: `/`, `/shop`, `/cart`, `/checkout`, `/login`, `/track-order`, `/api/health`, `/api/health/ready` → all 200.
+
+Live CSS chunk confirmed to contain the 16px input rule, the reduced-motion block and the z-index scale, and to no longer contain the dead `.scroll-pad-bottom`. Live `<meta name="viewport">` includes `viewport-fit=cover`. Live checkout phone input carries `type="tel" inputMode="numeric" autoComplete="tel"`.
+
+**Admin was verified through a real browser, not curl.** A curl form POST returns 200 without authenticating, because the login form is a React server action and curl bypasses the RSC action path entirely — it would have reported success either way. Playwright drives the real path; all four admin routes render, each with exactly one `<h1>`.
+
 ## Before / after evidence
 
 | Check | Before | After |

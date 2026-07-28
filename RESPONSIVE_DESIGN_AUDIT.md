@@ -64,6 +64,18 @@ All commands run against the local stack; see `RESPONSIVE_IMPLEMENTATION_REPORT.
 | `npm run build` | succeeded; postbuild standalone patch applied |
 | Horizontal overflow | **15 public routes × 9 widths (320→1440) — zero overflow** |
 
+### Re-verified against production after deploy
+
+Deployed as `fa6089c` (BUILD_ID `OltvbT2HjQcApouQfFBrT`) and re-run against `https://bornohin.com`:
+
+| Suite | Result |
+|---|---|
+| foundations + overflow (desktop) | **22 passed** |
+| admin + storefront (mobile-375) | **12 passed** |
+| admin (desktop-1280) | **6 passed**, 1 skipped |
+
+The deploy's own liveness check initially **failed** — files landed but two `next-server` processes orphaned to PPID 1 kept serving the previous build, so no restart mechanism could recycle them. Killing only the orphans let Passenger respawn on the new build. Details in `RESPONSIVE_IMPLEMENTATION_REPORT.md`.
+
 ### One caveat on how verification was done
 
 This project's Next dev server keeps a persistent filesystem cache on a bind mount. **Three separate source changes (the `viewport` export, the checkout input attributes, and the `@layer` correction) did not appear in served HTML until the container was restarted** — the files were correct on both host and container the whole time. Any future verification here must restart `easy-ecom-app-1` before trusting rendered output, or it will confirm stale markup.
