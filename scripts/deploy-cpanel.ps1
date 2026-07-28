@@ -25,6 +25,13 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# A shell started before the variable was persisted keeps the old environment,
+# so fall back to the stored user value rather than silently deploying without
+# the ability to stop a stale process.
+if (-not $RestartToken -and $IsWindows) {
+    $RestartToken = [Environment]::GetEnvironmentVariable("DEPLOY_RESTART_TOKEN", "User")
+}
+
 if (-not $ProjectRoot) {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
     $ProjectRoot = Split-Path -Parent $scriptDir
@@ -42,8 +49,9 @@ function Stop-Deploy { param([string]$Text) throw $Text }
 # exactly what it saw rather than only that it gave up.
 $script:DeployLog = [System.Collections.Generic.List[object]]::new()
 function Add-DeployLog {
-    param([string]$Event, [hashtable]$Data = @{})
-    $entry = [ordered]@{ at = (Get-Date).ToUniversalTime().ToString("o"); event = $Event }
+    # Not $Event: that is a PowerShell automatic variable.
+    param([string]$EventName, [hashtable]$Data = @{})
+    $entry = [ordered]@{ at = (Get-Date).ToUniversalTime().ToString("o"); event = $EventName }
     foreach ($key in $Data.Keys) { $entry[$key] = $Data[$key] }
     $script:DeployLog.Add([pscustomobject]$entry) | Out-Null
 }
@@ -93,7 +101,10 @@ $script:ReapCommand = 'ps -eo pid,ppid,args | awk ''$2==1 && /next-server/ {prin
 function Get-ReaperLineKeys {
     $response = Invoke-CpanelApi2 -Module "Cron" -Function "fetchcron"
     return @($response.cpanelresult.data |
-        Where-Object { $_.command -and $_.command.Contains("next-server") } |
+        # Environment lines such as MAILTO= come back with no 'command' property
+        # at all, and Set-StrictMode turns a bare $_.command on those into a
+        # terminating error — which once left the reaper running.
+        Where-Object { $_.PSObject.Properties['command'] -and "$($_.command)".Contains("next-server") } |
         ForEach-Object { $_.linekey })
 }
 
@@ -130,7 +141,13 @@ function Invoke-OrphanReaper {
         month   = "*"
         weekday = "*"
     }
-    if (-not $installed) { Stop-Deploy "Could not install the orphan reaper cron entry." }
+    # Confirm by reading it back. A truthy API response is not proof the entry
+    # exists, and an unnoticed failure here would strand the deploy waiting on a
+    # reaper that was never running.
+    if (-not $installed -or -not (Get-ReaperLineKeys).Count) {
+        Remove-Reaper | Out-Null
+        Stop-Deploy "Could not install the orphan reaper cron entry."
+    }
 
     $live = $false
     try {
@@ -610,13 +627,24 @@ while ((Get-Date) -lt $deadline) {
     }
     Write-Warn "pid $($version.pid) still on commit $($version.commit) (status $($version.status))"
 
-    if ($RestartToken -and $restartRequests -lt 6) {
-        $restartRequests += 1
-        $status = Request-AppRestart
-        Add-DeployLog "self_restart_requested" @{ attempt = $restartRequests; httpStatus = $status; targetPid = $version.pid }
-        Write-Warn "asked pid $($version.pid) to exit (attempt $restartRequests, http $status)"
-        Start-Sleep -Seconds 5
+    if (-not $RestartToken -or $restartRequests -ge 6) { continue }
+
+    $restartRequests += 1
+    $status = Request-AppRestart
+    Add-DeployLog "self_restart_requested" @{ attempt = $restartRequests; httpStatus = $status; targetPid = $version.pid }
+    Write-Warn "asked pid $($version.pid) to exit (attempt $restartRequests, http $status)"
+
+    if ($status -eq 404) {
+        # The running build has no restart endpoint — retrying cannot help, and
+        # waiting out the deadline only delays the reaper that will fix it.
+        Write-Warn "That build has no restart endpoint; going straight to the reaper."
+        break
     }
+    if ($status -eq 401) {
+        Write-Warn "Restart rejected: the running build holds a different DEPLOY_RESTART_TOKEN."
+        break
+    }
+    Start-Sleep -Seconds 5
 }
 
 if (-not $liveVersion) {
