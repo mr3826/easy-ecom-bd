@@ -39,6 +39,14 @@
     color-scheme: light;
     --tap-min: 2.75rem;
     --safe-bottom: max(env(safe-area-inset-bottom), 0px);
+
+    /* Single stacking scale. Overlays sit above the sticky header, drawers
+       above their own scrim. Anything reaching for a bare z-[60] belongs here
+       instead. */
+    --z-raised: 1;
+    --z-header: 40;
+    --z-scrim: 50;
+    --z-drawer: 60;
   }
 
   html,
@@ -57,6 +65,21 @@
     max-width: 100%;
     height: auto;
   }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }
 
 @layer utilities {
@@ -68,14 +91,19 @@
   .safe-bottom {
     padding-bottom: max(0.75rem, var(--safe-bottom));
   }
-
-  .scroll-pad-bottom {
-    scroll-padding-bottom: calc(4.5rem + var(--safe-bottom));
-  }
 }
 
-html {
-  scroll-behavior: smooth;
+/* DELIBERATELY UNLAYERED. iOS Safari zooms the viewport when a focused control
+   renders under 16px and never zooms back out. The ~135 inputs in this app carry
+   Tailwind's `text-sm` (14px), which lives in @layer utilities and therefore
+   beats anything in @layer base — so the rule has to sit outside the layer
+   system to win. Scoped to font-size on form controls only, so unlike the
+   previous unlayered `height: auto` reset it cannot silently defeat sizing
+   utilities elsewhere. */
+input,
+select,
+textarea {
+  font-size: max(16px, 1rem);
 }
 
 body {

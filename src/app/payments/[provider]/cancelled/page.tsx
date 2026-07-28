@@ -10,7 +10,7 @@ export default async function PaymentCancelledPage({
   const { paymentId } = await searchParams;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-12">
+    <main className="mx-auto flex min-h-svh max-w-3xl items-center px-4 py-12">
       <div className="w-full rounded-[2rem] border border-[color:var(--border)] bg-white p-6 shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--muted)]">Payment cancelled</p>
         <h1 className="mt-2 text-2xl font-black uppercase tracking-tight text-[color:var(--foreground)] sm:text-3xl">The order remains unpaid.</h1>

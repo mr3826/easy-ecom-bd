@@ -66,7 +66,7 @@ export default async function TrackOrderPage({
           <form method="get" action="/track-order" className="grid gap-4">
             <label className="grid gap-2 text-sm font-medium text-[color:var(--foreground)]">
               Invoice number
-              <input name="code" defaultValue={trackingCode} className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 outline-none" placeholder="Enter invoice number" />
+              <input name="code" defaultValue={trackingCode} autoComplete="off" autoCapitalize="characters" spellCheck={false} enterKeyHint="search" className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 outline-none" placeholder="Enter invoice number" />
             </label>
             <button className="w-fit rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white">Track order</button>
           </form>

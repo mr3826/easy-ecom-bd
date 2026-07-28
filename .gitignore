@@ -48,3 +48,6 @@ next-env.d.ts
 # generated local release and workspace artifacts
 /.kilo/
 /deploy-package/
+e2e/.auth/
+test-results/
+playwright-report/

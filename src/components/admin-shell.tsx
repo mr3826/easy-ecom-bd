@@ -43,8 +43,8 @@ export async function AdminShell({
 }) {
   const settings = await getSettings();
   return (
-    <div className="admin-shell min-h-screen bg-[radial-gradient(circle_at_top,#fff3de_0%,#f5efe5_34%,#eef2f6_100%)] text-[color:var(--foreground)]">
-      <div className="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+    <div className="admin-shell min-h-svh bg-[radial-gradient(circle_at_top,#fff3de_0%,#f5efe5_34%,#eef2f6_100%)] text-[color:var(--foreground)]">
+      <div className="min-h-svh lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
         <div className="border-b border-[color:var(--border)] bg-white/90 px-4 py-4 backdrop-blur lg:hidden">
           <details className="group rounded-[1.5rem] border border-[color:var(--border)] bg-white p-4 shadow-[0_18px_40px_rgba(61,39,35,0.06)]">
             <summary className="flex list-none items-center justify-between gap-4">
@@ -54,7 +54,7 @@ export async function AdminShell({
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-[11px] font-semibold uppercase tracking-[0.28em] text-[color:var(--muted)]">{settings.logoText}</p>
-                  <h1 className="mt-1 truncate text-lg font-semibold text-[color:var(--foreground)]">{settings.storeName}</h1>
+                  <p className="mt-1 truncate text-lg font-semibold text-[color:var(--foreground)]">{settings.storeName}</p>
                 </div>
               </div>
               <span className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--brand)] group-open:text-[color:var(--muted)]">
@@ -85,7 +85,7 @@ export async function AdminShell({
           </details>
         </div>
 
-        <aside className="hidden min-h-screen border-r border-[color:var(--border)] bg-white/90 px-5 py-6 backdrop-blur lg:flex lg:flex-col">
+        <aside className="hidden min-h-svh border-r border-[color:var(--border)] bg-white/90 px-5 py-6 backdrop-blur lg:flex lg:flex-col">
           <div className="mb-8 rounded-[1.75rem] border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4 shadow-[0_18px_40px_rgba(61,39,35,0.06)]">
             <div className="flex items-center gap-3">
               <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-[1.25rem] border border-[color:var(--border)] bg-white p-2">
@@ -93,7 +93,7 @@ export async function AdminShell({
               </span>
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-[color:var(--muted)]">{settings.logoText}</p>
-                <h1 className="mt-1 truncate text-xl font-semibold text-[color:var(--foreground)]">{settings.storeName}</h1>
+                <p className="mt-1 truncate text-xl font-semibold text-[color:var(--foreground)]">{settings.storeName}</p>
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-[color:var(--muted)]">

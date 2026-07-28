@@ -54,7 +54,7 @@ export async function PublicShell({
     : buildFallbackCartSummary();
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff3de_0%,#f5efe5_34%,#eef2f6_100%)] text-[color:var(--foreground)]">
+    <div className="min-h-svh bg-[radial-gradient(circle_at_top,#fff3de_0%,#f5efe5_34%,#eef2f6_100%)] text-[color:var(--foreground)]">
       <SiteAnalytics />
       <SiteHeader
         storeName={settings.storeName}

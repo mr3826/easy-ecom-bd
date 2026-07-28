@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Search, ShoppingCart, Menu, X, CircleUserRound, ChevronDown, Heart, Trash2, Minus, Plus } from "lucide-react";
+import { Search, ShoppingCart, Menu, CircleUserRound, ChevronDown, Heart, Trash2, Minus, Plus } from "lucide-react";
 import { money } from "@/lib/utils";
 import { storefrontCategoryRail, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
@@ -11,6 +11,8 @@ import { SiteLogo } from "@/components/site-logo";
 import { LogoutButton } from "@/components/logout-button";
 import { addToCartAction, clearCartAction, removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
 import { readWishlistItems, removeWishlistItem, type WishlistItem } from "@/lib/wishlist";
+import { Drawer } from "@/components/ui/drawer";
+import { Button } from "@/components/ui/button";
 
 type CartSummaryItem = {
   id: string;
@@ -214,10 +216,12 @@ export function SiteHeader({
 
       {accountOpen ? (
         <div className="fixed inset-0 z-50" role="presentation" onClick={() => setAccountOpen(false)}>
+          {/* A disclosure popover, not a modal. It previously claimed
+              aria-modal="true" without trapping focus, which tells assistive
+              tech the rest of the page is inert when it is not. The trigger's
+              aria-expanded/aria-controls is the correct contract here. */}
           <div
             id="account-popover"
-            role="dialog"
-            aria-modal="true"
             aria-label="Account options"
             className="absolute right-4 top-24 w-[min(92vw,20rem)] rounded-[1.5rem] border border-[color:var(--border)] bg-white p-3 shadow-[0_24px_80px_rgba(139,0,0,0.14)] sm:top-28 lg:right-8 lg:top-24"
             onClick={(event) => event.stopPropagation()}
@@ -275,37 +279,44 @@ export function SiteHeader({
         </div>
       ) : null}
 
-      {activePanel ? <div className="fixed inset-0 z-50 bg-black/45" role="presentation" onClick={closeAllOverlays} /> : null}
-
       {activePanel === "cart" ? (
-        <aside
-          id="cart-drawer"
-          className="fixed inset-y-0 right-0 z-[60] flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)] sm:w-[min(100vw,26rem)] sm:max-w-[26rem]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Shopping cart"
-        >
-          <div className="shrink-0 border-b border-[color:var(--border)] px-4 py-4 sm:px-5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="text-2xl text-[color:var(--brand)]">🛒</span>
-                <div className="min-w-0">
-                  <p className="truncate text-[11px] font-semibold uppercase tracking-[0.24em] text-[color:var(--muted)]">Shopping Cart ({cartSummary.itemCount})</p>
-                  <h2 className="mt-1 truncate text-xl font-semibold text-[color:var(--foreground)]">Shopping Cart</h2>
+        <Drawer
+          open
+          onClose={closeAllOverlays}
+          title="Shopping cart"
+          description={`${cartSummary.itemCount} item${cartSummary.itemCount === 1 ? "" : "s"}`}
+          footer={
+            <>
+              <dl className="space-y-4 text-sm">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[color:var(--muted)]">Subtotal</dt>
+                  <dd className="text-base font-medium text-[color:var(--brand)]">{money(cartSummary.subtotal)}</dd>
                 </div>
-              </div>
-              <button
-                type="button"
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-[color:var(--muted)]">Delivery</dt>
+                  <dd className="text-base font-medium text-[color:var(--brand)]">৳70 - ৳150</dd>
+                </div>
+                <div className="flex items-center justify-between gap-3 border-t border-[color:var(--border)] pt-4">
+                  <dt className="text-base font-semibold text-[color:var(--foreground)]">Total</dt>
+                  <dd className="text-2xl font-bold text-[color:var(--brand)]">{money(cartSummary.subtotal)}</dd>
+                </div>
+              </dl>
+              <Link
+                href="/checkout"
                 onClick={closeAllOverlays}
-                className="touch-target inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
-                aria-label="Close cart drawer"
+                className="touch-target mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-[color:var(--accent)] px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(184,134,11,0.18)] transition hover:bg-[color:var(--brand)]"
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5 sm:py-6">
+                Proceed to Checkout
+              </Link>
+              <form action={clearCartAction} className="mt-3">
+                <Button type="submit" variant="secondary" fullWidth pendingWhileSubmitting pendingLabel="Clearing…">
+                  Clear Cart
+                </Button>
+              </form>
+            </>
+          }
+        >
+          <div>
             <div className="rounded-[1.5rem] border border-[#f2d37a] bg-gradient-to-r from-[#fff3cc] to-[#fff7df] p-4 shadow-[0_12px_30px_rgba(0,0,0,0.04)]">
               <div className="flex items-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#ffe7a8] text-xl">🎁</div>
@@ -395,72 +406,27 @@ export function SiteHeader({
               )}
             </div>
           </div>
-
-          <div className="shrink-0 border-t border-[color:var(--border)] bg-white px-4 py-5 sm:px-5">
-            <dl className="space-y-4 text-sm">
-              <div className="flex items-center justify-between">
-                <dt className="text-[color:var(--muted)]">Subtotal:</dt>
-                <dd className="text-base font-medium text-[color:var(--brand)]">{money(cartSummary.subtotal)}</dd>
-              </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-[color:var(--muted)]">Delivery:</dt>
-                <dd className="text-base font-medium text-[color:var(--brand)]">৳70 - ৳150</dd>
-              </div>
-              <div className="border-t border-[color:var(--border)] pt-4">
-                <div className="flex items-center justify-between">
-                  <dt className="text-base font-semibold text-[color:var(--foreground)]">Total:</dt>
-                  <dd className="text-2xl font-bold text-[color:var(--brand)]">{money(cartSummary.subtotal)}</dd>
-                </div>
-              </div>
-            </dl>
-
-            <Link
-              href="/checkout"
-              onClick={closeAllOverlays}
-              className="mt-5 inline-flex w-full items-center justify-center rounded-2xl bg-[color:var(--accent)] px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(184,134,11,0.18)] transition hover:bg-[color:var(--brand)]"
-            >
-              Proceed to Checkout
-            </Link>
-            <form action={clearCartAction} className="mt-3">
-              <button
-                type="submit"
-                className="inline-flex w-full items-center justify-center rounded-2xl border border-[color:var(--border)] bg-white px-5 py-4 text-sm font-medium text-[color:var(--foreground)] transition hover:border-[color:var(--brand)] hover:text-[color:var(--brand)]"
-              >
-                Clear Cart
-              </button>
-            </form>
-          </div>
-        </aside>
+        </Drawer>
       ) : null}
 
       {activePanel === "wishlist" ? (
-        <aside
-          id="wishlist-drawer"
-          className="fixed inset-y-0 right-0 z-[60] flex h-dvh max-h-dvh w-full max-w-none flex-col overflow-hidden border-l border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)] sm:w-[min(100vw,30rem)] sm:max-w-[30rem]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Wishlist"
+        <Drawer
+          open
+          onClose={closeAllOverlays}
+          title="My wishlist"
+          description={`${wishlistItems.length} saved item${wishlistItems.length === 1 ? "" : "s"}`}
+          className="sm:w-[min(100vw,30rem)]"
+          footer={
+            <Link
+              href="/shop"
+              onClick={closeAllOverlays}
+              className="touch-target inline-flex w-full items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
+            >
+              Continue Shopping
+            </Link>
+          }
         >
-          <div className="shrink-0 border-b border-[color:var(--border)] px-4 py-4 sm:px-5">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <Heart className="h-6 w-6 shrink-0 text-[color:var(--brand)]" />
-                <div className="min-w-0">
-                  <h2 className="truncate text-xl font-semibold text-[color:var(--foreground)]">My Wishlist ({wishlistItems.length})</h2>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={closeAllOverlays}
-                className="touch-target inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[color:var(--muted)] transition hover:bg-[color:var(--surface-soft)] hover:text-[color:var(--foreground)]"
-                aria-label="Close wishlist drawer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-5 sm:py-6">
+          <div>
             <div className="space-y-4">
               {wishlistItems.length ? (
                 wishlistItems.map((item) => (
@@ -503,43 +469,18 @@ export function SiteHeader({
               )}
             </div>
           </div>
-
-          <div className="shrink-0 border-t border-[color:var(--border)] bg-white px-4 py-5 sm:px-5">
-            <Link
-              href="/shop"
-              onClick={closeAllOverlays}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-[color:var(--brand)] px-5 py-4 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
-            >
-              Continue Shopping
-            </Link>
-          </div>
-        </aside>
+        </Drawer>
       ) : null}
 
       {mobileOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/45 lg:hidden" role="presentation" onClick={closeAllOverlays}>
-          <div
-            className="ml-auto flex h-full w-[min(92vw,24rem)] flex-col overflow-y-auto bg-white shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Mobile navigation"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-[color:var(--border)] px-4 py-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--muted)]">Menu</p>
-                <p className="mt-1 text-base font-bold text-[color:var(--foreground)]">{storeName}</p>
-              </div>
-              <button
-                type="button"
-                onClick={closeAllOverlays}
-                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white"
-                aria-label="Close navigation menu"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
+        <Drawer
+          open
+          onClose={closeAllOverlays}
+          title="Menu"
+          description={storeName}
+          className="sm:w-[min(92vw,24rem)]"
+        >
+          <div className="-mx-4 sm:-mx-6">
             <form onSubmit={submitSearch} className="border-b border-[color:var(--border)] p-4">
               <label className="grid gap-2 text-sm font-medium text-[color:var(--foreground)]">
                 Search
@@ -547,14 +488,17 @@ export function SiteHeader({
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search products"
+                  type="search"
+                  autoComplete="off"
+                  enterKeyHint="search"
                   className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 outline-none"
                 />
               </label>
               <button
                 type="submit"
-                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--brand)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white"
+                className="touch-target mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--brand)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white"
               >
-                <Search className="h-4 w-4" />
+                <Search className="h-4 w-4" aria-hidden="true" />
                 Search
               </button>
             </form>
@@ -617,51 +561,40 @@ export function SiteHeader({
               <p className="mt-2 leading-6">Call {contactNumber} or email {supportEmail} for store support.</p>
             </div>
           </div>
-        </div>
+        </Drawer>
       ) : null}
 
       {searchOpen ? (
-        <div className="fixed inset-0 z-50 bg-black/45" role="presentation" onClick={() => setSearchOpen(false)}>
-          <div
-            className="mx-auto mt-20 w-[min(92vw,42rem)] rounded-[2rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_24px_80px_rgba(139,0,0,0.22)]"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Search products"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--muted)]">Search</p>
-                <p className="mt-1 text-lg font-bold text-[color:var(--foreground)]">Find a product or collection</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSearchOpen(false)}
-                className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white"
-                aria-label="Close search dialog"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={submitSearch} className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <Drawer
+          open
+          onClose={() => setSearchOpen(false)}
+          side="top"
+          title="Search"
+          description="Find a product or collection"
+        >
+          <form onSubmit={submitSearch} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <label className="grid gap-2">
+              <span className="sr-only">Search products</span>
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 autoFocus
                 placeholder="Search products"
-                className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 outline-none"
+                type="search"
+                autoComplete="off"
+                enterKeyHint="search"
+                className="w-full rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 outline-none"
               />
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--brand)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white"
-              >
-                <Search className="h-4 w-4" />
-                Search store
-              </button>
-            </form>
-          </div>
-        </div>
+            </label>
+            <button
+              type="submit"
+              className="touch-target inline-flex items-center justify-center gap-2 rounded-full bg-[color:var(--brand)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white"
+            >
+              <Search className="h-4 w-4" aria-hidden="true" />
+              Search store
+            </button>
+          </form>
+        </Drawer>
       ) : null}
     </header>
   );

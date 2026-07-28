@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { getCurrentUser } from "@/server/auth";
 import { getOrCreateCart, getCartSummary, getSettings } from "@/server/store";
 import { checkoutAction } from "@/app/actions";
+import { Button } from "@/components/ui/button";
 import { money } from "@/lib/utils";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
 
@@ -57,14 +58,21 @@ export default async function CheckoutPage() {
                 <input
                   name="customerName"
                   required
+                  autoComplete="name"
                   defaultValue={user?.name ?? ""}
                   className={fieldClass}
                 />
               </label>
               <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
                 <span className="font-medium">Phone</span>
+                {/* type=tel + inputMode=numeric is what opens a numeric keypad
+                    instead of a full QWERTY on the single most-typed field in
+                    the whole funnel. */}
                 <input
                   name="customerPhone"
+                  type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   required
                   defaultValue={user?.phone ?? ""}
                   className={fieldClass}
@@ -78,6 +86,7 @@ export default async function CheckoutPage() {
                 <input
                   name="district"
                   required
+                  autoComplete="address-level1"
                   placeholder="Dhaka"
                   className={fieldClass}
                 />
@@ -87,6 +96,8 @@ export default async function CheckoutPage() {
                 <input
                   name="customerEmail"
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   defaultValue={user?.email ?? ""}
                   className={fieldClass}
                 />
@@ -99,6 +110,7 @@ export default async function CheckoutPage() {
                 name="shippingAddress"
                 rows={4}
                 required
+                autoComplete="street-address"
                 placeholder="House, road, area, landmark"
                 className={fieldClass}
               />
@@ -109,6 +121,8 @@ export default async function CheckoutPage() {
               <input
                 name="couponCode"
                 placeholder="Optional"
+                autoComplete="off"
+                autoCapitalize="characters"
                 className={fieldClass}
               />
             </label>
@@ -155,9 +169,19 @@ export default async function CheckoutPage() {
               <span className="shrink-0 rounded-full bg-[color:var(--surface-soft)] px-3 py-2">Support answers fast</span>
             </div>
 
-            <button className="touch-target inline-flex w-full items-center justify-center rounded-full bg-[color:var(--brand)] px-5 py-3.5 text-sm font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-[color:var(--accent)]">
+            {/* Disables itself for the duration of the server action. Without
+                this a double-tap on a slow mobile connection submits twice and
+                creates two orders. */}
+            <Button
+              type="submit"
+              size="lg"
+              fullWidth
+              pendingWhileSubmitting
+              pendingLabel="Placing your order…"
+              className="uppercase tracking-[0.18em]"
+            >
               Place order and continue
-            </button>
+            </Button>
           </form>
         </div>
 

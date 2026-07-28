@@ -49,7 +49,7 @@ export default async function PaymentSuccessPage({
   const { paymentId } = params;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl items-center px-4 py-12">
+    <main className="mx-auto flex min-h-svh max-w-3xl items-center px-4 py-12">
       <div className="w-full rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6 text-emerald-950 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-emerald-700">Payment confirmed</p>
         <h1 className="mt-2 text-2xl font-black uppercase tracking-tight sm:text-3xl">The order is now paid.</h1>

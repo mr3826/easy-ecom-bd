@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { saveProductAction } from "@/app/admin/actions";
 import { ProductImageUploader } from "@/components/admin/product-image-uploader";
 import { ProductVariantEditor } from "@/components/admin/product-variant-editor";
+import { Button } from "@/components/ui/button";
 import type { Brand, Category, Product, ProductImage } from "@/lib/domain";
 import {
   normalizeProductMetadata,
@@ -131,12 +132,9 @@ export function ProductEditorForm({
                 {isEditing ? `Editing ${product?.name ?? "product"}` : "New product mode"}
               </p>
               {!isEditing ? (
-                <button
-                  type="submit"
-                  className="inline-flex items-center justify-center rounded-full bg-[color:var(--brand)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
-                >
+                <Button type="submit" pendingWhileSubmitting pendingLabel="Creating…">
                   Create product
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
@@ -543,20 +541,19 @@ export function ProductEditorForm({
         </div>
 
         {isEditing ? (
-          <div className="flex flex-col gap-3 rounded-[2rem] border border-[color:var(--border)] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-[color:var(--muted)]">
+          // Sticky so Save stays reachable after scrolling a form this long.
+          // bottom-0 + safe-bottom keeps it clear of the iOS home indicator.
+          <div className="safe-bottom sticky bottom-0 z-[var(--z-raised)] -mx-1 flex flex-col gap-3 rounded-[2rem] border border-[color:var(--border)] bg-white/95 p-4 shadow-[0_-8px_24px_rgba(61,39,35,0.08)] backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-[color:var(--muted)] max-sm:sr-only">
               Images are saved locally, metadata is persisted in the product record, and storefront changes stay untouched until the follow-up integration pass.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
-                className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-[color:var(--brand)] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
-              >
+            <div className="flex flex-wrap gap-3 max-sm:grid max-sm:grid-cols-2">
+              <Button type="submit" pendingWhileSubmitting pendingLabel="Saving…">
                 Update product
-              </button>
+              </Button>
               <Link
                 href={createHref}
-                className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] px-6 py-3 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
+                className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] px-6 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
               >
                 Reset form
               </Link>

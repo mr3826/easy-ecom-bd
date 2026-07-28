@@ -121,7 +121,7 @@ export default async function AdminProductsPage({
         </div>
       </section>
 
-      <section className="grid gap-4 md:hidden">
+      <section className="grid gap-4 lg:hidden">
         {products.length ? (
           products.map((product) => {
             const categoryItem = categories.find((item) => item.id === product.categoryId);
@@ -196,7 +196,7 @@ export default async function AdminProductsPage({
         )}
       </section>
 
-      <section className="hidden overflow-hidden rounded-[2rem] border border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(61,39,35,0.06)] md:block">
+      <section className="hidden overflow-hidden rounded-[2rem] border border-[color:var(--border)] bg-white shadow-[0_24px_80px_rgba(61,39,35,0.06)] lg:block">
         <div className="flex flex-col gap-2 border-b border-[color:var(--border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
           <div>
             <h2 className="text-lg font-semibold text-[color:var(--foreground)] sm:text-xl">Catalog</h2>
@@ -207,7 +207,7 @@ export default async function AdminProductsPage({
           </p>
         </div>
         <div className="overflow-x-auto overscroll-contain px-4 py-2 sm:px-6">
-          <table className="w-full min-w-[900px] divide-y divide-[color:var(--border)] text-sm">
+          <table className="w-full min-w-[820px] divide-y divide-[color:var(--border)] text-sm">
             <thead className="bg-[color:var(--surface-soft)] text-[color:var(--muted)]">
               <tr>
                 <th className="px-6 py-4 text-left font-medium uppercase tracking-[0.18em]">Product</th>

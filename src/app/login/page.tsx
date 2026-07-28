@@ -24,11 +24,11 @@ export default function LoginPage() {
           <form action={loginAction} className="mt-8 grid gap-4">
             <label className="grid gap-2 text-sm">
               <span className="font-medium text-[color:var(--foreground)]">Email</span>
-              <input name="email" type="email" required className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 outline-none" />
+              <input name="email" type="email" inputMode="email" autoComplete="email" required className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 outline-none" />
             </label>
             <label className="grid gap-2 text-sm">
               <span className="font-medium text-[color:var(--foreground)]">Password</span>
-              <input name="password" type="password" required className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 outline-none" />
+              <input name="password" type="password" autoComplete="current-password" required className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 outline-none" />
             </label>
             <button className="inline-flex items-center justify-center rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white">
               Sign in
