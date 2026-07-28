@@ -2,6 +2,7 @@ import Link from "next/link";
 import { deleteBrandAction, saveBrandAction } from "@/app/admin/actions";
 import { listBrands } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
+import { Button } from "@/components/ui/button";
 
 export default async function AdminBrandsPage({
   searchParams,
@@ -53,7 +54,13 @@ export default async function AdminBrandsPage({
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <Link href={`/admin/brands?edit=${brand.id}`} className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)]">Edit</Link>
-              <form action={deleteBrandAction}><input type="hidden" name="id" value={brand.id} /><button className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)]">Delete</button></form>
+              <form action={deleteBrandAction}>
+                <input type="hidden" name="id" value={brand.id} />
+                {/* A delete must not look like the Edit link next to it. */}
+                <Button variant="danger" pendingWhileSubmitting pendingLabel="Deleting…">
+                  Delete
+                </Button>
+              </form>
             </div>
           </div>
         ))}

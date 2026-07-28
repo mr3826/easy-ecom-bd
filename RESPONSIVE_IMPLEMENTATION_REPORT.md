@@ -77,14 +77,17 @@ $ npx tsc --noEmit
 (no output)                                              exit 0
 
 $ DATABASE_URL=…@127.0.0.1:5432/ecommerce npm run test
- Test Files  10 passed (10)
-      Tests  30 passed (30)
-   Duration  8.89s
+ Test Files  14 passed (14)
+      Tests  57 passed (57)
+   Duration  27.04s
   (includes 12 DB-backed tests/persistence.test.ts cases)
 
 $ npx playwright test
-  17 skipped
-  50 passed (4.9m)
+  27 skipped
+  62 passed (5.4m)
+
+$ E2E_VISUAL=1 npx playwright test e2e/visual.spec.ts --project=desktop-1280 --no-deps
+  4 passed (1.5m)          # 20 baselines, re-run clean against themselves
 
 $ npm run build
   ✓ Compiled successfully
@@ -149,21 +152,78 @@ Live CSS chunk confirmed to contain the 16px input rule, the reduced-motion bloc
 | `<h1>` count per admin page | 2 | 1 |
 | Checkout phone input | `<input name="customerPhone" required>` | `type="tel" inputMode="numeric" autoComplete="tel"` |
 
+## Follow-up batch
+
+Requested after the responsive work landed. All five items plus both cleanup items were taken on.
+
+### 1. F14 — login error handling
+
+The finding was narrower than the symptom. `loginAction` threw on **every** failure, so a mistyped password was as fatal as a tripped limiter: a server action that throws reaches the client as an unhandled runtime error. It now returns state through `useActionState`.
+
+| Path | Behaviour |
+|---|---|
+| Wrong password / unknown address | Identical message, so the form cannot enumerate registered addresses |
+| Rate limited | "Too many login attempts. Please try again later." |
+| Unexpected failure | One generic line; the cause goes to the server log only |
+| Dropped connection | Caught by the new `app/error.tsx` with a working retry |
+| Success | Redirects by role — `redirect()` is called **outside** the try, because it signals by throwing and catching it would turn every login into a failure |
+
+The address survives a rejected attempt (React resets uncontrolled fields once an action settles, so the field is controlled); the password never does. Submit re-enables on its own via `useFormStatus`.
+
+Two further defects surfaced while testing this: no route-level error boundary at all (F15), and `global-error.tsx` rendering without the `<html>`/`<body>` Next requires of it (F16).
+
+**One rate-limit claim from the previous report was wrong.** It recorded the limiter as an app defect. It is not: driven correctly it blocks exactly on attempt 11, verified by instrumenting the running server. The earlier e2e loop asserted on a *stale* error banner and so raced ahead of the responses, never actually sending 11 requests. `attemptAndSettle()` now waits for each action's own response.
+
+### 2–3. Deployment determinism
+
+The operational risk was that a successful-looking deploy keeps serving the old build. Two new endpoints and a rewritten verification phase:
+
+| Piece | What it does |
+|---|---|
+| `GET /api/version` | Reports the commit **inlined into the running bundle** at build time, next to the commit in the `RELEASE.json` on disk. A process older than the files answers `409 {"status":"stale"}` — it cannot claim the release that was extracted underneath it. Also returns `pid` and a real `startedAt` derived from `process.uptime()`. |
+| `POST /api/deploy/restart` | Asks the process answering the request to exit. This is the only restart path that reaches a process orphaned to PPID 1, which `restart.txt`, the cPanel button and `cloudlinux-selector` all silently fail to recycle. Requires `DEPLOY_RESTART_TOKEN`; returns 404 when unset, so it is off by default. |
+
+The deploy script now records the pre-deploy commit and pid, extracts, then **polls `/api/version` and asks any stale process to exit** — up to six times — rather than trusting a restart command's exit code. It then samples the endpoint ten times to catch two processes serving different builds, fails if any pre-deploy pid still answers, corroborates with the static-asset probe, and appends every observation to `deploy-log.jsonl` with old/new commits, pids, timestamps and results. A failure states plainly that nothing was rolled back and the old build is still healthy.
+
+**Known bootstrapping gap:** the build currently live has neither endpoint, so the *next* deploy cannot self-restart and may still need a manual kill. Every deploy after that is deterministic. The script detects and reports this rather than pretending otherwise.
+
+### 4. One controlled COD order
+
+`e2e/cod-order.spec.ts` drives a real order through the UI end to end, then cancels it. Verified in one run: stock 24 → 23 on creation → 24 after cancellation; subtotal ৳1550 + delivery ৳80 = total ৳1630 consistent across checkout, tracking and admin; `pending → confirmed → cancelled` transitions accepted; the order visible in `/admin/orders` and on `/track-order`. Confirmed against the database afterwards, not just the UI.
+
+It refuses to run anywhere but localhost unless `E2E_ALLOW_REMOTE_ORDER=1`, and marks its customer `SMOKE TEST — do not fulfil`. All three smoke orders created during development are cancelled and stock is back to its seeded value.
+
+### 5. bKash — what could and could not be verified
+
+**No live or sandbox bKash call was made, and no sandbox credentials exist in this environment.** Nothing here validates bKash's own API.
+
+What *was* validated is our half of the contract, via `tests/bkash-callback-route.test.ts` — 11 cases against the real callback handler with real HMAC signing: signed paid/failed/cancelled/refunded routing, unsigned and wrongly-signed rejection, **tampered-body rejection** (valid signature, altered amount), non-bKash provider refusal, unknown status, missing reference, unconfigured secret, unknown payment, and duplicate-callback idempotency.
+
+**Material finding: bKash is not live in production.** `https://bornohin.com/checkout` renders its radio as `disabled`, so COD is currently the only usable method. The gate is `settings.bkashEnabled && getBkashIntegrationConfig().enabled` — check both the admin setting and the `BKASH_*` environment before assuming online payment works. The server-side guard is correct: an order is never created when bKash is unconfigured.
+
+### Cleanup items
+
+Destructive and save controls migrated to the shared `Button`: brand/category **Delete** now use the `danger` variant instead of looking identical to the Edit link beside them, and all three order status controls got pending guards. `e2e/visual.spec.ts` adds a 20-shot baseline (4 routes × 320/375/768/1024/1440), verified reproducible on a clean re-run. It is opt-in via `E2E_VISUAL=1` because baselines are per-platform and these are Windows/Chromium.
+
 ## Remaining limitations
 
 Stated plainly rather than omitted:
 
-1. **F14 — login rate-limit UX is unfixed.** Exceeding the limiter throws an unhandled error surfaced as a runtime overlay instead of a friendly message. Real P1, but an auth-flow concern; flagged for its owner.
-2. **F9 is partial.** ~30 admin buttons still carry inline class strings. The primitives exist and every risky path is migrated; the rest is mechanical.
-3. **No visual-regression baseline.** Out of the agreed scope. Overflow and layout are guarded mechanically, not pixel-wise.
+1. **`checkoutAction` still throws.** Empty cart, rate limit and unconfigured-bKash all take the path `loginAction` just left. `app/error.tsx` now catches them with a retry rather than a dead document, but the money path deserves the same returned-state treatment login got.
+2. **F9 is partial.** The destructive and order-status controls are migrated; roughly 25 admin buttons still carry inline class strings.
+3. **The visual baseline is opt-in and Windows-only.** It will not protect anyone who does not run it, and needs regenerating on another platform.
 4. **Not verified on physical hardware.** All mobile results come from Chromium emulation at 375×667 with touch and DPR 2. Real iOS Safari behaviour for the F4 zoom fix is inferred from the 16px rule being provably applied, not observed on a device.
-5. **`@layer` is now load-bearing in two directions.** The input rule is *deliberately unlayered* to beat Tailwind utilities, while the element resets are *deliberately layered* to lose to them. Both are commented in `globals.css`; anyone editing that file should read the comments first.
-6. **Dormant Nagad schema retained** — enum value plus three settings columns, all disabled and unreferenced by `src/`.
-7. **Dev-server caching** — see the caveat in the audit; a container restart is required before rendered output can be trusted.
+5. **bKash is unverified end to end** — see above. It is also switched off in production.
+6. **`/api/deploy/restart` is a self-shutdown endpoint.** It is off unless `DEPLOY_RESTART_TOKEN` is set, compares digests in constant time, and returns 404 when unconfigured — but it is still a documented way to drop a process. Use a long random token and rotate it with the rest.
+7. **`@layer` is load-bearing in two directions.** The input rule is *deliberately unlayered* to beat Tailwind utilities, while the element resets are *deliberately layered* to lose to them. Both are commented in `globals.css`; read them before editing that file.
+8. **Dormant Nagad schema retained** — enum value plus three settings columns, all disabled and unreferenced by `src/`.
+9. **Dev-server caching** — a container restart is required before rendered output can be trusted. New route files in particular are invisible until then.
 
 ## Changed files
 
 **New:** `src/components/ui/{button,field,drawer}.tsx`, `src/components/ui/use-overlay.ts`, `e2e/{foundations,overflow,storefront,admin}.spec.ts`, `e2e/{auth.setup,paths}.ts`, `playwright.config.ts`, `RESPONSIVE_DESIGN_AUDIT.md`, this file.
+
+**New in the follow-up batch:** `src/components/login-form.tsx`, `src/app/error.tsx`, `src/app/api/version/route.ts`, `src/app/api/deploy/restart/route.ts`, `e2e/{login,cod-order,visual}.spec.ts` (+ 20 baseline PNGs), `tests/{login-action,version-route,deploy-restart-route,bkash-callback-route}.test.ts`.
 
 **Modified:** `src/app/layout.tsx`, `src/app/globals.css`, `src/app/checkout/page.tsx`, `src/app/login/page.tsx`, `src/app/track-order/page.tsx`, `src/app/admin/products/page.tsx`, `src/app/global-error.tsx`, `src/app/payments/[provider]/{success,cancelled}/page.tsx`, `src/components/site-header.tsx`, `src/components/admin-shell.tsx`, `src/components/public-shell.tsx`, `src/components/admin/{product-editor-form,products-filter-drawer}.tsx`, `.env.example`, `.gitignore`, `package.json`.
 

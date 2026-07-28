@@ -40,13 +40,16 @@ Severity uses the brief's scale. **Evidence** is what proves the finding; **Test
 | F10 | `site-header`, filter drawer | Both | All | **Ad-hoc z-index** (`z-40`, `z-50`, `z-[60]`, `z-[1]`, `z-0`) with no scale — bare `z-[60]` being the escalation smell. | **P2** | Both components | `--z-raised/header/scrim/drawer` tokens in `@layer base`; drawers consume them | ✅ Fixed | — |
 | F11 | `globals.css` | — | — | `.scroll-pad-bottom` had **zero consumers** — dead CSS shipped by the previous sweep. | **P2** | 0 matches in `.tsx` | Deleted | ✅ Fixed | — |
 | F12 | `.env.example` | — | — | Stale `NAGAD_*` keys implied a second payment provider that does not exist in `src/`. | **P2** | `.env.example` | Removed 4 keys | ✅ Fixed | `payment-providers.test.ts` (pre-existing) |
-| F14 | `app/login` | Customer | All | **A rate-limited login throws an unhandled runtime error** instead of showing "too many attempts". Surfaced as a Next error overlay during testing. | **P1** | Reproduced while running the admin suite; `security.ts:158` throws | **Not fixed** — auth error handling is outside a responsive brief and the fix belongs with whoever owns the auth flow. Tests now authenticate once and reuse the session rather than hammering the limiter. | ⚠ Open | — |
+| F14 | `app/login` | Customer | All | **Every login failure threw out of the server action**, including an ordinary wrong password — a thrown server action reaches the client as an unhandled runtime error, so the page died rather than showing a message. The rate limit was simply the most visible case. | **P1** | Reproduced while running the admin suite; `actions.ts` threw on both the limiter and the credential check | `loginAction` now returns `{ error, email }` through `useActionState` instead of throwing; distinct copy for rate limiting, identical copy for unknown-address vs wrong-password, generic copy for anything unexpected. `redirect()` is called outside the try so its control-flow throw is not caught. | ✅ Fixed | `login-action.test.ts` ×6, `login.spec.ts` ×6 |
+| F15 | `app/` | Both | All | **No route-level error boundary.** Any client-side failure — including a server action whose request never completes — escalated straight to `global-error`, which replaces the whole document and offered no way back. | **P1** | Reproduced by aborting the action POST; the page rendered global-error | Added `app/error.tsx` with a working `reset()` retry | ✅ Fixed | `login.spec.ts` |
+| F16 | `app/global-error.tsx` | Both | All | **`global-error` rendered no `<html>`/`<body>`.** Next requires them because this boundary replaces the root layout; without them the last-resort fallback is malformed markup. | **P2** | `global-error.tsx` | Added the required elements | ✅ Fixed | — |
+| F17 | `app/checkout` | Customer | All | A disabled payment option still carried `cursor-pointer`, so an unavailable method invited a tap that could not work. | **P3** | `checkout/page.tsx:144` | `cursor-not-allowed` + reduced opacity when disabled | ✅ Fixed | — |
 
-**Counts:** P0 3 · P1 6 (5 fixed, 1 open) · P2 4 · P3 0.
+**Counts:** P0 3 · P1 7 (all fixed) · P2 5 · P3 1. No open findings.
 
 ## Deliberately not changed
 
-- **F14 login rate-limit UX** — a genuine P1, but fixing server-action error surfacing is an auth concern, not a responsive one. Flagged rather than silently absorbed.
+- **`checkoutAction` still throws.** Its failure modes — empty cart, rate limit, bKash unconfigured — take the same throwing path `loginAction` used to. `app/error.tsx` (F15) now catches them with a retry instead of a dead document, but converting checkout to a returned-state action is a larger change on the money path and was not in this batch.
 - **Dormant Nagad schema** — the enum value and three settings columns remain. Removing them is a destructive migration with no responsive benefit; the product surface already offers only COD + bKash, and a test now enforces that.
 - **Storefront variant purchasing** — the admin variant editor exists but checkout does not consume variants. No UI was added implying variant purchasing works.
 - **Long tail of F9** — roughly 30 admin buttons still carry inline class strings. The primitives exist and the risky paths (checkout, drawers, product editor) are migrated; converting the rest is mechanical follow-up with no behavioural change.
@@ -59,8 +62,8 @@ All commands run against the local stack; see `RESPONSIVE_IMPLEMENTATION_REPORT.
 |---|---|
 | `npx eslint` | exit 0, clean |
 | `npx tsc --noEmit` | exit 0, clean |
-| `npm run test` (vitest) | **30/30 passed**, incl. 12 DB-backed persistence tests |
-| `npx playwright test` | **50 passed, 0 failed** (17 skipped by design) |
+| `npm run test` (vitest) | **57/57 passed**, incl. 12 DB-backed persistence tests |
+| `npx playwright test` | **62 passed, 0 failed** (27 skipped by design) |
 | `npm run build` | succeeded; postbuild standalone patch applied |
 | Horizontal overflow | **15 public routes × 9 widths (320→1440) — zero overflow** |
 

@@ -8,6 +8,7 @@ import { deliveryStatuses, deliveryZones, orderStatuses, paymentProviders, payme
 import { money, shortDate } from "@/lib/utils";
 import { listOrders, listOrderStatusHistory, listProducts } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
+import { Button } from "@/components/ui/button";
 
 const orderFieldClass =
   "w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60";
@@ -172,9 +173,7 @@ export default async function AdminOrdersPage() {
                       </select>
                     </label>
                     <input name="note" placeholder="Status note" className={orderFieldClass} />
-                    <button className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-[color:var(--brand)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">
-                      Save lifecycle
-                    </button>
+                    <Button pendingWhileSubmitting pendingLabel="Saving…">Save lifecycle</Button>
                   </form>
 
                   <form action={toggleOrderPaymentAction} className="space-y-3">
@@ -187,9 +186,7 @@ export default async function AdminOrdersPage() {
                         ))}
                       </select>
                     </label>
-                    <button className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-[color:var(--brand)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">
-                      Save payment
-                    </button>
+                    <Button pendingWhileSubmitting pendingLabel="Saving…">Save payment</Button>
                   </form>
 
                   <form action={toggleOrderDeliveryAction} className="space-y-3">
@@ -202,9 +199,7 @@ export default async function AdminOrdersPage() {
                         ))}
                       </select>
                     </label>
-                    <button className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-[color:var(--brand)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">
-                      Save delivery
-                    </button>
+                    <Button pendingWhileSubmitting pendingLabel="Saving…">Save delivery</Button>
                   </form>
                 </div>
 

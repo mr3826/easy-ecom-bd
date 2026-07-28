@@ -141,7 +141,9 @@ export default async function CheckoutPage() {
               {paymentMethods.map((method, index) => (
                 <label
                   key={method.key}
-                  className={`flex min-h-14 cursor-pointer items-start gap-3 rounded-3xl border p-4 transition ${
+                  className={`flex min-h-14 items-start gap-3 rounded-3xl border p-4 transition ${
+                    method.enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+                  } ${
                     index === 0
                       ? "border-[color:var(--brand)]/40 bg-[color:var(--brand-soft)]"
                       : "border-[color:var(--border)] bg-[color:var(--surface-soft)]"

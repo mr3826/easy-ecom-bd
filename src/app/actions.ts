@@ -23,7 +23,13 @@ import { asNumber, asString } from "@/lib/utils";
 import { initiateBkashPayment } from "@/server/integrations";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
 import { clearSessionCookie, getCurrentUser, getPostLoginRedirectPath, setSessionCookie } from "@/server/auth";
-import { assertRateLimit, buildSecurityKey, getClientIp, requireSameOrigin } from "@/server/security";
+import {
+  assertRateLimit,
+  buildSecurityKey,
+  consumeRateLimit,
+  getClientIp,
+  requireSameOrigin,
+} from "@/server/security";
 
 const guestCookie = "easy_ecom_guest";
 
@@ -157,25 +163,54 @@ export async function registerAction(formData: FormData) {
   redirect("/account");
 }
 
-export async function loginAction(formData: FormData) {
+export type LoginState = {
+  error?: string;
+  /** Echoed back so a rejected attempt does not blank out what was typed. */
+  email?: string;
+};
+
+/**
+ * Returns failures instead of throwing them. Every throw from a server action
+ * reaching the client is an unhandled runtime error, so a mistyped password or
+ * a tripped rate limit used to take down the whole page.
+ */
+export async function loginAction(_previous: LoginState, formData: FormData): Promise<LoginState> {
   const email = asString(formData.get("email"));
   const password = asString(formData.get("password"));
-  const requestHeaders = await requireActionOrigin("loginAction");
-  assertRateLimit({
-    scope: "loginAction",
-    key: buildSecurityKey(getClientIp(requestHeaders), email.toLowerCase()),
-    limit: 10,
-    windowMs: 15 * 60 * 1000,
-  });
-  const user = await findUserByEmail(email);
 
-  if (!user || !compareSync(password, user.passwordHash)) {
-    throw new Error("The email or password is not correct");
+  let destination: string;
+  try {
+    const requestHeaders = await requireActionOrigin("loginAction");
+    const rateLimit = consumeRateLimit({
+      scope: "loginAction",
+      key: buildSecurityKey(getClientIp(requestHeaders), email.toLowerCase()),
+      limit: 10,
+      windowMs: 15 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return { email, error: "Too many login attempts. Please try again later." };
+    }
+
+    const user = await findUserByEmail(email);
+    if (!user || !compareSync(password, user.passwordHash)) {
+      // Deliberately identical for "no such user" and "wrong password" so the
+      // form cannot be used to enumerate registered addresses.
+      return { email, error: "The email or password is not correct." };
+    }
+
+    await setSessionCookie(user.id);
+    destination = getPostLoginRedirectPath(user.role);
+  } catch (error) {
+    // Rejected origin, database outage, bcrypt failure. The user gets one
+    // generic line; the detail stays in the server log.
+    console.error("loginAction failed", error);
+    return { email, error: "Something went wrong. Please try again." };
   }
 
-  await setSessionCookie(user.id);
   revalidatePath("/");
-  redirect(getPostLoginRedirectPath(user.role));
+  // Outside the try on purpose: redirect() signals by throwing, so catching it
+  // here would turn every successful login into "Something went wrong".
+  redirect(destination);
 }
 
 export async function logoutAction() {
