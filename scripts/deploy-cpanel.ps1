@@ -94,10 +94,14 @@ function Invoke-CpanelApi2 {
         -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } -TimeoutSec 120
 }
 
-# Kills only Next processes whose parent is init. A healthy Passenger-parented
-# process has the Passenger agent as its parent and is never matched. No '%':
-# an unescaped percent sign truncates a crontab command at that character.
-$script:ReapCommand = 'ps -eo pid,ppid,args | awk ''$2==1 && /next-server/ {print $1}'' | xargs -r kill'
+# Selects by age, not by parent. Orphaning was only ever half the problem: this
+# host ignores tmp/restart.txt for healthy Passenger-parented processes too, so
+# filtering on PPID==1 left the common case untouched. Anything older than two
+# minutes predates this deploy; a freshly spawned process is far younger, and
+# the reaper is removed within seconds of one answering. The age guard also
+# stops the awk process matching its own command line. No '%': an unescaped
+# percent sign truncates a crontab command at that character.
+$script:ReapCommand = 'ps -eo pid,etimes,args | awk ''$2 > 120 && /next-server/ {print $1}'' | xargs -r kill'
 
 function Get-ReaperLineKeys {
     $response = Invoke-CpanelApi2 -Module "Cron" -Function "fetchcron"
