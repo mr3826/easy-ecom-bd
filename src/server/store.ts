@@ -368,7 +368,7 @@ function buildProductSearchKeywords(input: {
 
 export async function upsertProduct(
   input: Partial<Product> &
-    Pick<Product, "name" | "description" | "price" | "categoryId" | "brandId"> & {
+    Pick<Product, "name" | "description" | "price" | "categoryId"> & {
       metadata?: Product["metadata"] | null;
     },
   actor?: Actor,
@@ -412,7 +412,9 @@ export async function upsertProduct(
           stock: input.stock ?? existing.stock,
           lowStockThreshold: input.lowStockThreshold ?? existing.lowStockThreshold,
           categoryId: input.categoryId,
-          brandId: input.brandId,
+          // An explicit null clears the brand; omitting the key leaves it alone,
+          // so a partial update cannot wipe it by accident.
+          brandId: input.brandId !== undefined ? input.brandId : existing.brandId,
           isActive: input.isActive ?? true,
           featured: input.featured ?? false,
           archivedAt: input.archivedAt ?? existing.archivedAt ?? null,
@@ -433,7 +435,7 @@ export async function upsertProduct(
           stock: input.stock ?? 0,
           lowStockThreshold: input.lowStockThreshold ?? 5,
           categoryId: input.categoryId,
-          brandId: input.brandId,
+          brandId: input.brandId ?? null,
           isActive: input.isActive ?? true,
           featured: input.featured ?? false,
           archivedAt: input.archivedAt ?? null,

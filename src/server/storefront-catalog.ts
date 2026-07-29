@@ -93,7 +93,7 @@ async function resolveBackendCollections(): Promise<ResolvedStorefrontCollection
           toStorefrontProduct(
             product,
             { slug: category.slug, title: category.name },
-            brandById.get(product.brandId),
+            product.brandId ? brandById.get(product.brandId) : undefined,
             templateCollection,
             imagesByProductId.get(product.id),
             index,

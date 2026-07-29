@@ -271,7 +271,8 @@ export async function saveProductAction(formData: FormData) {
         fallback: 5,
       }) ?? 5) as number,
       categoryId: parseRequiredString(formData, "categoryId", "Category"),
-      brandId: parseRequiredString(formData, "brandId", "Brand"),
+      // Optional: an empty selection clears the brand rather than failing.
+      brandId: readTrimmedString(formData, "brandId") || null,
       isActive: parseBooleanValue(formData.get("isActive"), true),
       featured: parseBooleanValue(formData.get("featured"), false),
       weightGrams: (parseNumberField(formData, "weightGrams", "Weight grams", {

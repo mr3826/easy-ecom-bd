@@ -126,7 +126,8 @@ export interface Product {
   stock: number;
   lowStockThreshold: number;
   categoryId: string;
-  brandId: string;
+  /** Optional: products can be listed without a brand. */
+  brandId: string | null;
   isActive: boolean;
   featured: boolean;
   archivedAt?: string | Date | null;

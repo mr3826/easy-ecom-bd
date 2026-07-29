@@ -90,4 +90,40 @@ test.describe("admin", () => {
     );
     expect(undersized).toEqual([]);
   });
+
+  test("a product can be saved with no brand", async ({ page, baseURL }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop-1280", "one run is enough; this writes a row");
+    // This test CREATES a product. Every other spec here is read-only and safe
+    // to point at production; this one would leave junk in a real catalogue.
+    const local = Boolean(baseURL && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL));
+    test.skip(!local, "writes a product; localhost only");
+    // The editor is a 500-line form and the dev server builds it with cpus: 1,
+    // so its first authenticated compile can outlast the default budget.
+    test.setTimeout(240_000);
+
+    await page.goto("/admin/products/new", { timeout: 180_000 });
+
+    const brand = page.locator('select[name="brandId"]');
+    await expect(brand).toBeVisible();
+    // The empty option is what makes the field optional at all.
+    await expect(brand.locator('option[value=""]')).toHaveCount(1);
+
+    const stamp = Date.now();
+    await page.locator('input[name="name"]').fill(`E2E No Brand ${stamp}`);
+    await page.locator('textarea[name="description"]').fill("Created by an e2e test to prove brand is optional.");
+    await page.locator('input[name="price"]').fill("1500");
+    await page.locator('input[name="stock"]').fill("3");
+    await brand.selectOption("");
+
+    await page.getByRole("button", { name: /save|create/i }).first().click();
+
+    // A required-field rejection would keep us on the form with an error.
+    await expect(page.getByText(/brand is required/i)).toHaveCount(0);
+    await expect(page).not.toHaveURL(/\/admin\/products\/new/, { timeout: 60_000 });
+    // The list renders cards and a table together and hides one by width, so
+    // the row has to be matched on the visible copy.
+    await expect(
+      page.getByText(`E2E No Brand ${stamp}`).filter({ visible: true }).first(),
+    ).toBeVisible({ timeout: 30_000 });
+  });
 });

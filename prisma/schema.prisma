@@ -124,7 +124,7 @@ model Product {
   stock             Int       @default(0)
   lowStockThreshold Int       @default(5)
   categoryId        String
-  brandId           String
+  brandId           String?
   isActive          Boolean   @default(true)
   featured          Boolean   @default(false)
   archivedAt        DateTime?
@@ -136,7 +136,7 @@ model Product {
   updatedAt         DateTime  @updatedAt
 
   category      Category       @relation(fields: [categoryId], references: [id])
-  brand         Brand          @relation(fields: [brandId], references: [id])
+  brand         Brand?         @relation(fields: [brandId], references: [id])
   images        ProductImage[]
   cartItems     CartItem[]
   orderItems    OrderItem[]

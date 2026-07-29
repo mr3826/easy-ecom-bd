@@ -596,3 +596,68 @@ test("settings allow nullable fields to be cleared and reject negative charges",
     );
   }
 });
+
+test("a product can be created without a brand, and a brand can be cleared and restored", async () => {
+  const { actor, category, brand, product } = await createCatalogItem();
+
+  // Creating with no brand at all.
+  const brandless = await upsertProduct(
+    {
+      name: unique("test-product"),
+      slug: unique("test-product"),
+      sku: unique("SKU"),
+      description: "Test product without a brand",
+      price: 1000,
+      stock: 1,
+      lowStockThreshold: 2,
+      categoryId: category.id,
+      isActive: true,
+      featured: false,
+      tags: ["test"],
+    },
+    actor ?? undefined,
+  );
+  expect(brandless.brandId).toBeNull();
+
+  // An explicit null clears an existing brand.
+  const cleared = await upsertProduct(
+    {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      categoryId: category.id,
+      brandId: null,
+    },
+    actor ?? undefined,
+  );
+  expect(cleared.brandId).toBeNull();
+
+  // Omitting the key leaves whatever is stored alone, so a partial update of
+  // some other field cannot wipe the brand as a side effect.
+  const reassigned = await upsertProduct(
+    {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      categoryId: category.id,
+      brandId: brand.id,
+    },
+    actor ?? undefined,
+  );
+  expect(reassigned.brandId).toBe(brand.id);
+
+  const untouched = await upsertProduct(
+    {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: 1234,
+      categoryId: category.id,
+    },
+    actor ?? undefined,
+  );
+  expect(untouched.brandId).toBe(brand.id);
+  expect(untouched.price).toBe(1234);
+});

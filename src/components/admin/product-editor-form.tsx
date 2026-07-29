@@ -106,7 +106,9 @@ export function ProductEditorForm({
 }) {
   const selectedMetadata = normalizeProductMetadata(product?.metadata ?? null);
   const categoryId = product?.categoryId ?? categories[0]?.id ?? "";
-  const brandId = product?.brandId ?? brands[0]?.id ?? "";
+  // An existing product with no brand must show "No brand", not silently fall
+  // through to the first one. Only a new product gets that default.
+  const brandId = product ? (product.brandId ?? "") : (brands[0]?.id ?? "");
   const isEditing = Boolean(product);
 
   return (
@@ -278,8 +280,9 @@ export function ProductEditorForm({
                 </select>
               </FieldLabel>
 
-              <FieldLabel label="Brand / manufacturer" hint="Required">
+              <FieldLabel label="Brand / manufacturer" hint="Optional">
                 <select name="brandId" defaultValue={brandId} className={selectClass}>
+                  <option value="">No brand</option>
                   {brands.map((brand) => (
                     <option key={brand.id} value={brand.id}>
                       {brand.name}
