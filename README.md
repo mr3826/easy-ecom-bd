@@ -47,6 +47,13 @@ npm run dev
 
 `DATABASE_URL` is required for persistent application and test behavior.
 
+Load or reset local data:
+
+```powershell
+npm run db:reset              # empty every table, recreate the admin from .env
+npm run db:reset -- --seed    # ... and load the demo catalogue
+```
+
 ## Validation
 
 ```powershell
@@ -55,44 +62,20 @@ npm test
 npm run build
 ```
 
-## cPanel Deployment
+## Deployment and Operations
 
 The production host must provide Node.js 20.9 or newer and network access to PostgreSQL. Shared-hosting MySQL/MariaDB is not compatible with the current Prisma datasource.
-
-Create a short-lived cPanel API token and keep it in a local environment variable:
 
 ```powershell
 $env:CPANEL_API_TOKEN = "<short-lived token>"
 .\scripts\cpanel-preflight.ps1
-.\scripts\cpanel-preflight.ps1 -StartFullBackup
 .\scripts\deploy-cpanel.ps1 -AppRoot bornohin_app -ConfirmAppRoot bornohin_app
 ```
 
-The deploy script uses cPanel HTTPS APIs. It does not use FTP, disable certificate verification, publish a PHP extractor, or delete domains/databases.
+`scripts/deploy-cpanel.ps1` is the only supported deployment path, and
+`scripts/wipe-production-db.ps1` the only supported production wipe.
+**[docs/OPERATIONS.md](docs/OPERATIONS.md)** covers both in full, along with
+environment variables, rollback, database resets, troubleshooting, and the
+security rules that apply to production.
 
 See [the production cutover plan](docs/remaining-integration-execution-plan.md) before cleaning the old cPanel applications or changing Cloudflare DNS.
-
-## Production Environment
-
-Required core values:
-
-```dotenv
-NODE_ENV=production
-DATABASE_URL=postgresql://...
-AUTH_SECRET=...
-ADMIN_NAME=Bornohin Admin
-ADMIN_EMAIL=admin@bornohin.com
-ADMIN_PASSWORD=...
-NEXT_PUBLIC_APP_URL=https://bornohin.com
-APP_URL=https://bornohin.com
-UPLOAD_DIR=/home/bornohin/bornohin_uploads
-```
-
-bKash must remain disabled unless all provider credentials and `BKASH_WEBHOOK_SECRET` are configured. There is no production payment simulator.
-
-After applying migrations to a fresh database, create or rotate the production
-administrator without loading demo customers, orders, or credentials:
-
-```powershell
-npm run production:bootstrap-admin
-```

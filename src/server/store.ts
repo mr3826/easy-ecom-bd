@@ -1264,6 +1264,11 @@ export async function createOrderFromCart(
   actor?: Actor,
 ) {
   const prisma = getPrisma();
+  // Every other read of the settings row goes through getSettingsRow(), which
+  // creates it on a database that has never had one. Checking out was the one
+  // path that skipped that and threw instead, so a freshly migrated or freshly
+  // wiped database rejected orders until some unrelated page happened to render.
+  await getSettingsRow();
   return prisma.$transaction(async (tx) => {
     const cart = await tx.cart.findUnique({
       where: { id: input.cart.id },
@@ -1417,6 +1422,9 @@ export async function createManualOrder(
   if (!input.items.length) throw new Error("At least one order item is required");
 
   const prisma = getPrisma();
+  // Same reason as checkout: manual order creation must not be the thing that
+  // discovers the settings row was never written. See getSettingsRow().
+  await getSettingsRow();
   return prisma.$transaction(async (tx) => {
     const settings = (await tx.setting.findFirst()) as unknown as Settings | null;
     if (!settings) throw new Error("Store settings are missing");

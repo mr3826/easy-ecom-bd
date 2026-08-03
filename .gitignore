@@ -53,3 +53,6 @@ test-results/
 playwright-report/
 
 deploy-log.jsonl
+
+# Playwright MCP session snapshots
+.playwright-mcp/

@@ -12,7 +12,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "production:bootstrap-admin": "tsx scripts/bootstrap-production-admin.ts",
+    "db:reset": "tsx scripts/db-reset.ts",
+    "db:admin": "tsx scripts/db-reset.ts --admin-only",
     "prisma:studio": "prisma studio --browser none --port 5555"
   },
   "dependencies": {
