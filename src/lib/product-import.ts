@@ -51,8 +51,6 @@ export const productUploadTemplateColumns = [
   { key: "imageUrls", label: "Image URLs", example: "/uploads/products/example-1.png|/uploads/products/example-2.png" },
 ] as const;
 
-type ProductUploadColumnKey = (typeof productUploadTemplateColumns)[number]["key"];
-
 export interface ProductUploadRecord {
   name: string;
   slug: string;

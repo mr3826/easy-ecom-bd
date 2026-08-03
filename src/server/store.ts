@@ -117,7 +117,7 @@ async function getSettingsRow() {
 
 export async function getState(): Promise<DatabaseState> {
   if (!isDatabaseConfigured()) {
-    return demoState;
+    return getDemoState();
   }
   const prisma = getPrisma();
   const [
@@ -1196,7 +1196,7 @@ export async function getOrder(orderId: string) {
   }) as unknown as (Order & { statusHistory: OrderStatusHistory[] }) | null;
 }
 
-function deriveDeliveryZone(district: string): DeliveryZone {
+export function deriveDeliveryZone(district: string): DeliveryZone {
   const normalized = district.trim().toLowerCase();
   if (normalized.includes("dhaka city") || normalized === "dhaka") return "inside_dhaka";
   if (normalized.includes("dhaka")) return "sub_dhaka";

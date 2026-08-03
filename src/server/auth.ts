@@ -211,9 +211,9 @@ export async function consumePasswordResetToken(token: string) {
   }
 
   const prisma = getPrisma();
-  const tokenHash = tokenHash(token);
+  const tokenHashVal = tokenHash(token);
   const record = await prisma.passwordResetToken.findUnique({
-    where: { tokenHash },
+    where: { tokenHash: tokenHashVal },
     include: { user: true },
   });
 
@@ -251,9 +251,9 @@ export async function consumeEmailVerificationToken(token: string) {
   }
 
   const prisma = getPrisma();
-  const tokenHash = tokenHash(token);
+  const tokenHashVal = tokenHash(token);
   const record = await prisma.emailVerificationToken.findUnique({
-    where: { tokenHash },
+    where: { tokenHash: tokenHashVal },
     include: { user: true },
   });
 
