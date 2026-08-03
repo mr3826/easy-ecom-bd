@@ -1,5 +1,16 @@
 # Dead Code & Redundancy Cleanup — `chore/dead-code-audit`
 
+> **Status: executed and shipped 2026-08-04.** All six packets are committed
+> (`2c67232`…`0cb802a`), plus `64aeac9` fixing four defects the packets
+> themselves introduced and `7a76df3` adding the migrations P3 changed the
+> schema without. Kept for the reasoning — the packet list below is history, not
+> a to-do. What was deliberately left alone is still live and still worth
+> reading: see **Explicitly out of scope** at the end.
+>
+> Two things P1.4 asked for were never done and remain open:
+> `tests/product-import.test.ts` (`parseCsv` is an untested hand-rolled RFC4180
+> parser) and the P4.1 regression test for the template-price fallback.
+
 ## Context
 
 The app just went through a production wipe and a fresh deploy. With the demo catalogue gone, a

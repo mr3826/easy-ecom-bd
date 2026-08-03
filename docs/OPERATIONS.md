@@ -275,13 +275,39 @@ npm run prisma:migrate        # local, creates the migration
 ```
 
 **`deploy-cpanel.ps1` does not apply migrations.** Nothing in the deploy path
-runs `prisma migrate deploy`, so a release whose schema changed will ship code
-that queries columns the production database does not have. Until that gap is
-closed, apply the migration to production *before* deploying the code that needs
-it, by running the generated SQL through `psql` on the host — the same cron
-mechanism `wipe-production-db.ps1` uses. Take a `pg_dump` first.
+runs `prisma migrate deploy`, so schema changes are applied as a separate,
+deliberate step with
+[`scripts/apply-production-migration.ps1`](../scripts/apply-production-migration.ps1).
+It runs one migration directory through the host's own `psql`, using the same
+one-shot cron mechanism as `wipe-production-db.ps1`, takes a `pg_dump` first, and
+writes the `_prisma_migrations` row in the same transaction as the migration so
+the history cannot record what did not run.
 
-This is an open gap, not a design decision. See [Known gaps](#known-gaps).
+```powershell
+$env:CPANEL_API_TOKEN = "<short-lived token>"
+# Always look first. This host's schema has drifted from prisma/migrations
+# more than once, and the report is the only way to see what production has.
+.\scripts\apply-production-migration.ps1 -ConfirmDatabase bornohin_ecom -InspectOnly
+
+.\scripts\apply-production-migration.ps1 -ConfirmDatabase bornohin_ecom `
+    -MigrationDir prisma/migrations/<timestamp>_<name>
+```
+
+**Order depends on what the migration does, and the script cannot enforce it:**
+
+| Migration | When | Why |
+| --- | --- | --- |
+| Additive — new tables, new columns | **Before** the deploy | The running build never selects what it does not know about |
+| Drop — removing tables or columns | **After** the deploy | Prisma names every scalar of a model in every `SELECT`. Dropping a column the running build still knows about turns each read into `P2022 ColumnNotFound` |
+
+Getting this backwards on `settings` or `users` is a site-wide outage, not a
+degraded feature — `getSettings()` is on essentially every page, and `users` is
+read by login, sessions and admin. A release containing both kinds needs the
+additive migration, then the deploy, then the drop.
+
+**Never change the schema with `prisma db push` outside a scratch database.**
+Three features reached production's schema that way with no migration, and the
+next deploy would have failed every user read. See [History](#history).
 
 ---
 
@@ -390,8 +416,10 @@ These are not style preferences. Each one has already been violated once.
 Open as of 2026-08-03. Listed because a gap nobody wrote down is a gap that gets
 rediscovered during an incident.
 
-- **Migrations are not part of the deploy.** See [§4](#migrations). Highest-risk
-  item here: a schema change ships with no way for the release to apply it.
+- **Migrations are not part of the deploy.** See [§4](#migrations).
+  `apply-production-migration.ps1` closes the "no way to apply one" half of this,
+  but applying it is still a separate manual step in the right order, so a
+  release can still ship ahead of its schema if someone forgets.
 - **Extraction is not verified.** `deploy-cpanel.ps1` probes `/api/version` and
   one static asset after extracting, which does not catch a partial extract of
   files those two do not touch — exactly the failure in [History](#history). The
@@ -405,6 +433,30 @@ rediscovered during an incident.
 ## History
 
 Recorded so the same failure is recognised the second time.
+
+**2026-08-04 — three features reached the schema with no migration.** Releasing
+the dead-code cleanup branch, `-InspectOnly` found production nine migrations
+deep while `prisma/schema.prisma` was twelve ahead in substance. `a5efbae` (auth
+recovery) and `82b8533` (address management) had been applied to development with
+`prisma db push`, so `users.emailVerified`, `users.emailVerifiedAt`,
+`password_reset_tokens`, `email_verification_tokens` and `addresses` existed in
+the schema and in nobody's migration history. Prisma names every scalar in every
+`SELECT`, so deploying that branch would have failed every read of `users` with
+`P2022 ColumnNotFound` — login, sessions and admin, not just the new features.
+`20260729000000_make_product_brand_optional` had also never been applied to
+production, and had itself left `products_brandId_fkey` on `RESTRICT` where the
+schema declares `onDelete: SetNull`.
+
+Caught before the deploy, not after. Resolved by writing the missing migrations,
+verifying them by replaying the whole history onto an empty database and diffing
+against a `db push` of `schema.prisma`, and applying them in expand/contract
+order: additive first, then the deploy, then the drop. Production stayed up
+throughout.
+
+Recognise it by: `prisma migrate status` clean locally while
+`-InspectOnly` shows fewer rows in `_prisma_migrations` than there are
+directories in `prisma/migrations`. The local database looks correct because
+`db push` made it correct — only the history is missing.
 
 **2026-08-03 — a production wipe that never ran.** The wipe was attempted through
 a `POST /api/admin/db-reset` route added for the purpose. It returned `500` on
