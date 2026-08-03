@@ -4,15 +4,10 @@ import { StatusPill } from "@/components/status-pill";
 import { cookies } from "next/headers";
 import { getCurrentUser } from "@/server/auth";
 import { getOrCreateCart, getCartSummary, getSettings } from "@/server/store";
-import { checkoutAction } from "@/app/actions";
-import { Button } from "@/components/ui/button";
+import { CheckoutForm } from "@/components/checkout-form";
 import { money } from "@/lib/utils";
-import { getBkashIntegrationConfig } from "@/server/integration-config";
 
 export const dynamic = "force-dynamic";
-
-const fieldClass =
-  "w-full rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3.5 text-sm text-[color:var(--foreground)] outline-none transition placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60";
 
 export default async function CheckoutPage() {
   const cookieStore = await cookies();
@@ -23,18 +18,8 @@ export default async function CheckoutPage() {
     getSettings(),
   ]);
   const summary = await getCartSummary(cart);
-  const bkashReady = getBkashIntegrationConfig().enabled;
   const deliveryFee = summary.subtotal >= settings.freeDeliveryThreshold ? 0 : settings.insideDhakaDeliveryCharge;
   const supportDigits = settings.contactNumber.replace(/\D/g, "");
-  const paymentMethods = [
-    { key: "cod", name: "Cash on Delivery", description: "Pay when the parcel arrives", enabled: settings.codEnabled },
-    {
-      key: "bkash",
-      name: "bKash",
-      description: settings.bkashInstructions || "bKash checkout after order creation",
-      enabled: settings.bkashEnabled && bkashReady,
-    },
-  ];
 
   return (
     <PublicShell>
@@ -51,140 +36,11 @@ export default async function CheckoutPage() {
             />
           </div>
 
-          <form action={checkoutAction} className="mt-7 grid gap-5">
-            <div className="grid gap-5 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-                <span className="font-medium">Name</span>
-                <input
-                  name="customerName"
-                  required
-                  autoComplete="name"
-                  defaultValue={user?.name ?? ""}
-                  className={fieldClass}
-                />
-              </label>
-              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-                <span className="font-medium">Phone</span>
-                {/* type=tel + inputMode=numeric is what opens a numeric keypad
-                    instead of a full QWERTY on the single most-typed field in
-                    the whole funnel. */}
-                <input
-                  name="customerPhone"
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel"
-                  required
-                  defaultValue={user?.phone ?? ""}
-                  className={fieldClass}
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-                <span className="font-medium">District</span>
-                <input
-                  name="district"
-                  required
-                  autoComplete="address-level1"
-                  placeholder="Dhaka"
-                  className={fieldClass}
-                />
-              </label>
-              <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-                <span className="font-medium">Email</span>
-                <input
-                  name="customerEmail"
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  defaultValue={user?.email ?? ""}
-                  className={fieldClass}
-                />
-              </label>
-            </div>
-
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">Shipping address</span>
-              <textarea
-                name="shippingAddress"
-                rows={4}
-                required
-                autoComplete="street-address"
-                placeholder="House, road, area, landmark"
-                className={fieldClass}
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">Coupon code</span>
-              <input
-                name="couponCode"
-                placeholder="Optional"
-                autoComplete="off"
-                autoCapitalize="characters"
-                className={fieldClass}
-              />
-            </label>
-
-            <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
-              <span className="font-medium">Notes</span>
-              <textarea
-                name="notes"
-                rows={3}
-                placeholder="Delivery instructions or product note"
-                className={fieldClass}
-              />
-            </label>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              {paymentMethods.map((method, index) => (
-                <label
-                  key={method.key}
-                  className={`flex min-h-14 items-start gap-3 rounded-3xl border p-4 transition ${
-                    method.enabled ? "cursor-pointer" : "cursor-not-allowed opacity-60"
-                  } ${
-                    index === 0
-                      ? "border-[color:var(--brand)]/40 bg-[color:var(--brand-soft)]"
-                      : "border-[color:var(--border)] bg-[color:var(--surface-soft)]"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="paymentMethod"
-                    value={method.key}
-                    defaultChecked={index === 0}
-                    disabled={!method.enabled}
-                    className="mt-1 h-4 w-4 text-[color:var(--brand)] focus:ring-[color:var(--brand)]/40"
-                  />
-                  <span className="grid gap-1">
-                    <span className="text-sm font-semibold text-[color:var(--foreground)]">{method.name}</span>
-                    <span className="text-xs leading-5 text-[color:var(--muted)]">{method.enabled ? method.description : "Disabled by shop"}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-xs text-[color:var(--muted)] sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0">
-              <span className="shrink-0 rounded-full bg-[color:var(--surface-soft)] px-3 py-2">COD depends on delivery zone</span>
-              <span className="shrink-0 rounded-full bg-[color:var(--surface-soft)] px-3 py-2">bKash follows shop settings</span>
-              <span className="shrink-0 rounded-full bg-[color:var(--surface-soft)] px-3 py-2">Support answers fast</span>
-            </div>
-
-            {/* Disables itself for the duration of the server action. Without
-                this a double-tap on a slow mobile connection submits twice and
-                creates two orders. */}
-            <Button
-              type="submit"
-              size="lg"
-              fullWidth
-              pendingWhileSubmitting
-              pendingLabel="Placing your order…"
-              className="uppercase tracking-[0.18em]"
-            >
-              Place order and continue
-            </Button>
-          </form>
+          <CheckoutForm
+            userName={user?.name ?? ""}
+            userPhone={user?.phone ?? ""}
+            userEmail={user?.email ?? ""}
+          />
         </div>
 
         <aside className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5 shadow-[0_12px_30px_rgba(15,23,42,0.05)] sm:p-6">

@@ -169,6 +169,20 @@ export type LoginState = {
   email?: string;
 };
 
+export type CheckoutState = {
+  error?: string;
+  success?: string;
+  /** Echoed back so a rejected attempt does not blank out what was typed. */
+  customerName?: string;
+  customerPhone?: string;
+  customerEmail?: string;
+  district?: string;
+  shippingAddress?: string;
+  notes?: string;
+  couponCode?: string;
+  paymentMethod?: "cod" | "bkash";
+};
+
 /**
  * Returns failures instead of throwing them. Every throw from a server action
  * reaching the client is an unhandled runtime error, so a mistyped password or
@@ -219,11 +233,14 @@ export async function logoutAction() {
   redirect("/");
 }
 
-export async function checkoutAction(formData: FormData) {
+export async function checkoutAction(
+  _previous: CheckoutState,
+  formData: FormData
+): Promise<CheckoutState> {
   const requestHeaders = await requireActionOrigin("checkoutAction");
   const rawPaymentMethod = asString(formData.get("paymentMethod")) || "cod";
   if (rawPaymentMethod !== "cod" && rawPaymentMethod !== "bkash") {
-    throw new Error("Unsupported payment method");
+    return { error: "Unsupported payment method" };
   }
   const paymentMethod = rawPaymentMethod as "cod" | "bkash";
   const wantsBkash = paymentMethod === "bkash";
@@ -236,59 +253,88 @@ export async function checkoutAction(formData: FormData) {
   const couponCode = asString(formData.get("couponCode")) || undefined;
   const guestKey = await getGuestKey();
   const user = await getCurrentUser();
-  assertRateLimit({
-    scope: "checkoutAction",
-    key: buildSecurityKey(
-      getClientIp(requestHeaders),
-      guestKey,
-      user?.id,
-      customerEmail?.toLowerCase(),
-      customerPhone,
-      paymentMethod,
-    ),
-    limit: 20,
-    windowMs: 10 * 60 * 1000,
-  });
-  const cart = await getOrCreateCart(guestKey, user?.id);
-  const summary = getCartSummary(cart);
-  const resolvedSummary = await summary;
 
-  if (!resolvedSummary.items.length) {
-    throw new Error("Your cart is empty");
-  }
-
-  if (wantsBkash && !getBkashIntegrationConfig().enabled) {
-    throw new Error("bKash checkout is temporarily unavailable");
-  }
-
-  const order = await createOrderFromCart({
-    cart,
+  const echoedState: CheckoutState = {
     customerName,
     customerPhone,
     customerEmail,
     district,
     shippingAddress,
     notes,
-    paymentProvider: paymentMethod,
     couponCode,
-  });
+    paymentMethod,
+  };
 
-  if (!wantsBkash) {
-    revalidatePath("/cart");
-    revalidatePath("/checkout");
-    revalidatePath("/admin");
-    redirect(`/track-order?code=${order.orderCode}`);
+  let redirectDestination: string | null = null;
+
+  try {
+    const rateLimit = consumeRateLimit({
+      scope: "checkoutAction",
+      key: buildSecurityKey(
+        getClientIp(requestHeaders),
+        guestKey,
+        user?.id,
+        customerEmail?.toLowerCase(),
+        customerPhone,
+        paymentMethod,
+      ),
+      limit: 20,
+      windowMs: 10 * 60 * 1000,
+    });
+    if (!rateLimit.allowed) {
+      return { ...echoedState, error: "Too many checkout attempts. Please try again later." };
+    }
+
+    const cart = await getOrCreateCart(guestKey, user?.id);
+    const summary = getCartSummary(cart);
+    const resolvedSummary = await summary;
+
+    if (!resolvedSummary.items.length) {
+      return { ...echoedState, error: "Your cart is empty" };
+    }
+
+    if (wantsBkash && !getBkashIntegrationConfig().enabled) {
+      return { ...echoedState, error: "bKash checkout is temporarily unavailable" };
+    }
+
+    const order = await createOrderFromCart({
+      cart,
+      customerName,
+      customerPhone,
+      customerEmail,
+      district,
+      shippingAddress,
+      notes,
+      paymentProvider: paymentMethod,
+      couponCode,
+    });
+
+    if (!wantsBkash) {
+      revalidatePath("/cart");
+      revalidatePath("/checkout");
+      revalidatePath("/admin");
+      redirectDestination = `/track-order?code=${order.orderCode}`;
+    } else {
+      const providerReady = await initiateBkashPayment({
+        orderId: order.id,
+        amount: order.total,
+        customerName,
+        customerPhone,
+      });
+
+      revalidatePath("/cart");
+      revalidatePath("/checkout");
+      revalidatePath("/admin");
+      redirectDestination = providerReady.redirectUrl;
+    }
+  } catch (error) {
+    console.error("checkoutAction failed", error);
+    return { ...echoedState, error: "Something went wrong. Please try again." };
   }
 
-  const providerReady = await initiateBkashPayment({
-    orderId: order.id,
-    amount: order.total,
-    customerName,
-    customerPhone,
-  });
+  if (redirectDestination) {
+    redirect(redirectDestination);
+  }
 
-  revalidatePath("/cart");
-  revalidatePath("/checkout");
-  revalidatePath("/admin");
-  redirect(providerReady.redirectUrl);
+  return { ...echoedState, error: "Something went wrong. Please try again." };
 }
