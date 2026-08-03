@@ -42,7 +42,7 @@ function toSessionUser(user: {
 }
 
 function getDemoSessionSecret() {
-  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "easy-ecom-demo-session";
+  return process.env.AUTH_SECRET || "easy-ecom-demo-session";
 }
 
 function signDemoPayload(payload: string) {
