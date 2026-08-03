@@ -1,5 +1,3 @@
-import { getSettings } from "@/server/store";
-
 export interface EmailTemplate {
   subject: string;
   html: string;
@@ -116,14 +114,12 @@ This link will expire in 24 hours.
 }
 
 export async function sendEmail(to: string, template: EmailTemplate): Promise<{ success: boolean; error?: string }> {
-  const settings = await getSettings();
-  
-  const smtpHost = settings.smtpHost;
-  const smtpPort = settings.smtpPort;
-  const smtpUser = settings.smtpUser;
-  const smtpPass = settings.smtpPass;
-  const fromEmail = settings.fromEmail || "noreply@bornohin.com";
-  const fromName = settings.fromName || "Bornohin";
+  const smtpHost = process.env.SMTP_HOST;
+  const smtpPort = process.env.SMTP_PORT;
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  const fromEmail = process.env.FROM_EMAIL || "noreply@bornohin.com";
+  const fromName = process.env.FROM_NAME || "Bornohin";
 
   if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
     console.warn("SMTP not configured; email would be sent to:", to, template.subject);

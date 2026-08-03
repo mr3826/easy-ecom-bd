@@ -15,8 +15,6 @@ enum UserRole {
 enum PaymentProviderKey {
   cod
   bkash
-  nagad
-  rocket
 }
 
 enum OrderStatus {
@@ -381,24 +379,12 @@ model Setting {
   bkashEnabled                Boolean  @default(false)
   bkashAccountNumber          String?
   bkashInstructions           String   @default("")
-  nagadEnabled                Boolean  @default(false)
-  nagadAccountNumber          String?
-  nagadInstructions           String   @default("")
-  rocketEnabled               Boolean  @default(false)
-  rocketAccountNumber         String?
-  rocketInstructions          String   @default("")
   insideDhakaDeliveryCharge   Int      @default(80)
   subDhakaDeliveryCharge      Int      @default(100)
   outsideDhakaDeliveryCharge  Int      @default(130)
   insideDhakaCodEnabled       Boolean  @default(true)
   subDhakaCodEnabled          Boolean  @default(true)
   outsideDhakaCodEnabled      Boolean  @default(true)
-  smtpHost                    String?
-  smtpPort                    String?
-  smtpUser                    String?
-  smtpPass                    String?
-  fromEmail                   String?
-  fromName                    String?
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 
