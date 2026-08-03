@@ -1,4 +1,5 @@
 import { siteBrand } from "@/lib/site-brand";
+import { slugify } from "@/lib/utils";
 
 export type StorefrontProduct = {
   id: string;
@@ -60,8 +61,8 @@ const createProduct = (
   index: number,
   extra?: Partial<StorefrontProduct>,
 ): StorefrontProduct => ({
-    id: `${collectionSlug}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "")}`,
-    slug: `${collectionSlug}-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "")}`,
+    id: `${collectionSlug}-${slugify(name)}`,
+    slug: `${collectionSlug}-${slugify(name)}`,
     name,
     collectionSlug,
   price,

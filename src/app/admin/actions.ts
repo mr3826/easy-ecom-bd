@@ -41,7 +41,8 @@ import {
 } from "@/lib/product-admin";
 
 async function guard() {
-  return requireAdmin();
+  const actor = await requireAdmin();
+  return actor;
 }
 
 async function requireAdminMutation(operation: string, actorId: string) {

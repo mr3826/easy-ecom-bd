@@ -1,9 +1,9 @@
-import { listPayments, listOrders, getState } from "@/server/store";
+import { listPayments, listOrders, getSettings } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
 import { money, shortDate } from "@/lib/utils";
 
 export default async function AdminPaymentsPage() {
-  const [payments, orders, state] = await Promise.all([listPayments(), listOrders(), getState()]);
+  const [payments, orders, settings] = await Promise.all([listPayments(), listOrders(), getSettings()]);
 
   return (
     <div className="space-y-6 text-[color:var(--foreground)]">
@@ -34,8 +34,8 @@ export default async function AdminPaymentsPage() {
       </div>
       <div className="grid gap-4 rounded-[2rem] border border-[color:var(--border)] bg-white p-5 sm:grid-cols-2">
         {[
-          { name: "COD", enabled: state.settings.codEnabled, account: "Zone controlled", instructions: "Collected during delivery" },
-          { name: "bKash", enabled: state.settings.bkashEnabled, account: state.settings.bkashAccountNumber, instructions: state.settings.bkashInstructions },
+          { name: "COD", enabled: settings.codEnabled, account: "Zone controlled", instructions: "Collected during delivery" },
+          { name: "bKash", enabled: settings.bkashEnabled, account: settings.bkashAccountNumber, instructions: settings.bkashInstructions },
         ].map((method) => (
           <div key={method.name} className="rounded-3xl border border-[color:var(--border)] bg-white p-4 text-sm">
             <div className="flex items-center justify-between gap-3">

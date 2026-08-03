@@ -2,12 +2,12 @@ import Link from "next/link";
 import { MetricCard } from "@/components/metric-card";
 import { StatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
-import { getState, listOrders, listProducts, listPayments } from "@/server/store";
+import { getSettings, listOrders, listProducts, listPayments } from "@/server/store";
 import { money } from "@/lib/utils";
 
 export default async function AdminDashboardPage() {
-  const [state, orders, products, payments] = await Promise.all([
-    getState(),
+  const [settings, orders, products, payments] = await Promise.all([
+    getSettings(),
     listOrders(),
     listProducts(),
     listPayments(),
@@ -68,8 +68,8 @@ export default async function AdminDashboardPage() {
         <section className="rounded-[2rem] border border-[color:var(--border)] bg-white p-6 shadow-[0_24px_80px_rgba(61,39,35,0.06)]">
           <h2 className="text-xl font-semibold text-[color:var(--foreground)]">Configuration</h2>
           <div className="mt-5 space-y-3 text-sm text-[color:var(--muted)]">
-            <p>bKash: {state.settings.bkashEnabled ? "enabled" : "disabled"}</p>
-            <p>COD: {state.settings.codEnabled ? "enabled" : "disabled"}</p>
+            <p>bKash: {settings.bkashEnabled ? "enabled" : "disabled"}</p>
+            <p>COD: {settings.codEnabled ? "enabled" : "disabled"}</p>
           </div>
         </section>
       </div>

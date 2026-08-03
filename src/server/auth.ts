@@ -183,10 +183,6 @@ export function getPostLoginRedirectPath(role: SessionUser["role"]) {
 const PASSWORD_RESET_TTL_MS = 1000 * 60 * 60;
 const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24;
 
-function hashToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
-
 export async function createPasswordResetToken(email: string) {
   if (!isDatabaseConfigured()) {
     return makeToken();
@@ -202,7 +198,7 @@ export async function createPasswordResetToken(email: string) {
   await prisma.passwordResetToken.create({
     data: {
       userId: user.id,
-      tokenHash: hashToken(token),
+      tokenHash: tokenHash(token),
       expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
     },
   });
@@ -215,7 +211,7 @@ export async function consumePasswordResetToken(token: string) {
   }
 
   const prisma = getPrisma();
-  const tokenHash = hashToken(token);
+  const tokenHash = tokenHash(token);
   const record = await prisma.passwordResetToken.findUnique({
     where: { tokenHash },
     include: { user: true },
@@ -242,7 +238,7 @@ export async function createEmailVerificationToken(userId: string) {
   await prisma.emailVerificationToken.create({
     data: {
       userId,
-      tokenHash: hashToken(token),
+      tokenHash: tokenHash(token),
       expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
     },
   });
@@ -255,7 +251,7 @@ export async function consumeEmailVerificationToken(token: string) {
   }
 
   const prisma = getPrisma();
-  const tokenHash = hashToken(token);
+  const tokenHash = tokenHash(token);
   const record = await prisma.emailVerificationToken.findUnique({
     where: { tokenHash },
     include: { user: true },

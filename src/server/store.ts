@@ -34,7 +34,12 @@ import { normalizeProductMetadata } from "@/lib/product-admin";
 
 type Actor = Pick<SessionUser, "id" | "email"> | null | undefined;
 
-const demoState = createSeedState();
+let demoState: ReturnType<typeof createSeedState> | null = null;
+
+function getDemoState() {
+  if (!demoState) demoState = createSeedState();
+  return demoState;
+}
 
 function now() {
   return new Date();
@@ -66,12 +71,12 @@ function cartToSummaryItems(items: Array<CartSummaryItem>) {
 }
 
 async function getSettingsRow() {
-  if (!process.env.DATABASE_URL) {
+  if (!isDatabaseConfigured()) {
     return {
       id: "settings-default",
       createdAt: now(),
       updatedAt: now(),
-      ...demoState.settings,
+      ...getDemoState().settings,
       storeName: siteBrand.name,
       logoText: siteBrand.name,
       supportEmail: siteBrand.supportEmail,
@@ -111,7 +116,7 @@ async function getSettingsRow() {
 }
 
 export async function getState(): Promise<DatabaseState> {
-  if (!process.env.DATABASE_URL) {
+  if (!isDatabaseConfigured()) {
     return demoState;
   }
   const prisma = getPrisma();
@@ -178,8 +183,8 @@ export async function getState(): Promise<DatabaseState> {
 }
 
 export async function listCategories() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.categories as unknown as Category[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().categories as unknown as Category[];
   }
   const prisma = getPrisma();
   return prisma.category.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Category[];
@@ -242,8 +247,8 @@ export async function deleteCategory(id: string, actor?: Actor) {
 }
 
 export async function listBrands() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.brands as unknown as Brand[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().brands as unknown as Brand[];
   }
   const prisma = getPrisma();
   return prisma.brand.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Brand[];
@@ -306,16 +311,16 @@ export async function deleteBrand(id: string, actor?: Actor) {
 }
 
 export async function listProducts() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.products as unknown as Product[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().products as unknown as Product[];
   }
   const prisma = getPrisma();
   return prisma.product.findMany({ orderBy: [{ featured: "desc" }, { createdAt: "desc" }] }) as unknown as Product[];
 }
 
 export async function listProductImages(productId?: string) {
-  if (!process.env.DATABASE_URL) {
-    return demoState.productImages
+  if (!isDatabaseConfigured()) {
+    return getDemoState().productImages
       .filter((image) => (productId ? image.productId === productId : true)) as unknown as Array<{ id: string; productId: string; url: string; alt: string; sortOrder: number }>;
   }
   const prisma = getPrisma();
@@ -326,16 +331,16 @@ export async function listProductImages(productId?: string) {
 }
 
 async function getProductBySlug(slug: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.products.find((product) => product.slug === slug) ?? null) as unknown as Product | null;
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().products.find((product) => product.slug === slug) ?? null) as unknown as Product | null;
   }
   const prisma = getPrisma();
   return prisma.product.findUnique({ where: { slug } }) as unknown as Product | null;
 }
 
 export async function getProduct(id: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.products.find((product) => product.id === id) ?? null) as unknown as Product | null;
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().products.find((product) => product.id === id) ?? null) as unknown as Product | null;
   }
   const prisma = getPrisma();
   return prisma.product.findUnique({ where: { id } }) as unknown as Product | null;
@@ -586,7 +591,7 @@ export async function setProductStock(productId: string, change: number, reason:
 
 export async function listCoupons() {
   if (!isDatabaseConfigured()) {
-    return demoState.coupons as unknown as Coupon[];
+    return getDemoState().coupons as unknown as Coupon[];
   }
   const prisma = getPrisma();
   return prisma.coupon.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Coupon[];
@@ -632,8 +637,8 @@ export async function upsertCoupon(input: Partial<Coupon> & Pick<Coupon, "code" 
 }
 
 export async function listUsers() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.users as unknown as Array<Pick<User, "id" | "name" | "email" | "role" | "phone" | "createdAt" | "updatedAt">>;
+  if (!isDatabaseConfigured()) {
+    return getDemoState().users as unknown as Array<Pick<User, "id" | "name" | "email" | "role" | "phone" | "createdAt" | "updatedAt">>;
   }
   const prisma = getPrisma();
   return prisma.user.findMany({
@@ -652,7 +657,7 @@ export async function listUsers() {
 
 export async function findUserByEmail(email: string) {
   if (!isDatabaseConfigured()) {
-    return (demoState.users.find((user) => user.email.toLowerCase() === email.toLowerCase()) ?? null) as unknown as User | null;
+    return (getDemoState().users.find((user) => user.email.toLowerCase() === email.toLowerCase()) ?? null) as unknown as User | null;
   }
   const prisma = getPrisma();
   return prisma.user.findUnique({ where: { email: email.toLowerCase() } }) as unknown as User | null;
@@ -660,7 +665,7 @@ export async function findUserByEmail(email: string) {
 
 export async function findUserById(id: string) {
   if (!isDatabaseConfigured()) {
-    return (demoState.users.find((user) => user.id === id) ?? null) as unknown as User | null;
+    return (getDemoState().users.find((user) => user.id === id) ?? null) as unknown as User | null;
   }
   const prisma = getPrisma();
   return prisma.user.findUnique({ where: { id } }) as unknown as User | null;
@@ -682,7 +687,7 @@ export async function createUser(
       createdAt: nowIso,
       updatedAt: nowIso,
     };
-    demoState.users.push(record);
+    getDemoState().users.push(record);
     return record;
   }
   const prisma = getPrisma();
@@ -708,7 +713,7 @@ export async function createUser(
 
 export async function updateUserPassword(userId: string, passwordHash: string) {
   if (!isDatabaseConfigured()) {
-    const user = demoState.users.find((u) => u.id === userId);
+    const user = getDemoState().users.find((u) => u.id === userId);
     if (user) {
       user.passwordHash = passwordHash;
       user.updatedAt = new Date().toISOString();
@@ -728,16 +733,16 @@ export async function updateUser(
   actor?: Actor,
 ) {
   if (!isDatabaseConfigured()) {
-    const userIndex = demoState.users.findIndex((user) => user.id === userId);
+    const userIndex = getDemoState().users.findIndex((user) => user.id === userId);
     if (userIndex === -1) return null;
     const updated = {
-      ...demoState.users[userIndex],
+      ...getDemoState().users[userIndex],
       ...input,
-      email: input.email?.toLowerCase() ?? demoState.users[userIndex].email,
-      phone: input.phone ?? demoState.users[userIndex].phone,
+      email: input.email?.toLowerCase() ?? getDemoState().users[userIndex].email,
+      phone: input.phone ?? getDemoState().users[userIndex].phone,
       updatedAt: new Date().toISOString(),
     };
-    demoState.users[userIndex] = updated;
+    getDemoState().users[userIndex] = updated;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { passwordHash: _unused, ...userWithoutPassword } = updated;
     await recordAuditLog({
@@ -745,7 +750,7 @@ export async function updateUser(
       action: "update",
       entity: "user",
       entityId: userId,
-      oldValue: asJson(demoState.users[userIndex]),
+      oldValue: asJson(getDemoState().users[userIndex]),
       newValue: asJson(userWithoutPassword),
     });
     return userWithoutPassword as unknown as User;
@@ -910,7 +915,7 @@ export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
 export async function getOrCreateCart(guestKey: string, ownerId?: string | null) {
   const cartWhere = ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey };
   if (!isDatabaseConfigured()) {
-    const existing = demoState.carts.find((cart) =>
+    const existing = getDemoState().carts.find((cart) =>
       ownerId ? cart.guestKey === guestKey || cart.ownerId === ownerId : cart.guestKey === guestKey,
     );
     if (existing) return existing as unknown as Cart & { items: Array<CartItem & { product: Product }> };
@@ -922,7 +927,7 @@ export async function getOrCreateCart(guestKey: string, ownerId?: string | null)
       items: [],
       updatedAt: new Date().toISOString(),
     };
-    demoState.carts.push(created);
+    getDemoState().carts.push(created);
     return created as unknown as Cart & { items: Array<CartItem & { product: Product }> };
   }
   const prisma = getPrisma();
@@ -951,7 +956,7 @@ export async function getOrCreateCart(guestKey: string, ownerId?: string | null)
 
 export async function clearCart(guestKey: string, ownerId?: string | null, actor?: Actor) {
   if (!isDatabaseConfigured()) {
-    const cart = demoState.carts.find((c) =>
+    const cart = getDemoState().carts.find((c) =>
       ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
     );
     if (!cart) return null;
@@ -981,7 +986,7 @@ export async function clearCart(guestKey: string, ownerId?: string | null, actor
 
 export async function setCartCoupon(guestKey: string, couponCode: string | null, ownerId?: string | null, actor?: Actor) {
   if (!isDatabaseConfigured()) {
-    const cart = demoState.carts.find((c) =>
+    const cart = getDemoState().carts.find((c) =>
       ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
     );
     if (!cart) return null;
@@ -1052,7 +1057,7 @@ export async function addToCart(guestKey: string, productId: string, quantity = 
 
 export async function removeCartItem(guestKey: string, productId: string, ownerId?: string | null, actor?: Actor) {
   if (!isDatabaseConfigured()) {
-    const cart = demoState.carts.find((c) =>
+    const cart = getDemoState().carts.find((c) =>
       ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
     );
     if (!cart) return null;
@@ -1087,7 +1092,7 @@ export async function updateCartQuantity(
   actor?: Actor,
 ) {
   if (!isDatabaseConfigured()) {
-    const cart = demoState.carts.find((c) =>
+    const cart = getDemoState().carts.find((c) =>
       ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
     );
     if (!cart) return null;
@@ -1161,7 +1166,7 @@ export async function getCartSummary(cart: { id: string; items: Array<CartItem &
 
 export async function listOrders() {
   if (!isDatabaseConfigured()) {
-    return demoState.orders as unknown as Order[];
+    return getDemoState().orders as unknown as Order[];
   }
   const prisma = getPrisma();
   return prisma.order.findMany({ include: { items: true }, orderBy: { createdAt: "desc" } }) as unknown as Order[];
@@ -1169,7 +1174,7 @@ export async function listOrders() {
 
 export async function getOrderByCode(orderCode: string) {
   if (!isDatabaseConfigured()) {
-    return (demoState.orders.find((order) => order.orderCode === orderCode) ?? null) as unknown as Order | null;
+    return (getDemoState().orders.find((order) => order.orderCode === orderCode) ?? null) as unknown as Order | null;
   }
   const prisma = getPrisma();
   return prisma.order.findUnique({ where: { orderCode }, include: { items: true } }) as unknown as Order | null;
@@ -1177,11 +1182,11 @@ export async function getOrderByCode(orderCode: string) {
 
 export async function getOrder(orderId: string) {
   if (!isDatabaseConfigured()) {
-    const order = demoState.orders.find((item) => item.id === orderId);
+    const order = getDemoState().orders.find((item) => item.id === orderId);
     if (!order) return null;
     return {
       ...order,
-      statusHistory: demoState.orderStatusHistory.filter((history) => history.orderId === orderId),
+      statusHistory: getDemoState().orderStatusHistory.filter((history) => history.orderId === orderId),
     } as unknown as Order & { statusHistory: OrderStatusHistory[] };
   }
   const prisma = getPrisma();
@@ -1622,8 +1627,8 @@ export async function updateOrderStatus(
 }
 
 export async function listOrderStatusHistory(orderId?: string) {
-  if (!process.env.DATABASE_URL) {
-    return demoState.orderStatusHistory.filter((history) => (orderId ? history.orderId === orderId : true)) as unknown as OrderStatusHistory[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().orderStatusHistory.filter((history) => (orderId ? history.orderId === orderId : true)) as unknown as OrderStatusHistory[];
   }
   const prisma = getPrisma();
   return prisma.orderStatusHistory.findMany({
@@ -1698,16 +1703,16 @@ export async function updateOrderDelivery(orderId: string, deliveryStatus: Deliv
 }
 
 export async function listPayments() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.payments as unknown as Payment[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().payments as unknown as Payment[];
   }
   const prisma = getPrisma();
   return prisma.payment.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Payment[];
 }
 
 export async function getPaymentById(paymentId: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.payments.find((payment) => payment.id === paymentId) ?? null) as unknown as Payment | null;
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().payments.find((payment) => payment.id === paymentId) ?? null) as unknown as Payment | null;
   }
   const prisma = getPrisma();
   return prisma.payment.findUnique({ where: { id: paymentId } }) as unknown as Payment | null;
@@ -1771,24 +1776,24 @@ export async function addPaymentLog(paymentId: string, stage: PaymentLog["stage"
 }
 
 export async function listLandingPages() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.landingPages as unknown as LandingPage[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().landingPages as unknown as LandingPage[];
   }
   const prisma = getPrisma();
   return prisma.landingPage.findMany({ orderBy: { createdAt: "desc" } }) as unknown as LandingPage[];
 }
 
 export async function getLandingPage(slug: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.landingPages.find((page) => page.slug === slug) ?? null) as unknown as LandingPage | null;
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().landingPages.find((page) => page.slug === slug) ?? null) as unknown as LandingPage | null;
   }
   const prisma = getPrisma();
   return prisma.landingPage.findUnique({ where: { slug } }) as unknown as LandingPage | null;
 }
 
 export async function getLandingPageSections(landingPageId: string) {
-  if (!process.env.DATABASE_URL) {
-    return demoState.landingPageSections.filter((section) => section.landingPageId === landingPageId) as unknown as LandingPageSection[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().landingPageSections.filter((section) => section.landingPageId === landingPageId) as unknown as LandingPageSection[];
   }
   const prisma = getPrisma();
   return prisma.landingPageSection.findMany({
@@ -1897,8 +1902,8 @@ export async function upsertLandingPageSection(
 }
 
 export async function listAuditLogs() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.auditLogs as unknown as DatabaseState["auditLogs"];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().auditLogs as unknown as DatabaseState["auditLogs"];
   }
   const prisma = getPrisma();
   return prisma.auditLog.findMany({ orderBy: { createdAt: "desc" } });
