@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { verifyEmailAction, type VerifyEmailState } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 

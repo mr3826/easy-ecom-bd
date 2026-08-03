@@ -47,7 +47,7 @@ export default async function VerifyEmailPage({ searchParams }: VerifyEmailPageP
           <VerifyEmailForm token={token} />
 
           <div className="mt-6 border-t border-[color:var(--border)] pt-6">
-            <p className="text-sm text-[color:var(--muted)]">Didn't receive the email?</p>
+            <p className="text-sm text-[color:var(--muted)]">Didn&apos;t receive the email?</p>
             <ResendVerificationForm />
           </div>
 

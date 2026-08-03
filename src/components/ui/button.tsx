@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { Slot } from "@radix-ui/react-slot";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,8 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
    */
   pendingWhileSubmitting?: boolean;
   pendingLabel?: string;
+  /** Render a different element (e.g. Link) while preserving Button styles and behavior. */
+  asChild?: boolean;
   children: ReactNode;
 };
 
@@ -44,13 +47,16 @@ export function Button({
   className,
   children,
   disabled,
+  asChild = false,
   ...rest
 }: ButtonProps) {
   const { pending } = useFormStatus();
   const busy = pendingWhileSubmitting && pending;
 
+  const Comp = asChild ? Slot : "button";
+
   return (
-    <button
+    <Comp
       {...rest}
       disabled={disabled || busy}
       aria-busy={busy || undefined}
@@ -64,6 +70,6 @@ export function Button({
       )}
     >
       {busy && pendingLabel ? pendingLabel : children}
-    </button>
+    </Comp>
   );
 }

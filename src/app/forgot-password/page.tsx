@@ -12,7 +12,7 @@ export default function ForgotPasswordPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--brand)]">Forgot password</p>
           <h1 className="mt-2 text-3xl font-black uppercase tracking-tight text-[color:var(--foreground)]">Reset your password</h1>
           <p className="mt-3 max-w-xl text-sm leading-7 text-[color:var(--muted)]">
-            Enter your email address and we'll send you a link to create a new password.
+            Enter your email address and we&apos;ll send you a link to create a new password.
           </p>
 
           <ForgotPasswordForm />

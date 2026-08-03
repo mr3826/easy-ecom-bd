@@ -20,6 +20,7 @@ export default async function CheckoutPage() {
   const summary = await getCartSummary(cart);
   const deliveryFee = summary.subtotal >= settings.freeDeliveryThreshold ? 0 : settings.insideDhakaDeliveryCharge;
   const supportDigits = settings.contactNumber.replace(/\D/g, "");
+  const paymentsAvailable = settings.codEnabled || settings.bkashEnabled;
 
   return (
     <PublicShell>
@@ -31,8 +32,8 @@ export default async function CheckoutPage() {
               <h1 className="mt-2 text-2xl font-black uppercase tracking-tight text-[color:var(--foreground)] sm:text-3xl">Complete your order</h1>
             </div>
             <StatusPill
-              label={paymentMethods.some((method) => method.enabled) ? "Payments available" : "Payments off"}
-              tone={paymentMethods.some((method) => method.enabled) ? "active" : "inactive"}
+              label={paymentsAvailable ? "Payments available" : "Payments off"}
+              tone={paymentsAvailable ? "active" : "inactive"}
             />
           </div>
 

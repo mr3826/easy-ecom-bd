@@ -131,6 +131,7 @@ export async function getState(): Promise<DatabaseState> {
     landingPageSections,
     coupons,
     inventoryLogs,
+    addresses,
     settings,
     auditLogs,
   ] = await Promise.all([
@@ -148,6 +149,7 @@ export async function getState(): Promise<DatabaseState> {
     prisma.landingPageSection.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.coupon.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.inventoryLog.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.address.findMany({ orderBy: { createdAt: "desc" } }),
     getSettingsRow(),
     prisma.auditLog.findMany({ orderBy: { createdAt: "desc" } }),
   ]);
@@ -170,6 +172,7 @@ export async function getState(): Promise<DatabaseState> {
     landingPageSections: landingPageSections as unknown as LandingPageSection[],
     coupons: coupons as unknown as Coupon[],
     inventoryLogs: inventoryLogs as unknown as InventoryLog[],
+    addresses: addresses as unknown as Array<{ id: string; userId: string | null; guestKey: string | null; name: string; phone: string; email: string | null; district: string; addressLine1: string; addressLine2: string | null; city: string; state: string; postalCode: string; country: string; isDefault: boolean; createdAt: string; updatedAt: string }>,
     settings: settings as unknown as Settings,
     auditLogs: auditLogs as unknown as DatabaseState["auditLogs"],
   };
@@ -748,10 +751,12 @@ export async function updateUser(
       ...demoState.users[userIndex],
       ...input,
       email: input.email?.toLowerCase() ?? demoState.users[userIndex].email,
+      phone: input.phone ?? demoState.users[userIndex].phone,
       updatedAt: new Date().toISOString(),
     };
     demoState.users[userIndex] = updated;
-    const { passwordHash, ...userWithoutPassword } = updated;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash: _unused, ...userWithoutPassword } = updated;
     await recordAuditLog({
       actor,
       action: "update",
@@ -781,7 +786,8 @@ export async function updateUser(
     oldValue: asJson(existing),
     newValue: asJson({ id: record.id, email: record.email, role: record.role }),
   });
-  const { passwordHash, ...userWithoutPassword } = record;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash: _unused, ...userWithoutPassword } = record;
   return userWithoutPassword as unknown as User;
 }
 

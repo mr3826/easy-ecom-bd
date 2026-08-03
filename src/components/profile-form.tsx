@@ -13,7 +13,7 @@ export type ProfileFormState = {
   phone?: string;
 };
 
-export function ProfileForm(initialData: { name: string; email: string; phone?: string | null }) {
+export function ProfileForm({ initialData }: { initialData: { name: string; email: string; phone?: string | null } }) {
   const [state, formAction] = useActionState(updateUserProfileAction, {
     name: initialData.name,
     email: initialData.email,

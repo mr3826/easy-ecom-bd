@@ -86,6 +86,7 @@ model User {
   inventoryLogs   InventoryLog[]
   passwordResetTokens      PasswordResetToken[]
   emailVerificationTokens  EmailVerificationToken[]
+  addresses       Address[]
 
   @@map("users")
 }
