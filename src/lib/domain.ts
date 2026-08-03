@@ -281,6 +281,12 @@ export interface Settings {
   insideDhakaCodEnabled: boolean;
   subDhakaCodEnabled: boolean;
   outsideDhakaCodEnabled: boolean;
+  smtpHost?: string | null;
+  smtpPort?: string | null;
+  smtpUser?: string | null;
+  smtpPass?: string | null;
+  fromEmail?: string | null;
+  fromName?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

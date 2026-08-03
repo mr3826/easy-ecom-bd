@@ -719,6 +719,22 @@ export async function createUser(
   return record as unknown as User;
 }
 
+export async function updateUserPassword(userId: string, passwordHash: string) {
+  if (!isDatabaseConfigured()) {
+    const user = demoState.users.find((u) => u.id === userId);
+    if (user) {
+      user.passwordHash = passwordHash;
+      user.updatedAt = new Date().toISOString();
+    }
+    return;
+  }
+  const prisma = getPrisma();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+}
+
 export async function getSettings() {
   return (await getSettingsRow()) as unknown as Settings;
 }

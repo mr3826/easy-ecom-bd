@@ -68,20 +68,24 @@ enum CouponType {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(customer)
-  phone        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  email           String    @unique
+  passwordHash    String
+  role            UserRole  @default(customer)
+  phone           String?
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  carts         Cart[]
-  orders        Order[]
-  sessions      Session[]
-  auditLogs     AuditLog[]
-  inventoryLogs InventoryLog[]
+  carts           Cart[]
+  orders          Order[]
+  sessions        Session[]
+  auditLogs       AuditLog[]
+  inventoryLogs   InventoryLog[]
+  passwordResetTokens      PasswordResetToken[]
+  emailVerificationTokens  EmailVerificationToken[]
 
   @@map("users")
 }
@@ -388,6 +392,12 @@ model Setting {
   insideDhakaCodEnabled       Boolean  @default(true)
   subDhakaCodEnabled          Boolean  @default(true)
   outsideDhakaCodEnabled      Boolean  @default(true)
+  smtpHost                    String?
+  smtpPort                    String?
+  smtpUser                    String?
+  smtpPass                    String?
+  fromEmail                   String?
+  fromName                    String?
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 
@@ -421,4 +431,28 @@ model AuditLog {
   actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
 }

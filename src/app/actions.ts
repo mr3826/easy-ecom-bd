@@ -22,7 +22,7 @@ import {
 import { asNumber, asString } from "@/lib/utils";
 import { initiateBkashPayment } from "@/server/integrations";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
-import { clearSessionCookie, getCurrentUser, getPostLoginRedirectPath, setSessionCookie } from "@/server/auth";
+import { clearSessionCookie, getCurrentUser, getPostLoginRedirectPath, setSessionCookie, createPasswordResetToken, consumePasswordResetToken, createEmailVerificationToken, consumeEmailVerificationToken, markEmailVerified } from "@/server/auth";
 import {
   assertRateLimit,
   buildSecurityKey,
@@ -30,6 +30,7 @@ import {
   getClientIp,
   requireSameOrigin,
 } from "@/server/security";
+import { sendEmail, getPasswordResetEmail, getEmailVerificationEmail } from "@/server/email";
 
 const guestCookie = "easy_ecom_guest";
 
@@ -291,4 +292,133 @@ export async function checkoutAction(formData: FormData) {
   revalidatePath("/checkout");
   revalidatePath("/admin");
   redirect(providerReady.redirectUrl);
+}
+
+export type ForgotPasswordState = {
+  error?: string;
+  success?: string;
+  email?: string;
+};
+
+export async function forgotPasswordAction(_previous: ForgotPasswordState, formData: FormData): Promise<ForgotPasswordState> {
+  const email = asString(formData.get("email")).toLowerCase();
+
+  const requestHeaders = await requireActionOrigin("forgotPasswordAction");
+  assertRateLimit({
+    scope: "forgotPasswordAction",
+    key: buildSecurityKey(getClientIp(requestHeaders), email),
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  const token = await createPasswordResetToken(email);
+  
+  if (!token) {
+    return { email, error: "If an account exists for this email, a reset link has been sent." };
+  }
+
+  const resetUrl = `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=${token}`;
+  const emailResult = await sendEmail(email, getPasswordResetEmail(resetUrl, email));
+
+  if (!emailResult.success) {
+    console.error("Failed to send password reset email:", emailResult.error);
+  }
+
+  return { success: "If an account exists for this email, a reset link has been sent." };
+}
+
+export type ResetPasswordState = {
+  error?: string;
+  success?: string;
+};
+
+export async function resetPasswordAction(_previous: ResetPasswordState, formData: FormData): Promise<ResetPasswordState> {
+  const token = asString(formData.get("token"));
+  const password = asString(formData.get("password"));
+  const confirmPassword = asString(formData.get("confirmPassword"));
+
+  if (!token) {
+    return { error: "Invalid or missing reset token." };
+  }
+
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+
+  if (password !== confirmPassword) {
+    return { error: "Passwords do not match." };
+  }
+
+  const user = await consumePasswordResetToken(token);
+  if (!user) {
+    return { error: "Invalid or expired reset token." };
+  }
+
+  const { hashSync } = await import("bcryptjs");
+  const { updateUserPassword } = await import("@/server/store");
+
+  await updateUserPassword(user.id, hashSync(password, 10));
+
+  return { success: "Password has been reset. You can now sign in." };
+}
+
+export type ResendVerificationState = {
+  error?: string;
+  success?: string;
+  email?: string;
+};
+
+export async function resendVerificationAction(_previous: ResendVerificationState, formData: FormData): Promise<ResendVerificationState> {
+  const email = asString(formData.get("email")).toLowerCase();
+
+  const requestHeaders = await requireActionOrigin("resendVerificationAction");
+  assertRateLimit({
+    scope: "resendVerificationAction",
+    key: buildSecurityKey(getClientIp(requestHeaders), email),
+    limit: 5,
+    windowMs: 60 * 60 * 1000,
+  });
+
+  const { findUserByEmail } = await import("@/server/store");
+  const user = await findUserByEmail(email);
+
+  if (!user) {
+    return { email, error: "If an account exists for this email, a verification link has been sent." };
+  }
+
+  const token = await createEmailVerificationToken(user.id);
+  if (!token) {
+    return { email, error: "Could not create verification token." };
+  }
+
+  const verifyUrl = `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/verify-email?token=${token}`;
+  const emailResult = await sendEmail(email, getEmailVerificationEmail(verifyUrl, user.name));
+
+  if (!emailResult.success) {
+    console.error("Failed to send verification email:", emailResult.error);
+  }
+
+  return { success: "If an account exists for this email, a verification link has been sent." };
+}
+
+export type VerifyEmailState = {
+  error?: string;
+  success?: string;
+};
+
+export async function verifyEmailAction(_previous: VerifyEmailState, formData: FormData): Promise<VerifyEmailState> {
+  const token = asString(formData.get("token"));
+
+  if (!token) {
+    return { error: "Invalid or missing verification token." };
+  }
+
+  const user = await consumeEmailVerificationToken(token);
+  if (!user) {
+    return { error: "Invalid or expired verification token." };
+  }
+
+  await markEmailVerified(user.id);
+
+  return { success: "Email verified successfully. You can now sign in." };
 }

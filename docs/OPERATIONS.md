@@ -371,9 +371,16 @@ These are not style preferences. Each one has already been violated once.
   `DEPLOY_RESTART_TOKEN`, `ADMIN_PASSWORD` and `AUTH_SECRET` live in your shell
   and in cPanel. A debug line that printed the cPanel API token to the console
   shipped once — do not add `Write-Host` calls that interpolate a token.
-- **Never deploy the working tree.** Only `.next/standalone`, `.next/static`,
-  `public/`, and `RELEASE.json` belong on the server. Uploading `src/`, `tests/`,
-  and scratch scripts leaks source and wastes inodes.
+- **Never deploy the working tree, and never deploy a `.env`.** Next's file
+  tracing copies the entire project into `.next/standalone`, `.env` included, so
+  a naive copy of that directory shipped the developer's own `AUTH_SECRET` and
+  `ADMIN_PASSWORD` into a web account on every release — and its stale
+  `DATABASE_URL` later aimed a maintenance script at the wrong database.
+  `deploy-cpanel.ps1` now ships only `server.js`, `.next`, `public`,
+  `package.json` and `node_modules`, and aborts if any `.env` reaches the bundle.
+  Production reads its environment from the Passenger `SetEnv` directives in
+  `public_html/.htaccess`, never from a deployed file. If you add a runtime file,
+  add it to the allowlist deliberately.
 - **Take the dump before the destructive step**, not after.
 
 ---

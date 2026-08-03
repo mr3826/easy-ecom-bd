@@ -184,3 +184,120 @@ export async function requireAdmin() {
 export function getPostLoginRedirectPath(role: SessionUser["role"]) {
   return role === "admin" || role === "super_admin" ? "/admin" : "/account";
 }
+
+const PASSWORD_RESET_TTL_MS = 1000 * 60 * 60;
+const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24;
+
+function hashToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+export async function createPasswordResetToken(email: string) {
+  if (!isDatabaseConfigured()) {
+    return makeToken();
+  }
+
+  const prisma = getPrisma();
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    return null;
+  }
+
+  const token = makeToken();
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    },
+  });
+  return token;
+}
+
+export async function consumePasswordResetToken(token: string) {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const prisma = getPrisma();
+  const tokenHash = hashToken(token);
+  const record = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash },
+    include: { user: true },
+  });
+
+  if (!record || record.expiresAt.getTime() < Date.now()) {
+    if (record) {
+      await prisma.passwordResetToken.delete({ where: { id: record.id } }).catch(() => {});
+    }
+    return null;
+  }
+
+  await prisma.passwordResetToken.delete({ where: { id: record.id } });
+  return record.user;
+}
+
+export async function createEmailVerificationToken(userId: string) {
+  if (!isDatabaseConfigured()) {
+    return makeToken();
+  }
+
+  const prisma = getPrisma();
+  const token = makeToken();
+  await prisma.emailVerificationToken.create({
+    data: {
+      userId,
+      tokenHash: hashToken(token),
+      expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    },
+  });
+  return token;
+}
+
+export async function consumeEmailVerificationToken(token: string) {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const prisma = getPrisma();
+  const tokenHash = hashToken(token);
+  const record = await prisma.emailVerificationToken.findUnique({
+    where: { tokenHash },
+    include: { user: true },
+  });
+
+  if (!record || record.expiresAt.getTime() < Date.now()) {
+    if (record) {
+      await prisma.emailVerificationToken.delete({ where: { id: record.id } }).catch(() => {});
+    }
+    return null;
+  }
+
+  await prisma.emailVerificationToken.delete({ where: { id: record.id } });
+  return record.user;
+}
+
+export async function markEmailVerified(userId: string) {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+
+  const prisma = getPrisma();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { emailVerified: true, emailVerifiedAt: new Date() },
+  });
+}
+
+export async function isEmailVerified(userId: string): Promise<boolean> {
+  if (!isDatabaseConfigured()) {
+    return true;
+  }
+
+  const prisma = getPrisma();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { emailVerified: true },
+  });
+  return Boolean(user?.emailVerified);
+}
