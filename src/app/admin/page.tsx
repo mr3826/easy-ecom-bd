@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MetricCard } from "@/components/metric-card";
 import { StatusPill } from "@/components/status-pill";
+import { Button } from "@/components/ui/button";
 import { getState, listOrders, listProducts, listPayments } from "@/server/store";
 import { money } from "@/lib/utils";
 
@@ -23,12 +24,9 @@ export default async function AdminDashboardPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Dashboard</p>
           <h1 className="mt-2 text-3xl font-semibold text-[color:var(--foreground)]">Store overview</h1>
         </div>
-        <Link
-          href="/admin/orders"
-          className="rounded-full bg-[color:var(--brand)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
-        >
-          Manage orders
-        </Link>
+        <Button asChild>
+            <Link href="/admin/orders">Manage orders</Link>
+          </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

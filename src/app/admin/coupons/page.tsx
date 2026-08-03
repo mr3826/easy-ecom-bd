@@ -2,6 +2,7 @@ import Link from "next/link";
 import { saveCouponAction } from "@/app/admin/actions";
 import { listCoupons } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
+import { Button } from "@/components/ui/button";
 
 export default async function AdminCouponsPage({
   searchParams,
@@ -50,7 +51,7 @@ export default async function AdminCouponsPage({
             <option value="false">Hidden</option>
           </select>
         </label>
-        <button className="touch-target inline-flex h-11 w-fit items-center justify-center rounded-full bg-[color:var(--brand)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">{selected ? "Update coupon" : "Create coupon"}</button>
+        <Button type="submit">{selected ? "Update coupon" : "Create coupon"}</Button>
       </form>
       <div className="grid gap-4 sm:grid-cols-2">
         {coupons.map((coupon) => (
@@ -63,7 +64,9 @@ export default async function AdminCouponsPage({
               <StatusPill label={coupon.isActive ? "active" : "hidden"} tone={coupon.isActive ? "active" : "inactive"} />
             </div>
             <p className="mt-3 text-xs text-[color:var(--muted)]">{coupon.type} · {coupon.value} · min {coupon.minOrderAmount}</p>
-            <Link href={`/admin/coupons?edit=${coupon.id}`} className="mt-3 inline-flex h-11 items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)]">Edit</Link>
+            <Button asChild variant="secondary">
+              <Link href={`/admin/coupons?edit=${coupon.id}`}>Edit</Link>
+            </Button>
           </div>
         ))}
       </div>

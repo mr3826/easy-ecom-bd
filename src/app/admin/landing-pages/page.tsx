@@ -3,6 +3,7 @@ import { saveLandingPageAction, saveLandingPageSectionAction } from "@/app/admin
 import { listLandingPages, getLandingPageSections, listProducts } from "@/server/store";
 import { StatusPill } from "@/components/status-pill";
 import { homepageCarouselItemsTemplate } from "@/lib/homepage-carousel";
+import { Button } from "@/components/ui/button";
 
 const defaultSectionItemsJson = JSON.stringify([{ title: "Question", body: "Answer" }], null, 2);
 
@@ -58,7 +59,7 @@ export default async function AdminLandingPagesPage({
           <input type="checkbox" name="published" defaultChecked={selected?.published ?? false} />
           <span>Published</span>
         </label>
-        <button className="touch-target inline-flex h-11 w-fit items-center justify-center rounded-full bg-[color:var(--brand)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">{selected ? "Update landing page" : "Create landing page"}</button>
+        <Button type="submit">{selected ? "Update landing page" : "Create landing page"}</Button>
       </form>
 
       {selected ? (
@@ -113,7 +114,7 @@ export default async function AdminLandingPagesPage({
             <span>Items JSON for carousel/FAQ/testimonials</span>
             <textarea name="itemsJson" rows={8} defaultValue={selected.slug === "home" ? homepageCarouselItemsTemplate : defaultSectionItemsJson} className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] font-mono text-xs outline-none transition placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60" />
           </label>
-          <button className="touch-target inline-flex h-11 w-fit items-center justify-center rounded-full bg-[color:var(--brand)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">Add section</button>
+          <Button type="submit">Add section</Button>
         </form>
       ) : null}
 
@@ -129,8 +130,12 @@ export default async function AdminLandingPagesPage({
               </div>
               <p className="mt-3 text-sm text-[color:var(--muted)]">{page.heroSubtitle}</p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Link href={`/l/${page.slug}`} className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)]">View</Link>
-                <Link href={`/admin/landing-pages?edit=${page.id}`} className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)]">Edit</Link>
+                <Button asChild variant="ghost">
+                  <Link href={`/l/${page.slug}`}>View</Link>
+                </Button>
+                <Button asChild variant="secondary">
+                  <Link href={`/admin/landing-pages?edit=${page.id}`}>Edit</Link>
+                </Button>
               </div>
             </div>
           ))}

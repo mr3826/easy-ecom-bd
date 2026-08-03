@@ -4,6 +4,7 @@ import { bulkUploadProductsAction, deleteProductAction } from "@/app/admin/actio
 import { ProductBulkUploadButton } from "@/components/admin/product-bulk-upload";
 import { ProductsFilterDrawer } from "@/components/admin/products-filter-drawer";
 import { StatusPill } from "@/components/status-pill";
+import { Button } from "@/components/ui/button";
 import { money } from "@/lib/utils";
 import { listCategories, listProducts } from "@/server/store";
 
@@ -84,13 +85,12 @@ export default async function AdminProductsPage({
             <form action={bulkUploadProductsAction} className="grid justify-items-end gap-2">
               <ProductBulkUploadButton templateHref="/admin/products/upload-template" />
             </form>
-            <Link
-              href="/admin/products/new"
-              className="touch-target inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[color:var(--brand)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
-            >
-              <Plus className="h-4 w-4" />
-              Add A Product
-            </Link>
+            <Button asChild>
+              <Link href="/admin/products/new">
+                <Plus className="h-4 w-4" />
+                Add A Product
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
@@ -108,16 +108,16 @@ export default async function AdminProductsPage({
             placeholder="Search by product name, SKU"
             className="w-full rounded-full border border-[color:var(--border)] bg-white px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60"
           />
-          <button className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-[color:var(--brand)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">
-            Search
-          </button>
+          <Button type="submit">Search</Button>
         </form>
         <div className="flex items-center gap-3">
           <ProductsFilterDrawer categories={categories} values={{ q, category, status, source, minPrice, maxPrice }} />
-          <Link href="/admin/products/new" className="touch-target inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[color:var(--brand)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">
-            <Plus className="h-4 w-4" />
-            Add A Product
-          </Link>
+          <Button asChild>
+            <Link href="/admin/products/new">
+              <Plus className="h-4 w-4" />
+              Add A Product
+            </Link>
+          </Button>
         </div>
       </section>
 
@@ -169,21 +169,16 @@ export default async function AdminProductsPage({
                 ) : null}
 
                 <div className="mt-4 flex items-center justify-end gap-2">
-                  <Link
-                    href={`/admin/products/new?edit=${product.id}`}
-                    className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-[color:var(--brand)]/40 hover:text-[color:var(--brand)]"
-                    aria-label={`Edit ${product.name}`}
-                  >
-                    <PencilLine className="h-4 w-4" />
-                  </Link>
+                  <Button asChild variant="ghost" size="sm" aria-label={`Edit ${product.name}`}>
+                    <Link href={`/admin/products/new?edit=${product.id}`}>
+                      <PencilLine className="h-4 w-4" />
+                    </Link>
+                  </Button>
                   <form action={deleteProductAction}>
                     <input type="hidden" name="id" value={product.id} />
-                    <button
-                      className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/40 hover:text-rose-500"
-                      aria-label={`Delete ${product.name}`}
-                    >
+                    <Button variant="danger" size="sm" aria-label={`Delete ${product.name}`} pendingWhileSubmitting pendingLabel="Deleting…">
                       <Trash2 className="h-4 w-4" />
-                    </button>
+                    </Button>
                   </form>
                 </div>
               </article>
@@ -270,21 +265,16 @@ export default async function AdminProductsPage({
                       <td className="px-6 py-5 align-top text-[color:var(--muted)]">{sourceLabel}</td>
                       <td className="px-6 py-5 align-top">
                         <div className="flex items-center justify-end gap-3">
-                          <Link
-                            href={`/admin/products/new?edit=${product.id}`}
-                            className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-[color:var(--brand)]/40 hover:text-[color:var(--brand)]"
-                            aria-label={`Edit ${product.name}`}
-                          >
-                            <PencilLine className="h-5 w-5" />
-                          </Link>
+                          <Button asChild variant="ghost" size="sm" aria-label={`Edit ${product.name}`}>
+                            <Link href={`/admin/products/new?edit=${product.id}`}>
+                              <PencilLine className="h-5 w-5" />
+                            </Link>
+                          </Button>
                           <form action={deleteProductAction}>
                             <input type="hidden" name="id" value={product.id} />
-                            <button
-                              className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/40 hover:text-rose-500"
-                              aria-label={`Delete ${product.name}`}
-                            >
+                            <Button variant="danger" size="sm" aria-label={`Delete ${product.name}`} pendingWhileSubmitting pendingLabel="Deleting…">
                               <Trash2 className="h-5 w-5" />
-                            </button>
+                            </Button>
                           </form>
                         </div>
                       </td>

@@ -33,7 +33,7 @@ export default async function AdminOrdersPage() {
             <h2 className="text-lg font-semibold text-[color:var(--foreground)]">Create manual order</h2>
             <p className="mt-1 text-xs text-[color:var(--muted)] sm:text-sm">Draft orders do not reserve stock until moved to pending or confirmed.</p>
           </div>
-          <button className="touch-target inline-flex h-11 min-h-[2.75rem] items-center justify-center rounded-full bg-[color:var(--brand)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">Create order</button>
+          <Button type="submit">Create order</Button>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
