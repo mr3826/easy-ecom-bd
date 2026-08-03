@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import type { Prisma, Product as PrismaProduct } from "@prisma/client";
 import type {
+  Address,
   Brand,
   Cart,
   CartItem,
@@ -777,6 +778,216 @@ export async function updateUser(
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { passwordHash: _unused, ...userWithoutPassword } = record;
   return userWithoutPassword as unknown as User;
+}
+
+export async function listAddressesForUser(userId: string) {
+  if (!isDatabaseConfigured()) {
+    return getDemoState().addresses.filter((address) => address.userId === userId);
+  }
+  const prisma = getPrisma();
+  return prisma.address.findMany({
+    where: { userId },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+  }) as unknown as Address[];
+}
+
+async function findAddressForUser(userId: string, addressId: string) {
+  if (!isDatabaseConfigured()) {
+    return getDemoState().addresses.find((address) => address.id === addressId && address.userId === userId) ?? null;
+  }
+  const prisma = getPrisma();
+  const address = await prisma.address.findUnique({ where: { id: addressId } });
+  return address && address.userId === userId ? (address as unknown as Address) : null;
+}
+
+type AddressInput = {
+  name: string;
+  phone: string;
+  email?: string | null;
+  district: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  isDefault?: boolean;
+};
+
+export async function createAddressForUser(userId: string, input: AddressInput, actor?: Actor) {
+  if (!isDatabaseConfigured()) {
+    const state = getDemoState();
+    if (input.isDefault) {
+      state.addresses.forEach((address) => {
+        if (address.userId === userId) address.isDefault = false;
+      });
+    }
+    const nowIso = new Date().toISOString();
+    const record: Address = {
+      id: `addr-${randomBytes(6).toString("hex")}`,
+      userId,
+      guestKey: null,
+      country: "Bangladesh",
+      ...input,
+      isDefault: input.isDefault ?? state.addresses.every((address) => address.userId !== userId),
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    state.addresses.push(record);
+    return record;
+  }
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    if (input.isDefault) {
+      await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
+    }
+    const existingCount = await tx.address.count({ where: { userId } });
+    const record = await tx.address.create({
+      data: {
+        userId,
+        name: input.name,
+        phone: input.phone,
+        email: input.email ?? null,
+        district: input.district,
+        addressLine1: input.addressLine1,
+        addressLine2: input.addressLine2 ?? null,
+        city: input.city,
+        state: input.state,
+        postalCode: input.postalCode,
+        isDefault: input.isDefault ?? existingCount === 0,
+      },
+    });
+    await recordAuditLog({
+      actor,
+      action: "create",
+      entity: "address",
+      entityId: record.id,
+      oldValue: null,
+      newValue: asJson(record),
+    });
+    return record as unknown as Address;
+  });
+}
+
+export async function updateAddressForUser(
+  userId: string,
+  addressId: string,
+  input: AddressInput,
+  actor?: Actor,
+) {
+  const existing = await findAddressForUser(userId, addressId);
+  if (!existing) return null;
+
+  if (!isDatabaseConfigured()) {
+    const state = getDemoState();
+    if (input.isDefault) {
+      state.addresses.forEach((address) => {
+        if (address.userId === userId) address.isDefault = false;
+      });
+    }
+    const index = state.addresses.findIndex((address) => address.id === addressId);
+    const updated: Address = {
+      ...state.addresses[index],
+      ...input,
+      isDefault: input.isDefault ?? state.addresses[index].isDefault,
+      updatedAt: new Date().toISOString(),
+    };
+    state.addresses[index] = updated;
+    return updated;
+  }
+
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    if (input.isDefault) {
+      await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
+    }
+    const record = await tx.address.update({
+      where: { id: addressId },
+      data: {
+        name: input.name,
+        phone: input.phone,
+        email: input.email ?? null,
+        district: input.district,
+        addressLine1: input.addressLine1,
+        addressLine2: input.addressLine2 ?? null,
+        city: input.city,
+        state: input.state,
+        postalCode: input.postalCode,
+        isDefault: input.isDefault ?? existing.isDefault,
+      },
+    });
+    await recordAuditLog({
+      actor,
+      action: "update",
+      entity: "address",
+      entityId: addressId,
+      oldValue: asJson(existing),
+      newValue: asJson(record),
+    });
+    return record as unknown as Address;
+  });
+}
+
+export async function deleteAddressForUser(userId: string, addressId: string, actor?: Actor) {
+  const existing = await findAddressForUser(userId, addressId);
+  if (!existing) return false;
+
+  if (!isDatabaseConfigured()) {
+    const state = getDemoState();
+    state.addresses = state.addresses.filter((address) => address.id !== addressId);
+    if (existing.isDefault) {
+      const next = state.addresses.find((address) => address.userId === userId);
+      if (next) next.isDefault = true;
+    }
+    return true;
+  }
+
+  const prisma = getPrisma();
+  await prisma.$transaction(async (tx) => {
+    await tx.address.delete({ where: { id: addressId } });
+    await recordAuditLog({
+      actor,
+      action: "delete",
+      entity: "address",
+      entityId: addressId,
+      oldValue: asJson(existing),
+      newValue: null,
+    });
+    if (existing.isDefault) {
+      const next = await tx.address.findFirst({ where: { userId }, orderBy: { createdAt: "asc" } });
+      if (next) {
+        await tx.address.update({ where: { id: next.id }, data: { isDefault: true } });
+      }
+    }
+  });
+  return true;
+}
+
+export async function setDefaultAddressForUser(userId: string, addressId: string, actor?: Actor) {
+  const existing = await findAddressForUser(userId, addressId);
+  if (!existing) return null;
+
+  if (!isDatabaseConfigured()) {
+    const state = getDemoState();
+    state.addresses.forEach((address) => {
+      if (address.userId === userId) address.isDefault = address.id === addressId;
+    });
+    return existing;
+  }
+
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
+    const record = await tx.address.update({ where: { id: addressId }, data: { isDefault: true } });
+    await recordAuditLog({
+      actor,
+      action: "update",
+      entity: "address",
+      entityId: addressId,
+      oldValue: asJson(existing),
+      newValue: asJson(record),
+    });
+    return record as unknown as Address;
+  });
 }
 
 export async function getSettings() {

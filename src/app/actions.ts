@@ -8,17 +8,20 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   addToCart,
+  createAddressForUser,
   createOrderFromCart,
   createUser,
+  deleteAddressForUser,
   getCartSummary,
   getProduct,
   getOrCreateCart,
   findUserByEmail,
   listProducts,
   removeCartItem,
+  setDefaultAddressForUser,
+  updateAddressForUser,
   updateCartQuantity,
   clearCart,
-  
   updateUser,
 } from "@/server/store";
 import { asNumber, asString } from "@/lib/utils";
@@ -315,6 +318,113 @@ export async function updateUserProfileAction(
     email: updatedUser.email,
     phone: updatedUser.phone ?? undefined,
   };
+}
+
+const addressSchema = z.object({
+  name: z.string().min(2),
+  phone: z.string().min(7),
+  email: z.string().email().optional(),
+  district: z.string().min(2),
+  addressLine1: z.string().min(4),
+  addressLine2: z.string().optional(),
+  city: z.string().min(2),
+  state: z.string().min(2),
+  postalCode: z.string().min(3),
+  isDefault: z.boolean().optional(),
+});
+
+type AddressState = {
+  error?: string;
+  success?: string;
+};
+
+function parseAddressForm(formData: FormData) {
+  return addressSchema.safeParse({
+    name: asString(formData.get("name")),
+    phone: asString(formData.get("phone")),
+    email: asString(formData.get("email")) || undefined,
+    district: asString(formData.get("district")),
+    addressLine1: asString(formData.get("addressLine1")),
+    addressLine2: asString(formData.get("addressLine2")) || undefined,
+    city: asString(formData.get("city")),
+    state: asString(formData.get("state")),
+    postalCode: asString(formData.get("postalCode")),
+    isDefault: formData.get("isDefault") === "on",
+  });
+}
+
+export async function createAddressAction(_previous: AddressState, formData: FormData): Promise<AddressState> {
+  const parsed = parseAddressForm(formData);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || "Invalid address details" };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "You must be logged in to manage addresses" };
+  }
+
+  const requestHeaders = await requireActionOrigin("createAddressAction");
+  assertRateLimit({
+    scope: "createAddressAction",
+    key: buildSecurityKey(getClientIp(requestHeaders), user.id),
+    limit: 20,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  await createAddressForUser(user.id, parsed.data, user);
+  revalidatePath("/account/addresses");
+  return { success: "Address added" };
+}
+
+export async function updateAddressAction(_previous: AddressState, formData: FormData): Promise<AddressState> {
+  const addressId = asString(formData.get("addressId"));
+  if (!addressId) {
+    return { error: "Missing address" };
+  }
+
+  const parsed = parseAddressForm(formData);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || "Invalid address details" };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "You must be logged in to manage addresses" };
+  }
+
+  const requestHeaders = await requireActionOrigin("updateAddressAction");
+  assertRateLimit({
+    scope: "updateAddressAction",
+    key: buildSecurityKey(getClientIp(requestHeaders), user.id),
+    limit: 20,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  const updated = await updateAddressForUser(user.id, addressId, parsed.data, user);
+  if (!updated) {
+    return { error: "Address not found" };
+  }
+  revalidatePath("/account/addresses");
+  return { success: "Address updated" };
+}
+
+export async function deleteAddressAction(formData: FormData) {
+  await requireActionOrigin("deleteAddressAction");
+  const addressId = asString(formData.get("addressId"));
+  const user = await getCurrentUser();
+  if (!user || !addressId) return;
+  await deleteAddressForUser(user.id, addressId, user);
+  revalidatePath("/account/addresses");
+}
+
+export async function setDefaultAddressAction(formData: FormData) {
+  await requireActionOrigin("setDefaultAddressAction");
+  const addressId = asString(formData.get("addressId"));
+  const user = await getCurrentUser();
+  if (!user || !addressId) return;
+  await setDefaultAddressForUser(user.id, addressId, user);
+  revalidatePath("/account/addresses");
 }
 
 export async function checkoutAction(
