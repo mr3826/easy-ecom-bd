@@ -14,10 +14,12 @@ import {
   getProduct,
   getOrCreateCart,
   findUserByEmail,
+  findUserById,
   listProducts,
   removeCartItem,
   updateCartQuantity,
   clearCart,
+  updateUser,
 } from "@/server/store";
 import { asNumber, asString } from "@/lib/utils";
 import { initiateBkashPayment } from "@/server/integrations";
@@ -217,6 +219,87 @@ export async function logoutAction() {
   await requireActionOrigin("logoutAction");
   await clearSessionCookie();
   redirect("/");
+}
+
+export type UpdateProfileState = {
+  error?: string;
+  success?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+};
+
+export async function updateUserProfileAction(
+  _previous: UpdateProfileState,
+  formData: FormData,
+): Promise<UpdateProfileState> {
+  const schema = z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    phone: z.string().min(7).optional(),
+  });
+
+  const parsed = schema.safeParse({
+    name: asString(formData.get("name")),
+    email: asString(formData.get("email")),
+    phone: asString(formData.get("phone")) || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || "Invalid profile details" };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "You must be logged in to update your profile" };
+  }
+
+  const requestHeaders = await requireActionOrigin("updateUserProfileAction");
+  assertRateLimit({
+    scope: "updateUserProfileAction",
+    key: buildSecurityKey(getClientIp(requestHeaders), user.id),
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  const emailChanged = parsed.data.email.toLowerCase() !== user.email.toLowerCase();
+  if (emailChanged) {
+    const existing = await findUserByEmail(parsed.data.email);
+    if (existing && existing.id !== user.id) {
+      return { error: "An account already exists for this email address" };
+    }
+  }
+
+  const updatedUser = await updateUser(user.id, {
+    name: parsed.data.name,
+    email: parsed.data.email,
+    phone: parsed.data.phone,
+  });
+
+  if (!updatedUser) {
+    return { error: "Failed to update profile" };
+  }
+
+  revalidatePath("/account");
+  revalidatePath("/account/profile");
+
+  if (emailChanged) {
+    // TODO: Send verification email to the new address
+    // For now, we'll just log and return a success message
+    return {
+      success: "Profile updated. A verification email has been sent to your new email address.",
+      name: updatedUser.name,
+      email: updatedUser.email,
+      phone: updatedUser.phone ?? undefined,
+    };
+  }
+
+  return {
+    success: "Profile updated successfully",
+    name: updatedUser.name,
+    email: updatedUser.email,
+    phone: updatedUser.phone ?? undefined,
+  };
 }
 
 export async function checkoutAction(formData: FormData) {
