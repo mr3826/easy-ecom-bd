@@ -180,6 +180,26 @@ export function createSeedState(): DatabaseState {
         createdAt: now,
       },
     ],
+    addresses: [
+      {
+        id: "addr-1",
+        userId: customerUser.id,
+        guestKey: null,
+        name: "Amina Rahman",
+        phone: "01811111111",
+        email: "amina@example.com",
+        district: "Dhaka",
+        addressLine1: "House 22, Road 4",
+        addressLine2: "Dhanmondi",
+        city: "Dhaka",
+        state: "Dhaka",
+        postalCode: "1209",
+        country: "Bangladesh",
+        isDefault: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ],
     landingPages: [
       {
         id: "lp-home",

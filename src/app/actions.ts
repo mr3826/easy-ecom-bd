@@ -18,6 +18,11 @@ import {
   removeCartItem,
   updateCartQuantity,
   clearCart,
+  listAddresses,
+  getAddress,
+  upsertAddress,
+  deleteAddress,
+  setDefaultAddress,
 } from "@/server/store";
 import { asNumber, asString } from "@/lib/utils";
 import { initiateBkashPayment } from "@/server/integrations";
@@ -291,4 +296,160 @@ export async function checkoutAction(formData: FormData) {
   revalidatePath("/checkout");
   revalidatePath("/admin");
   redirect(providerReady.redirectUrl);
+}
+
+const addressSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  phone: z.string().min(10, "Phone number must be at least 10 digits"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  district: z.string().min(2, "District is required"),
+  addressLine1: z.string().min(5, "Address line 1 must be at least 5 characters"),
+  addressLine2: z.string().optional(),
+  city: z.string().min(2, "City is required"),
+  state: z.string().min(2, "State/Region is required"),
+  postalCode: z.string().min(4, "Postal code is required"),
+  country: z.string().optional(),
+  isDefault: z.boolean().optional(),
+});
+
+async function getUserContext() {
+  const user = await getCurrentUser();
+  const guestKey = await getGuestKey();
+  return { user, guestKey };
+}
+
+export async function createAddressAction(formData: FormData) {
+  await requireActionOrigin("createAddressAction");
+  const { user, guestKey } = await getUserContext();
+
+  const rawData = {
+    name: asString(formData.get("name")),
+    phone: asString(formData.get("phone")),
+    email: asString(formData.get("email")) || undefined,
+    district: asString(formData.get("district")),
+    addressLine1: asString(formData.get("addressLine1")),
+    addressLine2: asString(formData.get("addressLine2")) || undefined,
+    city: asString(formData.get("city")),
+    state: asString(formData.get("state")),
+    postalCode: asString(formData.get("postalCode")),
+    country: asString(formData.get("country")) || "Bangladesh",
+    isDefault: formData.get("isDefault") === "on",
+  };
+
+  const parsed = addressSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message || "Invalid address details");
+  }
+
+  const address = await upsertAddress(
+    {
+      ...parsed.data,
+      userId: user?.id ?? null,
+      guestKey: user?.id ? null : guestKey,
+    },
+    user ?? null,
+  );
+
+  revalidatePath("/account/addresses");
+  revalidatePath("/checkout");
+  return { success: true, address };
+}
+
+export async function updateAddressAction(formData: FormData) {
+  await requireActionOrigin("updateAddressAction");
+  const { user, guestKey } = await getUserContext();
+
+  const id = asString(formData.get("id"));
+  if (!id) throw new Error("Address ID is required");
+
+  const existingAddress = await getAddress(id);
+  if (!existingAddress) throw new Error("Address not found");
+
+  if (existingAddress.userId && existingAddress.userId !== user?.id) {
+    throw new Error("Unauthorized");
+  }
+  if (existingAddress.guestKey && existingAddress.guestKey !== guestKey) {
+    throw new Error("Unauthorized");
+  }
+
+  const rawData = {
+    id,
+    name: asString(formData.get("name")),
+    phone: asString(formData.get("phone")),
+    email: asString(formData.get("email")) || undefined,
+    district: asString(formData.get("district")),
+    addressLine1: asString(formData.get("addressLine1")),
+    addressLine2: asString(formData.get("addressLine2")) || undefined,
+    city: asString(formData.get("city")),
+    state: asString(formData.get("state")),
+    postalCode: asString(formData.get("postalCode")),
+    country: asString(formData.get("country")) || "Bangladesh",
+    isDefault: formData.get("isDefault") === "on",
+  };
+
+  const parsed = addressSchema.safeParse(rawData);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message || "Invalid address details");
+  }
+
+  const address = await upsertAddress(
+    {
+      ...parsed.data,
+      userId: user?.id ?? null,
+      guestKey: user?.id ? null : guestKey,
+    },
+    user ?? null,
+  );
+
+  revalidatePath("/account/addresses");
+  revalidatePath("/checkout");
+  return { success: true, address };
+}
+
+export async function deleteAddressAction(formData: FormData) {
+  await requireActionOrigin("deleteAddressAction");
+  const { user, guestKey } = await getUserContext();
+
+  const id = asString(formData.get("id"));
+  if (!id) throw new Error("Address ID is required");
+
+  const existingAddress = await getAddress(id);
+  if (!existingAddress) throw new Error("Address not found");
+
+  if (existingAddress.userId && existingAddress.userId !== user?.id) {
+    throw new Error("Unauthorized");
+  }
+  if (existingAddress.guestKey && existingAddress.guestKey !== guestKey) {
+    throw new Error("Unauthorized");
+  }
+
+  await deleteAddress(id, user ?? null);
+
+  revalidatePath("/account/addresses");
+  revalidatePath("/checkout");
+  return { success: true };
+}
+
+export async function setDefaultAddressAction(formData: FormData) {
+  await requireActionOrigin("setDefaultAddressAction");
+  const { user, guestKey } = await getUserContext();
+
+  const id = asString(formData.get("id"));
+  if (!id) throw new Error("Address ID is required");
+
+  const existingAddress = await getAddress(id);
+  if (!existingAddress) throw new Error("Address not found");
+
+  if (existingAddress.userId && existingAddress.userId !== user?.id) {
+    throw new Error("Unauthorized");
+  }
+  if (existingAddress.guestKey && existingAddress.guestKey !== guestKey) {
+    throw new Error("Unauthorized");
+  }
+
+  await setDefaultAddress(id, user ?? null);
+
+  revalidatePath("/account/addresses");
+  revalidatePath("/checkout");
+  return { success: true };
 }
