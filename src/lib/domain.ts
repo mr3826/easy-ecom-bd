@@ -48,6 +48,25 @@ export interface User {
   updatedAt?: string;
 }
 
+export interface Address {
+  id: string;
+  userId?: string | null;
+  guestKey?: string | null;
+  name: string;
+  phone: string;
+  email?: string | null;
+  district: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -345,6 +364,7 @@ export interface DatabaseState {
   landingPageSections: LandingPageSection[];
   coupons: Coupon[];
   inventoryLogs: InventoryLog[];
+  addresses: Address[];
   settings: Settings;
   auditLogs: Array<{
     id: string;
