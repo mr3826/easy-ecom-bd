@@ -103,7 +103,13 @@ async function resolveBackendCollections(): Promise<ResolvedStorefrontCollection
     })
     .filter((collection): collection is StorefrontCollection => Boolean(collection));
 
-  return resolved.length ? resolved : storefrontCollections;
+  // An empty catalogue means an empty shop. This used to fall back to
+  // storefrontCollections, which put 51 template products with prices in front
+  // of real customers whenever the database had none - a freshly launched or
+  // freshly wiped store advertised merchandise that did not exist and could not
+  // be checked out. storefrontCollections stays a presentation template above
+  // (tone, badges); it is not a catalogue.
+  return resolved;
 }
 
 export const getStorefrontCollections = cache(async function getStorefrontCollections() {
@@ -158,14 +164,8 @@ export const getStorefrontRelatedProducts = cache(async function getStorefrontRe
   limit = 4,
 ) {
   const collection = await getStorefrontCollectionBySlug(collectionSlug);
-  return (
-    collection?.products.filter((product) => product.slug !== productSlug).slice(0, limit) ??
-    storefrontCollections
-      .find((entry) => entry.slug === collectionSlug)
-      ?.products.filter((product) => product.slug !== productSlug)
-      .slice(0, limit) ??
-    []
-  );
+  // No template fallback: related products must be real products, or none.
+  return collection?.products.filter((product) => product.slug !== productSlug).slice(0, limit) ?? [];
 });
 
 export const searchStorefrontProducts = cache(async function searchStorefrontProducts(query: string) {

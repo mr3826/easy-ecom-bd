@@ -192,18 +192,42 @@ What it does, in order:
 3. Uploads `prisma/wipe.sql` and a generated admin `INSERT` to `/home/bornohin/db-maintenance`.
 4. Runs `pg_dump | gzip` on the server into that directory. Pass `-SkipBackup` to skip, and understand a wipe without a dump cannot be undone.
 5. Runs both SQL files through `psql -v ON_ERROR_STOP=1`, then prints row counts.
-6. Touches `tmp/restart.txt` so Passenger restarts and no request reuses cached rows.
+6. Restarts the application over `POST /api/deploy/restart` and confirms the `pid` changed, so no request reuses cached rows. Warns loudly if it did not.
 7. Probes `/api/health/ready`.
 
-`DATABASE_URL` never leaves the server: the remote command sources the
-application's own `.env`. Every step runs through a one-shot cron entry that is
-removed in a `finally` block and whose absence is confirmed — the same pattern
-`deploy-cpanel.ps1` uses for the orphan reaper. If removal ever fails the script
-says so in red; delete the entry containing `bornohin-db-wipe` under
-**cPanel > Cron Jobs** immediately, or it runs every minute.
+`DATABASE_URL` never leaves the server. Every step runs through a one-shot cron
+entry that is removed in a `finally` block and whose absence is confirmed — the
+same pattern `deploy-cpanel.ps1` uses for the orphan reaper. If removal ever
+fails the script says so in red; delete the entry containing `bornohin-db-wipe`
+under **cPanel > Cron Jobs** immediately, or it runs every minute.
 
 Delete the dump and staged SQL from `/home/bornohin/db-maintenance` once you are
-satisfied with the result.
+satisfied — `admin.sql` contains the administrator's bcrypt hash.
+
+#### Four traps this host sets
+
+Each cost a failed run; the script now handles all four, but they bite anything
+else you write against this server.
+
+1. **`bornohin_app/.env` is a lie.** It is a stale copy of a development `.env`
+   with `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ecommerce`.
+   No `ecommerce` database exists on this host. The running application gets its
+   environment from `SetEnv` directives in `/home/bornohin/public_html/.htaccess`
+   — read `DATABASE_URL` from there, never from that `.env`. Sourcing the `.env`
+   pointed an early run of the wipe at the wrong database; only a missing
+   `pg_hba.conf` entry stopped it.
+2. **libpq rejects Prisma's URL.** `?schema=public` fails with
+   `invalid URI query parameter: "schema"`. Strip the query string before handing
+   the URL to `psql` — with `cut -d'?' -f1`, not the shell's `${VAR%%\?*}`, since
+   a `%` truncates a crontab command.
+3. **Table names are snake_case.** Every model carries an `@@map`, so it is
+   `public.users`, not `public."User"`. Column names keep their camelCase field
+   names and must stay double-quoted: `"passwordHash"`, `"createdAt"`.
+4. **`touch tmp/restart.txt` does not restart anything** for a healthy
+   Passenger-parented process on this host. The application caches query results
+   in-process, so after a wipe it keeps serving deleted rows until it actually
+   restarts. Use `POST /api/deploy/restart` with `DEPLOY_RESTART_TOKEN` and
+   confirm the `pid` from `/api/version` changed.
 
 ### What survives a wipe
 
@@ -223,6 +247,18 @@ on a database that had never had that row — they read it inside their
 transaction instead of going through `getSettingsRow()`. Both now ensure the row
 first. Uploaded media under `UPLOAD_DIR` is not touched by a wipe; the rows
 referencing it are, so orphaned files are left behind on disk.
+
+**An empty catalogue now renders as an empty shop.** Until 2026-08-03,
+`resolveBackendCollections()` in
+[`src/server/storefront-catalog.ts`](../src/server/storefront-catalog.ts) ended
+with `return resolved.length ? resolved : storefrontCollections`, so a store with
+no products advertised the 51 template products from
+`src/lib/bornohin-storefront.ts` — with prices, to real customers, on a checkout
+that could not fulfil them. The site footer sliced the same template directly.
+Both now read the real catalogue. `storefrontCollections` remains a presentation
+template (tone, badges) for products that genuinely exist; it is not a fallback
+catalogue. If the shop looks empty after a wipe, that is correct — add products
+in the admin dashboard.
 
 ### Restoring a backup
 
@@ -290,6 +326,30 @@ script handles this itself — it asks the process to exit over
 `/api/deploy/restart`, then falls back to an age-based cron reaper. If you are
 doing it by hand, touch `tmp/restart.txt` in the app root and wait a minute.
 
+### Symptom: the app restarts every couple of minutes
+
+Check the crontab for the orphan reaper:
+
+```sh
+ps -eo pid,etimes,args | awk '$2 > 120 && /next-server/ {print $1}' | xargs -r kill
+```
+
+That entry kills any `next-server` process older than two minutes, **every
+minute**. `deploy-cpanel.ps1` installs it only as a last resort and removes it in
+a `finally` block, but a deploy interrupted at the wrong moment leaves it
+running, and it survived one deploy on 2026-08-03 — production was being killed
+roughly every two minutes until it was found. Symptom: the `pid` from
+`/api/version` keeps changing while `startedAt` stays under two minutes.
+
+Delete it under **cPanel > Cron Jobs**, then confirm the crontab is clean:
+
+```powershell
+$h = @{ Authorization = "cpanel bornohin:$env:CPANEL_API_TOKEN" }
+$q = "cpanel_jsonapi_user=bornohin&cpanel_jsonapi_apiversion=2&cpanel_jsonapi_module=Cron&cpanel_jsonapi_func=fetchcron"
+(Invoke-RestMethod -Uri "https://bd10.exonhost.com:2083/json-api/cpanel?$q" -Headers $h).cpanelresult.data |
+  Where-Object { $_.PSObject.Properties['command'] } | ForEach-Object { $_.command }
+```
+
 ### Symptom: a cron entry is left behind
 
 Both `deploy-cpanel.ps1` and `wipe-production-db.ps1` install temporary cron
@@ -342,9 +402,12 @@ Recorded so the same failure is recognised the second time.
 **2026-08-03 — a production wipe that never ran.** The wipe was attempted through
 a `POST /api/admin/db-reset` route added for the purpose. It returned `500` on
 every call. The cause was an incomplete extraction: on the server,
-`.next/server/app/api/admin/db-reset/` was an empty directory and
-`node_modules/bcryptjs/` was missing entirely, while the local build had all of
-them. A second deploy script (`deploy-simple.ps1`) had uploaded the entire
+`.next/server/app/api/admin/db-reset/` and `debug-env/` were empty directories
+and `simple-test/` and `test-route/` were absent, while the local build had
+`route.js` for all four. (`node_modules/bcryptjs/` is also missing on the server,
+but that is normal — the standalone build inlines it into the server chunks
+rather than tracing it as a package. It is not a truncation symptom.) A second
+deploy script (`deploy-simple.ps1`) had uploaded the entire
 working tree — `src/`, `tests/`, `docs/`, and nine scratch `test-*.ps1` files —
 into the application root, and `deploy-log.jsonl` recorded nothing for that day.
 Disk and inode quota were not the constraint (1.09 GB of 4.88 GB, inodes

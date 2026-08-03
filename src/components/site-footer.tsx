@@ -2,12 +2,16 @@ import Link from "next/link";
 import { Home, MessageCircleMore, Phone, ShoppingBag, Store } from "lucide-react";
 import { SiteLogo } from "@/components/site-logo";
 import { getSettings } from "@/server/store";
-import { storefrontCollections, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
+import { storefrontPrimaryNav } from "@/lib/bornohin-storefront";
+import { getStorefrontCategoryRail } from "@/server/storefront-catalog";
 import { siteBrand } from "@/lib/site-brand";
 
 export async function SiteFooter() {
-  const settings = await getSettings();
-  const categoryLinks = storefrontCollections.slice(0, 6);
+  // The category list is read from the real catalogue, not from the hardcoded
+  // template it used to slice, so the footer cannot advertise categories the
+  // store does not have.
+  const [settings, categoryRail] = await Promise.all([getSettings(), getStorefrontCategoryRail()]);
+  const categoryLinks = categoryRail.slice(0, 6);
 
   return (
     <footer className="border-t border-[color:var(--border)] bg-[color:var(--footer-background)] text-[color:var(--footer-foreground)]">
@@ -52,9 +56,9 @@ export async function SiteFooter() {
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Categories</h2>
           <div className="mt-4 grid gap-3 text-sm text-[color:var(--footer-muted)]">
-            {categoryLinks.map((collection) => (
-              <Link key={collection.slug} href={`/shop?category=${collection.slug}`} className="transition hover:text-white">
-                {collection.title}
+            {categoryLinks.map((category) => (
+              <Link key={category.href} href={category.href} className="transition hover:text-white">
+                {category.label}
               </Link>
             ))}
           </div>
