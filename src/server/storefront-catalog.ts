@@ -24,13 +24,9 @@ function toStorefrontProduct(
   brand: Pick<Brand, "slug" | "name"> | undefined,
   templateCollection: StorefrontCollection | undefined,
   image: ProductImage | undefined,
-  fallbackIndex: number,
 ): StorefrontProduct {
   const templateProducts = templateCollection?.products ?? [];
-  const templateProduct =
-    templateProducts.find((entry) => entry.slug === product.slug) ??
-    templateProducts[fallbackIndex % Math.max(templateProducts.length, 1)] ??
-    templateProducts[0];
+  const templateProduct = templateProducts.find((entry) => entry.slug === product.slug);
 
   return {
     id: product.id,
@@ -41,7 +37,7 @@ function toStorefrontProduct(
     brandSlug: brand?.slug,
     brandTitle: brand?.name,
     price: product.price,
-    compareAtPrice: product.compareAtPrice ?? templateProduct?.compareAtPrice,
+    compareAtPrice: product.compareAtPrice ?? undefined,
     badge: isSoldOut(product) ? "Sold Out" : templateProduct?.badge,
     description: product.description,
     tone: templateProduct?.tone ?? "from-[#e6ddd0] via-[#f2ece4] to-[#cbb9a4]",
@@ -89,14 +85,13 @@ async function resolveBackendCollections(): Promise<ResolvedStorefrontCollection
         accent: templateCollection?.accent ?? "bg-[color:var(--brand)]",
         banner: templateCollection?.banner ?? `Shop ${category.name}`,
         summary: templateCollection?.summary ?? category.description,
-        products: collectionProducts.map((product, index) =>
+        products: collectionProducts.map((product, /* index */) =>
           toStorefrontProduct(
             product,
             { slug: category.slug, title: category.name },
             product.brandId ? brandById.get(product.brandId) : undefined,
             templateCollection,
             imagesByProductId.get(product.id),
-            index,
           ),
         ),
       } satisfies StorefrontCollection;

@@ -3,7 +3,7 @@ import { PublicShell } from "@/components/public-shell";
 import { StatusPill } from "@/components/status-pill";
 import { cookies } from "next/headers";
 import { getCurrentUser } from "@/server/auth";
-import { getOrCreateCart, getCartSummary, getSettings } from "@/server/store";
+import { getOrCreateCart, getCartSummary, getSettings, getDeliveryChargeForZone, deriveDeliveryZone } from "@/server/store";
 import { CheckoutForm } from "@/components/checkout-form";
 import { money } from "@/lib/utils";
 
@@ -18,7 +18,8 @@ export default async function CheckoutPage() {
     getSettings(),
   ]);
   const summary = await getCartSummary(cart);
-  const deliveryFee = summary.subtotal >= settings.freeDeliveryThreshold ? 0 : settings.insideDhakaDeliveryCharge;
+  const deliveryZone = deriveDeliveryZone(settings.address ?? "Dhaka");
+  const deliveryFee = summary.subtotal >= settings.freeDeliveryThreshold ? 0 : getDeliveryChargeForZone(settings, deliveryZone, summary.subtotal);
   const supportDigits = settings.contactNumber.replace(/\D/g, "");
   const paymentsAvailable = settings.codEnabled || settings.bkashEnabled;
 

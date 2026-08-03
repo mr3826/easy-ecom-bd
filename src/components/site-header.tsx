@@ -50,6 +50,9 @@ type SiteHeaderProps = {
     email: string;
     role: "customer" | "admin" | "super_admin";
   } | null;
+  insideDhakaDeliveryCharge: number;
+  subDhakaDeliveryCharge: number;
+  outsideDhakaDeliveryCharge: number;
 };
 
 export function SiteHeader({
@@ -62,6 +65,9 @@ export function SiteHeader({
   categoryRail,
   showCategoryRail = true,
   currentUser = null,
+  insideDhakaDeliveryCharge,
+  subDhakaDeliveryCharge,
+  outsideDhakaDeliveryCharge,
 }: SiteHeaderProps) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -294,7 +300,9 @@ export function SiteHeader({
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-[color:var(--muted)]">Delivery</dt>
-                  <dd className="text-base font-medium text-[color:var(--brand)]">৳70 - ৳150</dd>
+                  <dd className="text-base font-medium text-[color:var(--brand)]">
+                    {money(Math.min(insideDhakaDeliveryCharge, subDhakaDeliveryCharge, outsideDhakaDeliveryCharge))} - {money(Math.max(insideDhakaDeliveryCharge, subDhakaDeliveryCharge, outsideDhakaDeliveryCharge))}
+                  </dd>
                 </div>
                 <div className="flex items-center justify-between gap-3 border-t border-[color:var(--border)] pt-4">
                   <dt className="text-base font-semibold text-[color:var(--foreground)]">Total</dt>

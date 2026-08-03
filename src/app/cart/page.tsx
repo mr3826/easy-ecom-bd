@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { PublicShell } from "@/components/public-shell";
 import { StatusPill } from "@/components/status-pill";
 import { getCurrentUser } from "@/server/auth";
-import { getCartSummary, getOrCreateCart, getSettings } from "@/server/store";
+import { getCartSummary, getOrCreateCart, getSettings, getDeliveryChargeForZone, deriveDeliveryZone } from "@/server/store";
 import { money } from "@/lib/utils";
 import { clearCartAction, removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
 
@@ -15,6 +15,8 @@ export default async function CartPage() {
   const user = await getCurrentUser();
   const [cart, settings] = await Promise.all([getOrCreateCart(guestKey, user?.id), getSettings()]);
   const summary = await getCartSummary(cart);
+  const deliveryZone = deriveDeliveryZone(settings.address ?? "Dhaka");
+  const deliveryCharge = summary.subtotal >= settings.freeDeliveryThreshold ? 0 : getDeliveryChargeForZone(settings, deliveryZone, summary.subtotal);
 
   return (
     <PublicShell>
@@ -78,7 +80,7 @@ export default async function CartPage() {
               <div className="flex items-center justify-between">
                 <dt className="text-[color:var(--muted)]">Delivery</dt>
                 <dd className="font-medium text-[color:var(--foreground)]">
-                  {summary.subtotal >= settings.freeDeliveryThreshold ? "Free" : money(settings.deliveryCharge)}
+                  {deliveryCharge === 0 ? "Free" : money(deliveryCharge)}
                 </dd>
               </div>
             </dl>
