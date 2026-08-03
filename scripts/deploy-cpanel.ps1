@@ -286,9 +286,31 @@ if (Test-Path -LiteralPath $DeployDir) {
 }
 
 New-Item -ItemType Directory -Path (Join-Path $DeployDir ".next") -Force | Out-Null
+<#
+Next's file tracing copies the whole project into .next/standalone — src, tests,
+e2e, docs, docker-compose, package-lock and, worst of all, .env. Shipping that
+put the developer's own AUTH_SECRET and ADMIN_PASSWORD in the production app root
+on every deploy, and the stale DATABASE_URL in that .env (naming a database that
+does not exist on the host) later aimed a maintenance script at the wrong target.
+Only server.js, .next, public, package.json and node_modules are runtime.
+Production takes its environment from the Passenger SetEnv directives in
+public_html/.htaccess, never from a deployed file.
+#>
+$notRuntime = @(
+    ".env", ".env.local", ".env.production", ".kilo", "deploy-package",
+    "src", "tests", "e2e", "docs", "scripts",
+    "docker-compose.yml", "docker-compose.override.yml",
+    "package-lock.json", "cpanel-preflight.json", "deploy-log.jsonl"
+)
 Get-ChildItem -LiteralPath $standaloneDir -Force |
-    Where-Object { $_.Name -notin @("deploy-package", ".kilo") } |
+    Where-Object { $_.Name -notin $notRuntime -and $_.Name -notlike "dev-*.log" } |
     Copy-Item -Destination $DeployDir -Recurse -Force
+
+# A .env reaching the server would silently outrank nothing but would still be a
+# credential sitting in a web account, so fail loudly rather than ship one.
+$leaked = Get-ChildItem -LiteralPath $DeployDir -Force -Recurse -Depth 0 |
+    Where-Object { $_.Name -like ".env*" }
+if ($leaked) { Stop-Deploy "Refusing to deploy: $($leaked.Name -join ', ') is in the release bundle." }
 Copy-Item -LiteralPath (Join-Path $ProjectRoot ".next\static") -Destination (Join-Path $DeployDir ".next\static") -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "public") -Destination (Join-Path $DeployDir "public") -Recurse -Force
 New-Item -ItemType Directory -Path (Join-Path $DeployDir "tmp") -Force | Out-Null
