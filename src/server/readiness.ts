@@ -1,15 +1,15 @@
 import { getPrisma } from "@/server/db";
 
-export type ReadinessCheckStatus = "pass" | "fail";
+type ReadinessCheckStatus = "pass" | "fail";
 
-export interface ReadinessCheck {
+interface ReadinessCheck {
   name: string;
   required: boolean;
   status: ReadinessCheckStatus;
   reason?: string;
 }
 
-export interface ReadinessReport {
+interface ReadinessReport {
   ok: boolean;
   state: "ready" | "not_ready";
   service: string;

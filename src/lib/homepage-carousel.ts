@@ -21,7 +21,7 @@ export type HomeHeroSlide = {
   reverse?: boolean;
 };
 
-export const fallbackHomeHeroSlides: HomeHeroSlide[] = [
+const fallbackHomeHeroSlides: HomeHeroSlide[] = [
   {
     id: "hero-1",
     eyebrow: "New season arrivals",

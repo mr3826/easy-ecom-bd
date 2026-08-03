@@ -290,33 +290,7 @@ export const storefrontCategoryRail = storefrontCollections.slice(0, 8).map((col
   label: collection.title,
 }));
 
-export const storefrontQuickTopics = [
-  "Slub Cotton 1 Piece",
-  "KID's Casual Outfits",
-  "Limited Drops",
-  "Mini Fan",
-  "Panjabi",
-];
 
-export const storefrontServices = [
-  { title: "Fast delivery", copy: "Dhaka and nationwide dispatch with clear order status." },
-  { title: "Easy returns", copy: "A simple return process for eligible products." },
-  { title: "Secure payment", copy: "Cash on delivery and bKash checkout." },
-  { title: "Friendly support", copy: "Live help through phone and Messenger." },
-];
-
-export const storefrontHighlights = [
-  {
-    title: "New season fabrics",
-    copy: "Warm neutral campaigns with layered product story cards.",
-    tone: "from-[#d98f2e] to-[#7c4620]",
-  },
-  {
-    title: "Urgent sale drops",
-    copy: "Bold badges and compare-at pricing for the limited row.",
-    tone: "from-[#8d4960] to-[#3a2032]",
-  },
-];
 
 export const storefrontPolicyPages: Record<string, StaticPage> = {
   "about-us": {
@@ -386,27 +360,4 @@ export const storefrontPolicyPages: Record<string, StaticPage> = {
   },
 };
 
-export function getCollectionBySlug(slug: string) {
-  return storefrontCollections.find((collection) => collection.slug === slug) ?? null;
-}
 
-export function getProductBySlug(slug: string) {
-  return storefrontProducts.find((product) => product.slug === slug) ?? null;
-}
-
-export function getRelatedProducts(productSlug: string, collectionSlug: string, limit = 4) {
-  return storefrontProducts
-    .filter((product) => product.collectionSlug === collectionSlug && product.slug !== productSlug)
-    .slice(0, limit);
-}
-
-export function searchStorefrontProducts(query: string) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) return storefrontProducts;
-  return storefrontProducts.filter((product) => {
-    return [product.name, product.description, product.collectionSlug, product.badge ?? ""]
-      .join(" ")
-      .toLowerCase()
-      .includes(normalized);
-  });
-}

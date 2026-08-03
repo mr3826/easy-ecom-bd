@@ -22,4 +22,3 @@ export function getPrisma(): PrismaClient {
   return globalThis.__easyEcomPrisma;
 }
 
-export const prisma = getPrisma;

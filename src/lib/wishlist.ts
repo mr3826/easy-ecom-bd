@@ -51,15 +51,6 @@ export function isWishlistEntrySaved(id: string) {
   return readStorage().some((item) => item.id === id);
 }
 
-export function upsertWishlistItem(item: WishlistItem) {
-  const current = readStorage();
-  const next = current.some((entry) => entry.id === item.id)
-    ? current.map((entry) => (entry.id === item.id ? item : entry))
-    : [item, ...current];
-  writeStorage(next);
-  return next;
-}
-
 export function removeWishlistItem(id: string) {
   const next = readStorage().filter((item) => item.id !== id);
   writeStorage(next);

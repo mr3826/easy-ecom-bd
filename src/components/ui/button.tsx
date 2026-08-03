@@ -23,7 +23,7 @@ const SIZES: Record<Size, string> = {
   lg: "h-12 px-6 text-sm",
 };
 
-export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: Variant;
   size?: Size;
   fullWidth?: boolean;

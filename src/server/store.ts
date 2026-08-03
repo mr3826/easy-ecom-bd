@@ -1,7 +1,6 @@
 import { randomBytes } from "crypto";
 import type { Prisma, Product as PrismaProduct } from "@prisma/client";
 import type {
-  Address,
   Brand,
   Cart,
   CartItem,
@@ -326,7 +325,7 @@ export async function listProductImages(productId?: string) {
   }) as unknown as Array<{ id: string; productId: string; url: string; alt: string; sortOrder: number }>;
 }
 
-export async function getProductBySlug(slug: string) {
+async function getProductBySlug(slug: string) {
   if (!process.env.DATABASE_URL) {
     return (demoState.products.find((product) => product.slug === slug) ?? null) as unknown as Product | null;
   }
@@ -632,22 +631,6 @@ export async function upsertCoupon(input: Partial<Coupon> & Pick<Coupon, "code" 
   return record as unknown as Coupon;
 }
 
-export async function deleteCoupon(id: string, actor?: Actor) {
-  const prisma = getPrisma();
-  const existing = await prisma.coupon.findUnique({ where: { id } });
-  if (!existing) return null;
-  await prisma.coupon.delete({ where: { id } });
-  await recordAuditLog({
-    actor,
-    action: "delete",
-    entity: "coupon",
-    entityId: id,
-    oldValue: asJson(existing),
-    newValue: null,
-  });
-  return existing;
-}
-
 export async function listUsers() {
   if (!process.env.DATABASE_URL) {
     return demoState.users as unknown as Array<Pick<User, "id" | "name" | "email" | "role" | "phone" | "createdAt" | "updatedAt">>;
@@ -922,21 +905,6 @@ export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
     newValue: asJson(record),
   });
   return record as unknown as Settings;
-}
-
-export async function getCartByKey(guestKey: string, ownerId?: string | null) {
-  if (!isDatabaseConfigured()) {
-    return (
-      demoState.carts.find((cart) =>
-        ownerId ? cart.guestKey === guestKey || cart.ownerId === ownerId : cart.guestKey === guestKey,
-      ) ?? null
-    ) as unknown as (Cart & { items: Array<CartItem & { product: Product }> }) | null;
-  }
-  const prisma = getPrisma();
-  return prisma.cart.findFirst({
-    where: ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey },
-    include: { items: { include: { product: true } } },
-  });
 }
 
 export async function getOrCreateCart(guestKey: string, ownerId?: string | null) {
@@ -1223,7 +1191,7 @@ export async function getOrder(orderId: string) {
   }) as unknown as (Order & { statusHistory: OrderStatusHistory[] }) | null;
 }
 
-export function deriveDeliveryZone(district: string): DeliveryZone {
+function deriveDeliveryZone(district: string): DeliveryZone {
   const normalized = district.trim().toLowerCase();
   if (normalized.includes("dhaka city") || normalized === "dhaka") return "inside_dhaka";
   if (normalized.includes("dhaka")) return "sub_dhaka";
@@ -1928,14 +1896,6 @@ export async function upsertLandingPageSection(
   return record as unknown as LandingPageSection;
 }
 
-export async function listPaymentsForOrder(orderId: string) {
-  if (!process.env.DATABASE_URL) {
-    return demoState.payments.filter((payment) => payment.orderId === orderId) as unknown as Payment[];
-  }
-  const prisma = getPrisma();
-  return prisma.payment.findMany({ where: { orderId }, orderBy: { createdAt: "desc" } }) as unknown as Payment[];
-}
-
 export async function listAuditLogs() {
   if (!process.env.DATABASE_URL) {
     return demoState.auditLogs as unknown as DatabaseState["auditLogs"];
@@ -1944,140 +1904,7 @@ export async function listAuditLogs() {
   return prisma.auditLog.findMany({ orderBy: { createdAt: "desc" } });
 }
 
-export async function listInventoryLogs() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.inventoryLogs as unknown as InventoryLog[];
-  }
-  const prisma = getPrisma();
-  return prisma.inventoryLog.findMany({ orderBy: { createdAt: "desc" } });
-}
 
-export async function listAddresses(userId?: string | null, guestKey?: string | null) {
-  if (!process.env.DATABASE_URL) {
-    return demoState.addresses
-      .filter((address) => {
-        if (userId) return address.userId === userId;
-        if (guestKey) return address.guestKey === guestKey;
-        return false;
-      })
-      .sort((a, b) => (b.isDefault === a.isDefault ? 0 : b.isDefault ? -1 : 1)) as unknown as Address[];
-  }
-  const prisma = getPrisma();
-  return prisma.address.findMany({
-    where: userId ? { userId } : guestKey ? { guestKey } : {},
-    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
-  }) as unknown as Address[];
-}
 
-export async function getAddress(id: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.addresses.find((address) => address.id === id) ?? null) as unknown as Address | null;
-  }
-  const prisma = getPrisma();
-  return prisma.address.findUnique({ where: { id } }) as unknown as Address | null;
-}
 
-export async function upsertAddress(
-  input: Partial<Address> & Pick<Address, "name" | "phone" | "district" | "addressLine1" | "city" | "state" | "postalCode">,
-  actor?: Actor,
-) {
-  const prisma = getPrisma();
-  const existing = input.id ? await prisma.address.findUnique({ where: { id: input.id } }) : null;
-
-  if (input.isDefault && (input.userId || input.guestKey)) {
-    await prisma.address.updateMany({
-      where: input.userId ? { userId: input.userId, isDefault: true } : { guestKey: input.guestKey!, isDefault: true },
-      data: { isDefault: false },
-    });
-  }
-
-  const record = existing
-    ? await prisma.address.update({
-        where: { id: existing.id },
-        data: {
-          name: input.name,
-          phone: input.phone,
-          email: input.email ?? null,
-          district: input.district,
-          addressLine1: input.addressLine1,
-          addressLine2: input.addressLine2 ?? null,
-          city: input.city,
-          state: input.state,
-          postalCode: input.postalCode,
-          country: input.country ?? "Bangladesh",
-          isDefault: input.isDefault ?? false,
-        },
-      })
-    : await prisma.address.create({
-        data: {
-          userId: input.userId ?? null,
-          guestKey: input.guestKey ?? null,
-          name: input.name,
-          phone: input.phone,
-          email: input.email ?? null,
-          district: input.district,
-          addressLine1: input.addressLine1,
-          addressLine2: input.addressLine2 ?? null,
-          city: input.city,
-          state: input.state,
-          postalCode: input.postalCode,
-          country: input.country ?? "Bangladesh",
-          isDefault: input.isDefault ?? false,
-        },
-      });
-
-  await recordAuditLog({
-    actor,
-    action: existing ? "update" : "create",
-    entity: "address",
-    entityId: record.id,
-    oldValue: existing ? asJson(existing) : null,
-    newValue: asJson(record),
-  });
-
-  return record as unknown as Address;
-}
-
-export async function deleteAddress(id: string, actor?: Actor) {
-  const prisma = getPrisma();
-  const existing = await prisma.address.findUnique({ where: { id } });
-  if (!existing) return null;
-  await prisma.address.delete({ where: { id } });
-  await recordAuditLog({
-    actor,
-    action: "delete",
-    entity: "address",
-    entityId: id,
-    oldValue: asJson(existing),
-    newValue: null,
-  });
-  return existing;
-}
-
-export async function setDefaultAddress(id: string, actor?: Actor) {
-  const prisma = getPrisma();
-  const address = await prisma.address.findUnique({ where: { id } });
-  if (!address) return null;
-
-  await prisma.address.updateMany({
-    where: address.userId ? { userId: address.userId, isDefault: true } : { guestKey: address.guestKey, isDefault: true },
-    data: { isDefault: false },
-  });
-
-  const record = await prisma.address.update({
-    where: { id },
-    data: { isDefault: true },
-  });
-
-  await recordAuditLog({
-    actor,
-    action: "update",
-    entity: "address",
-    entityId: id,
-    oldValue: asJson(address),
-    newValue: asJson(record),
-  });
-
-  return record as unknown as Address;
-}
 

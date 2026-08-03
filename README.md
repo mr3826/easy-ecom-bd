@@ -79,3 +79,9 @@ environment variables, rollback, database resets, troubleshooting, and the
 security rules that apply to production.
 
 See [the production cutover plan](docs/remaining-integration-execution-plan.md) before cleaning the old cPanel applications or changing Cloudflare DNS.
+
+## Maintenance
+
+[docs/DEAD_CODE_CLEANUP_PLAN.md](docs/DEAD_CODE_CLEANUP_PLAN.md) is the audited
+backlog of dead code, unused dependencies, and the three severe bugs the audit
+surfaced. It is split into six independently landable work packets.

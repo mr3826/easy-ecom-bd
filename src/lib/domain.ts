@@ -1,4 +1,4 @@
-export type UserRole = "admin" | "super_admin" | "customer";
+type UserRole = "admin" | "super_admin" | "customer";
 
 export type PaymentProviderKey = "cod" | "bkash";
 
@@ -27,7 +27,7 @@ export type DeliveryStatus =
 
 export type DeliveryZone = "inside_dhaka" | "sub_dhaka" | "outside_dhaka";
 
-export type LandingSectionType =
+type LandingSectionType =
   | "banner"
   | "carousel"
   | "title"
@@ -173,7 +173,7 @@ export interface Cart {
   updatedAt: string;
 }
 
-export interface OrderItem {
+interface OrderItem {
   id: string;
   productId: string;
   quantity: number;
@@ -227,7 +227,7 @@ export interface InventoryLog {
   createdAt: string;
 }
 
-export type LandingSectionItem = {
+type LandingSectionItem = {
   id?: string;
   title?: string;
   body?: string;

@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 
-export interface StoredFile {
+interface StoredFile {
   key: string;
   url: string;
   filename: string;
@@ -10,7 +10,7 @@ export interface StoredFile {
   size: number;
 }
 
-export interface FileStorage {
+interface FileStorage {
   save(file: File, folder: string): Promise<StoredFile>;
   delete(key: string): Promise<void>;
 }
@@ -58,7 +58,7 @@ class LocalFileStorage implements FileStorage {
 
 let storage: FileStorage | null = null;
 
-export function getStoredUploadKey(url: string) {
+function getStoredUploadKey(url: string) {
   const trimmed = url.trim();
   if (!trimmed.startsWith("/uploads/")) return null;
   return decodeURIComponent(trimmed.slice("/uploads/".length).replace(/^\/+/, ""));

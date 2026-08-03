@@ -107,7 +107,7 @@ async function getSessionUserByToken(token: string) {
   return toSessionUser(user);
 }
 
-export async function createSession(userId: string) {
+async function createSession(userId: string) {
   if (!isDatabaseConfigured()) {
     const user = await findUserById(userId);
     if (!user) {
@@ -161,12 +161,7 @@ export async function getCurrentUser() {
   return getSessionUserByToken(token);
 }
 
-export async function getUserFromToken(token: string | null | undefined) {
-  if (!token) return null;
-  return getSessionUserByToken(token);
-}
-
-export async function requireAuth(roles?: Array<SessionUser["role"]>) {
+async function requireAuth(roles?: Array<SessionUser["role"]>) {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error("Unauthorized");
@@ -289,15 +284,4 @@ export async function markEmailVerified(userId: string) {
   });
 }
 
-export async function isEmailVerified(userId: string): Promise<boolean> {
-  if (!isDatabaseConfigured()) {
-    return true;
-  }
 
-  const prisma = getPrisma();
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { emailVerified: true },
-  });
-  return Boolean(user?.emailVerified);
-}

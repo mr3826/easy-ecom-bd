@@ -325,6 +325,4 @@ export function createSeedState(): DatabaseState {
   };
 }
 
-export function defaultLandingSlug(title: string) {
-  return slugify(title);
-}
+

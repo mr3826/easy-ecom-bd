@@ -5,14 +5,6 @@ import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { updateUserProfileAction } from "@/app/actions";
 
-export type ProfileFormState = {
-  error?: string;
-  success?: string;
-  name?: string;
-  email?: string;
-  phone?: string;
-};
-
 export function ProfileForm({ initialData }: { initialData: { name: string; email: string; phone?: string | null } }) {
   const [state, formAction] = useActionState(updateUserProfileAction, {
     name: initialData.name,

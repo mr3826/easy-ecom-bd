@@ -14,7 +14,6 @@ import {
   listCategories,
   listProducts,
   listProductImages,
-  setProductStock,
   upsertBrand,
   upsertCategory,
   upsertCoupon,
@@ -471,19 +470,6 @@ export async function deleteProductAction(formData: FormData) {
   const actor = await guard();
   await requireAdminMutation("deleteProductAction", actor.id);
   await deleteProduct(asString(formData.get("id")), actor);
-  revalidatePath("/admin/products");
-}
-
-export async function adjustInventoryAction(formData: FormData) {
-  const actor = await guard();
-  await requireAdminMutation("adjustInventoryAction", actor.id);
-  await setProductStock(
-    asString(formData.get("productId")),
-    asNumber(formData.get("change")),
-    asString(formData.get("reason")),
-    actor,
-  );
-  revalidatePath("/admin/inventory");
   revalidatePath("/admin/products");
 }
 
