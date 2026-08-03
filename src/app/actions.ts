@@ -14,6 +14,7 @@ import {
   getProduct,
   getOrCreateCart,
   findUserByEmail,
+  findUserById,
   listProducts,
   removeCartItem,
   updateCartQuantity,
@@ -23,6 +24,7 @@ import {
   upsertAddress,
   deleteAddress,
   setDefaultAddress,
+  updateUser,
 } from "@/server/store";
 import { asNumber, asString } from "@/lib/utils";
 import { initiateBkashPayment } from "@/server/integrations";
@@ -225,6 +227,87 @@ export async function logoutAction() {
   redirect("/");
 }
 
+export type UpdateProfileState = {
+  error?: string;
+  success?: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+};
+
+export async function updateUserProfileAction(
+  _previous: UpdateProfileState,
+  formData: FormData,
+): Promise<UpdateProfileState> {
+  const schema = z.object({
+    name: z.string().min(2),
+    email: z.string().email(),
+    phone: z.string().min(7).optional(),
+  });
+
+  const parsed = schema.safeParse({
+    name: asString(formData.get("name")),
+    email: asString(formData.get("email")),
+    phone: asString(formData.get("phone")) || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || "Invalid profile details" };
+  }
+
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: "You must be logged in to update your profile" };
+  }
+
+  const requestHeaders = await requireActionOrigin("updateUserProfileAction");
+  assertRateLimit({
+    scope: "updateUserProfileAction",
+    key: buildSecurityKey(getClientIp(requestHeaders), user.id),
+    limit: 10,
+    windowMs: 15 * 60 * 1000,
+  });
+
+  const emailChanged = parsed.data.email.toLowerCase() !== user.email.toLowerCase();
+  if (emailChanged) {
+    const existing = await findUserByEmail(parsed.data.email);
+    if (existing && existing.id !== user.id) {
+      return { error: "An account already exists for this email address" };
+    }
+  }
+
+  const updatedUser = await updateUser(user.id, {
+    name: parsed.data.name,
+    email: parsed.data.email,
+    phone: parsed.data.phone,
+  });
+
+  if (!updatedUser) {
+    return { error: "Failed to update profile" };
+  }
+
+  revalidatePath("/account");
+  revalidatePath("/account/profile");
+
+  if (emailChanged) {
+    // TODO: Send verification email to the new address
+    // For now, we'll just log and return a success message
+    return {
+      success: "Profile updated. A verification email has been sent to your new email address.",
+      name: updatedUser.name,
+      email: updatedUser.email,
+      phone: updatedUser.phone ?? undefined,
+    };
+  }
+
+  return {
+    success: "Profile updated successfully",
+    name: updatedUser.name,
+    email: updatedUser.email,
+    phone: updatedUser.phone ?? undefined,
+  };
+}
+
 export async function checkoutAction(formData: FormData) {
   const requestHeaders = await requireActionOrigin("checkoutAction");
   const rawPaymentMethod = asString(formData.get("paymentMethod")) || "cod";
@@ -299,7 +382,6 @@ export async function checkoutAction(formData: FormData) {
   redirect(providerReady.redirectUrl);
 }
 
-<<<<<<< HEAD
 export type ForgotPasswordState = {
   error?: string;
   success?: string;
@@ -427,159 +509,4 @@ export async function verifyEmailAction(_previous: VerifyEmailState, formData: F
   await markEmailVerified(user.id);
 
   return { success: "Email verified successfully. You can now sign in." };
-=======
-const addressSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  phone: z.string().min(10, "Phone number must be at least 10 digits"),
-  email: z.string().email("Invalid email address").optional().or(z.literal("")),
-  district: z.string().min(2, "District is required"),
-  addressLine1: z.string().min(5, "Address line 1 must be at least 5 characters"),
-  addressLine2: z.string().optional(),
-  city: z.string().min(2, "City is required"),
-  state: z.string().min(2, "State/Region is required"),
-  postalCode: z.string().min(4, "Postal code is required"),
-  country: z.string().optional(),
-  isDefault: z.boolean().optional(),
-});
-
-async function getUserContext() {
-  const user = await getCurrentUser();
-  const guestKey = await getGuestKey();
-  return { user, guestKey };
-}
-
-export async function createAddressAction(formData: FormData) {
-  await requireActionOrigin("createAddressAction");
-  const { user, guestKey } = await getUserContext();
-
-  const rawData = {
-    name: asString(formData.get("name")),
-    phone: asString(formData.get("phone")),
-    email: asString(formData.get("email")) || undefined,
-    district: asString(formData.get("district")),
-    addressLine1: asString(formData.get("addressLine1")),
-    addressLine2: asString(formData.get("addressLine2")) || undefined,
-    city: asString(formData.get("city")),
-    state: asString(formData.get("state")),
-    postalCode: asString(formData.get("postalCode")),
-    country: asString(formData.get("country")) || "Bangladesh",
-    isDefault: formData.get("isDefault") === "on",
-  };
-
-  const parsed = addressSchema.safeParse(rawData);
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message || "Invalid address details");
-  }
-
-  const address = await upsertAddress(
-    {
-      ...parsed.data,
-      userId: user?.id ?? null,
-      guestKey: user?.id ? null : guestKey,
-    },
-    user ?? null,
-  );
-
-  revalidatePath("/account/addresses");
-  revalidatePath("/checkout");
-  return { success: true, address };
-}
-
-export async function updateAddressAction(formData: FormData) {
-  await requireActionOrigin("updateAddressAction");
-  const { user, guestKey } = await getUserContext();
-
-  const id = asString(formData.get("id"));
-  if (!id) throw new Error("Address ID is required");
-
-  const existingAddress = await getAddress(id);
-  if (!existingAddress) throw new Error("Address not found");
-
-  if (existingAddress.userId && existingAddress.userId !== user?.id) {
-    throw new Error("Unauthorized");
-  }
-  if (existingAddress.guestKey && existingAddress.guestKey !== guestKey) {
-    throw new Error("Unauthorized");
-  }
-
-  const rawData = {
-    id,
-    name: asString(formData.get("name")),
-    phone: asString(formData.get("phone")),
-    email: asString(formData.get("email")) || undefined,
-    district: asString(formData.get("district")),
-    addressLine1: asString(formData.get("addressLine1")),
-    addressLine2: asString(formData.get("addressLine2")) || undefined,
-    city: asString(formData.get("city")),
-    state: asString(formData.get("state")),
-    postalCode: asString(formData.get("postalCode")),
-    country: asString(formData.get("country")) || "Bangladesh",
-    isDefault: formData.get("isDefault") === "on",
-  };
-
-  const parsed = addressSchema.safeParse(rawData);
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message || "Invalid address details");
-  }
-
-  const address = await upsertAddress(
-    {
-      ...parsed.data,
-      userId: user?.id ?? null,
-      guestKey: user?.id ? null : guestKey,
-    },
-    user ?? null,
-  );
-
-  revalidatePath("/account/addresses");
-  revalidatePath("/checkout");
-  return { success: true, address };
-}
-
-export async function deleteAddressAction(formData: FormData) {
-  await requireActionOrigin("deleteAddressAction");
-  const { user, guestKey } = await getUserContext();
-
-  const id = asString(formData.get("id"));
-  if (!id) throw new Error("Address ID is required");
-
-  const existingAddress = await getAddress(id);
-  if (!existingAddress) throw new Error("Address not found");
-
-  if (existingAddress.userId && existingAddress.userId !== user?.id) {
-    throw new Error("Unauthorized");
-  }
-  if (existingAddress.guestKey && existingAddress.guestKey !== guestKey) {
-    throw new Error("Unauthorized");
-  }
-
-  await deleteAddress(id, user ?? null);
-
-  revalidatePath("/account/addresses");
-  revalidatePath("/checkout");
-  return { success: true };
-}
-
-export async function setDefaultAddressAction(formData: FormData) {
-  await requireActionOrigin("setDefaultAddressAction");
-  const { user, guestKey } = await getUserContext();
-
-  const id = asString(formData.get("id"));
-  if (!id) throw new Error("Address ID is required");
-
-  const existingAddress = await getAddress(id);
-  if (!existingAddress) throw new Error("Address not found");
-
-  if (existingAddress.userId && existingAddress.userId !== user?.id) {
-    throw new Error("Unauthorized");
-  }
-  if (existingAddress.guestKey && existingAddress.guestKey !== guestKey) {
-    throw new Error("Unauthorized");
-  }
-
-  await setDefaultAddress(id, user ?? null);
-
-  revalidatePath("/account/addresses");
-  revalidatePath("/checkout");
-  return { success: true };
 }

@@ -736,6 +736,55 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
   });
 }
 
+export async function updateUser(
+  userId: string,
+  input: { name?: string; email?: string; phone?: string | null },
+  actor?: Actor,
+) {
+  if (!isDatabaseConfigured()) {
+    const userIndex = demoState.users.findIndex((user) => user.id === userId);
+    if (userIndex === -1) return null;
+    const updated = {
+      ...demoState.users[userIndex],
+      ...input,
+      email: input.email?.toLowerCase() ?? demoState.users[userIndex].email,
+      updatedAt: new Date().toISOString(),
+    };
+    demoState.users[userIndex] = updated;
+    const { passwordHash, ...userWithoutPassword } = updated;
+    await recordAuditLog({
+      actor,
+      action: "update",
+      entity: "user",
+      entityId: userId,
+      oldValue: asJson(demoState.users[userIndex]),
+      newValue: asJson(userWithoutPassword),
+    });
+    return userWithoutPassword as unknown as User;
+  }
+  const prisma = getPrisma();
+  const existing = await prisma.user.findUnique({ where: { id: userId } });
+  if (!existing) return null;
+  const data: Partial<{ name: string; email: string; phone: string | null }> = {};
+  if (input.name !== undefined) data.name = input.name;
+  if (input.email !== undefined) data.email = input.email.toLowerCase();
+  if (input.phone !== undefined) data.phone = input.phone;
+  const record = await prisma.user.update({
+    where: { id: userId },
+    data,
+  });
+  await recordAuditLog({
+    actor,
+    action: "update",
+    entity: "user",
+    entityId: userId,
+    oldValue: asJson(existing),
+    newValue: asJson({ id: record.id, email: record.email, role: record.role }),
+  });
+  const { passwordHash, ...userWithoutPassword } = record;
+  return userWithoutPassword as unknown as User;
+}
+
 export async function getSettings() {
   return (await getSettingsRow()) as unknown as Settings;
 }
