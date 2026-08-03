@@ -41,12 +41,9 @@ export function ProductsFilterDrawer({
         description="Narrow the catalog"
         footer={
           <div className="grid gap-3 sm:grid-cols-2">
-            <Link
-              href="/admin/products"
-              className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] px-4 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
-            >
-              Clear
-            </Link>
+            <Button asChild variant="ghost" form={FORM_ID} type="button">
+              <Link href="/admin/products">Clear</Link>
+            </Button>
             {/* `form=` lets the submit live in the pinned footer while staying
                 part of the scrollable form above it. */}
             <Button form={FORM_ID} type="submit">

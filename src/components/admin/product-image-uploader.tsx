@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useEffect, useId, useRef, useState } from "react";
 import { ImagePlus, Trash2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 type ExistingImage = {
   id: string;
@@ -50,13 +51,15 @@ export function ProductImageUploader({
               PNG, JPG, WEBP, or GIF. Files are stored locally and served from <span className="font-semibold text-[color:var(--foreground)]">/uploads</span>.
             </p>
           </div>
-          <label
-            htmlFor={inputId}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-[color:var(--brand)]/20 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--brand)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--brand-soft)]"
-          >
-            <ImagePlus className="h-4 w-4" />
-            Choose files
-          </label>
+          <Button asChild variant="secondary" size="sm">
+            <label
+              htmlFor={inputId}
+              className="cursor-pointer"
+            >
+              <ImagePlus className="h-4 w-4" />
+              Choose files
+            </label>
+          </Button>
         </div>
         <input
           ref={fileInputRef}
@@ -87,17 +90,13 @@ export function ProductImageUploader({
           {selectedFiles.length === 1 ? "" : "s"}
         </span>
         {(retainedImages.length > 0 || selectedFiles.length > 0) && (
-          <button
-            type="button"
-            onClick={() => {
+          <Button type="button" variant="ghost" size="sm" onClick={() => {
               setRetainedImages([]);
               clearSelectedFiles();
-            }}
-            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] px-3 py-1.5 font-semibold text-[color:var(--muted)] transition hover:border-[color:var(--brand)]/40 hover:text-[color:var(--brand)]"
-          >
+            }}>
             <X className="h-3.5 w-3.5" />
             Clear all
-          </button>
+          </Button>
         )}
       </div>
 
@@ -113,16 +112,17 @@ export function ProductImageUploader({
                   <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)]">{productName}</p>
                   <p className="truncate text-[11px] text-[color:var(--muted)]">{image.url}</p>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
                   onClick={() => {
                     setRetainedImages((current) => current.filter((item) => item.id !== image.id));
                   }}
-                  className="touch-target inline-flex h-11 w-11 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/60 hover:text-rose-500"
                   aria-label={`Remove saved image ${image.alt || productName}`}
                 >
                   <Trash2 className="h-5 w-5" />
-                </button>
+                </Button>
               </figcaption>
             </figure>
           ))}

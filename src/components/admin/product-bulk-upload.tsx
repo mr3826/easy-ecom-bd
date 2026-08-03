@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useId, useState } from "react";
 import { Upload } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function ProductBulkUploadButton({
   templateHref,
@@ -14,13 +15,15 @@ export function ProductBulkUploadButton({
 
   return (
     <div className="grid justify-items-end gap-2">
-      <label
-        htmlFor={inputId}
-        className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[color:var(--brand)] px-5 py-3 text-sm font-semibold text-white shadow-[0_18px_36px_rgba(139,0,0,0.18)] transition hover:bg-[color:var(--accent)]"
-      >
-        <Upload className="h-4 w-4" />
-        Upload Product File
-      </label>
+      <Button asChild>
+        <label
+          htmlFor={inputId}
+          className="cursor-pointer"
+        >
+          <Upload className="h-4 w-4" />
+          Upload Product File
+        </label>
+      </Button>
       <input
         id={inputId}
         name="productFile"

@@ -151,12 +151,9 @@ export function ProductEditorForm({
                   Changes will overwrite the selected product record and keep the public storefront stable for now.
                 </p>
               </div>
-              <Link
-                href={createHref}
-                className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-4 py-2.5 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
-              >
-                Create new product
-              </Link>
+              <Button asChild variant="secondary">
+                <Link href={createHref}>Create new product</Link>
+              </Button>
             </div>
           </div>
         ) : null}
@@ -554,12 +551,9 @@ export function ProductEditorForm({
               <Button type="submit" pendingWhileSubmitting pendingLabel="Saving…">
                 Update product
               </Button>
-              <Link
-                href={createHref}
-                className="touch-target inline-flex h-11 items-center justify-center rounded-full border border-[color:var(--border)] px-6 text-sm font-semibold text-[color:var(--foreground)] transition hover:border-[color:var(--brand)]/40 hover:bg-[color:var(--surface-soft)]"
-              >
-                Reset form
-              </Link>
+              <Button asChild variant="secondary">
+                <Link href={createHref}>Reset form</Link>
+              </Button>
             </div>
           </div>
         ) : null}

@@ -40,7 +40,7 @@ export default async function AdminCategoriesPage({
             <option value="false">Hidden</option>
           </select>
         </label>
-        <button className="touch-target inline-flex h-11 w-fit items-center justify-center rounded-full bg-[color:var(--brand)] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]">{selected ? "Update category" : "Create category"}</button>
+        <Button type="submit">{selected ? "Update category" : "Create category"}</Button>
       </form>
       <div className="grid gap-4 sm:grid-cols-2">
         {categories.map((category) => (
@@ -53,7 +53,9 @@ export default async function AdminCategoriesPage({
               <StatusPill label={category.isActive ? "active" : "hidden"} tone={category.isActive ? "active" : "inactive"} />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Link href={`/admin/categories?edit=${category.id}`} className="touch-target inline-flex h-11 items-center justify-center rounded-full bg-white px-4 py-2.5 text-sm font-semibold text-[color:var(--foreground)]">Edit</Link>
+              <Button asChild variant="secondary">
+              <Link href={`/admin/categories?edit=${category.id}`}>Edit</Link>
+            </Button>
               <form action={deleteCategoryAction}>
                 <input type="hidden" name="id" value={category.id} />
                 {/* A delete must not look like the Edit link next to it. */}
