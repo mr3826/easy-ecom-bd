@@ -21,7 +21,16 @@ export default async function AccountPage() {
             <Link href="/login" className="mt-6 inline-flex rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white">
               Sign in
             </Link>
-          ) : null}
+          ) : (
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/account/profile" className="rounded-full border border-[color:var(--border)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)] hover:border-[color:var(--brand)]">
+                Edit profile
+              </Link>
+              <Link href="/account/addresses" className="rounded-full border border-[color:var(--border)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)] hover:border-[color:var(--brand)]">
+                Addresses
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="mt-8 space-y-4">

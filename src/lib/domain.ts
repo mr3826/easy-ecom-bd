@@ -1,6 +1,6 @@
-export type UserRole = "admin" | "super_admin" | "customer";
+type UserRole = "admin" | "super_admin" | "customer";
 
-export type PaymentProviderKey = "cod" | "bkash" | "nagad" | "rocket";
+export type PaymentProviderKey = "cod" | "bkash";
 
 export type OrderStatus =
   | "draft"
@@ -19,7 +19,6 @@ export type PaymentStatus =
 
 export type DeliveryStatus =
   | "pending"
-  | "courier_created"
   | "picked_up"
   | "in_transit"
   | "delivered"
@@ -28,8 +27,9 @@ export type DeliveryStatus =
 
 export type DeliveryZone = "inside_dhaka" | "sub_dhaka" | "outside_dhaka";
 
-export type LandingSectionType =
+type LandingSectionType =
   | "banner"
+  | "carousel"
   | "title"
   | "subtitle"
   | "product_section"
@@ -44,6 +44,25 @@ export interface User {
   passwordHash: string;
   role: UserRole;
   phone?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface Address {
+  id: string;
+  userId?: string | null;
+  guestKey?: string | null;
+  name: string;
+  phone: string;
+  email?: string | null;
+  district: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  isDefault: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -126,7 +145,8 @@ export interface Product {
   stock: number;
   lowStockThreshold: number;
   categoryId: string;
-  brandId: string;
+  /** Optional: products can be listed without a brand. */
+  brandId: string | null;
   isActive: boolean;
   featured: boolean;
   archivedAt?: string | Date | null;
@@ -153,7 +173,7 @@ export interface Cart {
   updatedAt: string;
 }
 
-export interface OrderItem {
+interface OrderItem {
   id: string;
   productId: string;
   quantity: number;
@@ -179,29 +199,6 @@ export interface PaymentLog {
   stage: string;
   payload: unknown;
   createdAt: string;
-}
-
-export interface Courier {
-  id: string;
-  key: "pathao" | "steadfast" | "redx";
-  name: string;
-  enabled: boolean;
-  description: string;
-}
-
-export interface DeliveryShipment {
-  id: string;
-  orderId: string;
-  courierKey: Courier["key"];
-  trackingId: string;
-  consignmentId?: string;
-  status: DeliveryStatus;
-  customerName: string;
-  customerPhone: string;
-  customerAddress: string;
-  rawResponse: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface Coupon {
@@ -230,6 +227,22 @@ export interface InventoryLog {
   createdAt: string;
 }
 
+type LandingSectionItem = {
+  id?: string;
+  title?: string;
+  body?: string;
+  eyebrow?: string;
+  imageUrl?: string;
+  imageAlt?: string;
+  primaryCtaLabel?: string;
+  primaryCtaHref?: string;
+  secondaryCtaLabel?: string;
+  secondaryCtaHref?: string;
+  chips?: string[] | string;
+  accentClass?: string;
+  reverse?: boolean | string;
+};
+
 export interface LandingPageSection {
   id: string;
   landingPageId: string;
@@ -239,7 +252,7 @@ export interface LandingPageSection {
   body?: string;
   imageUrl?: string;
   productIds: string[];
-  items: Array<{ title: string; body: string }>;
+  items: LandingSectionItem[];
   ctaLabel?: string;
   ctaHref?: string;
   sortOrder: number;
@@ -281,21 +294,12 @@ export interface Settings {
   bkashEnabled: boolean;
   bkashAccountNumber?: string | null;
   bkashInstructions: string;
-  nagadEnabled: boolean;
-  nagadAccountNumber?: string | null;
-  nagadInstructions: string;
-  rocketEnabled: boolean;
-  rocketAccountNumber?: string | null;
-  rocketInstructions: string;
   insideDhakaDeliveryCharge: number;
   subDhakaDeliveryCharge: number;
   outsideDhakaDeliveryCharge: number;
   insideDhakaCodEnabled: boolean;
   subDhakaCodEnabled: boolean;
   outsideDhakaCodEnabled: boolean;
-  pathaoEnabled: boolean;
-  steadfastEnabled: boolean;
-  redxEnabled: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -318,9 +322,6 @@ export interface Order {
   deliveryStatus: DeliveryStatus;
   paymentProvider?: PaymentProviderKey;
   deliveryZone: DeliveryZone;
-  deliveryProvider?: Courier["key"] | null;
-  trackingId?: string | null;
-  consignmentId?: string | null;
   notes?: string;
   adminNotes?: string | null;
   couponCode?: string | null;
@@ -353,12 +354,11 @@ export interface DatabaseState {
   orderStatusHistory: OrderStatusHistory[];
   payments: Payment[];
   paymentLogs: PaymentLog[];
-  couriers: Courier[];
-  deliveryShipments: DeliveryShipment[];
   landingPages: LandingPage[];
   landingPageSections: LandingPageSection[];
   coupons: Coupon[];
   inventoryLogs: InventoryLog[];
+  addresses: Address[];
   settings: Settings;
   auditLogs: Array<{
     id: string;
@@ -391,7 +391,6 @@ export const orderStatuses: OrderStatus[] = [
 
 export const deliveryStatuses: DeliveryStatus[] = [
   "pending",
-  "courier_created",
   "picked_up",
   "in_transit",
   "delivered",
@@ -405,19 +404,7 @@ export const paymentProviders: Array<{
   description: string;
 }> = [
   { key: "cod", name: "Cash on Delivery", description: "Collect payment during delivery" },
-  { key: "bkash", name: "bKash", description: "Mobile financial service instructions or checkout" },
-  { key: "nagad", name: "Nagad", description: "Mobile financial service instructions" },
-  { key: "rocket", name: "Rocket", description: "Mobile financial service instructions" },
-];
-
-export const courierOptions: Array<{
-  key: Courier["key"];
-  name: string;
-  description: string;
-}> = [
-  { key: "pathao", name: "Pathao Courier", description: "API-first parcel delivery" },
-  { key: "steadfast", name: "Steadfast Courier", description: "Nationwide delivery network" },
-  { key: "redx", name: "RedX Courier", description: "Courier booking placeholder" },
+  { key: "bkash", name: "bKash", description: "Mobile financial service checkout" },
 ];
 
 export const deliveryZones: Array<{

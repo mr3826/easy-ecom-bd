@@ -1,13 +1,13 @@
 import { randomBytes } from "crypto";
 import type { Prisma, Product as PrismaProduct } from "@prisma/client";
 import type {
+  Address,
   Brand,
   Cart,
   CartItem,
   Category,
   Coupon,
   DatabaseState,
-  DeliveryShipment,
   InventoryLog,
   LandingPage,
   LandingPageSection,
@@ -20,19 +20,27 @@ import type {
   Product,
   Settings,
   User,
+  DeliveryStatus,
   DeliveryZone,
 } from "@/lib/domain";
 import { getPrisma, isDatabaseConfigured } from "@/server/db";
 import { recordAuditLog } from "@/server/audit";
 import type { SessionUser } from "@/server/auth";
 import { money, slugify } from "@/lib/utils";
+import { normalizeGtmContainerId, normalizeMetaPixelId } from "@/lib/analytics-ids";
 import { createSeedState } from "@/server/seed";
 import { siteBrand } from "@/lib/site-brand";
+import { deleteStoredUploadFile } from "@/server/storage";
 import { normalizeProductMetadata } from "@/lib/product-admin";
 
 type Actor = Pick<SessionUser, "id" | "email"> | null | undefined;
 
-const demoState = createSeedState();
+let demoState: ReturnType<typeof createSeedState> | null = null;
+
+function getDemoState() {
+  if (!demoState) demoState = createSeedState();
+  return demoState;
+}
 
 function now() {
   return new Date();
@@ -64,12 +72,12 @@ function cartToSummaryItems(items: Array<CartSummaryItem>) {
 }
 
 async function getSettingsRow() {
-  if (!process.env.DATABASE_URL) {
+  if (!isDatabaseConfigured()) {
     return {
       id: "settings-default",
       createdAt: now(),
       updatedAt: now(),
-      ...demoState.settings,
+      ...getDemoState().settings,
       storeName: siteBrand.name,
       logoText: siteBrand.name,
       supportEmail: siteBrand.supportEmail,
@@ -95,31 +103,22 @@ async function getSettingsRow() {
       returnRefundPolicy: "Return requests are reviewed within 3 days of delivery.",
       confirmationMessageTemplate: "Thanks for your order. We will confirm it shortly.",
       codEnabled: true,
-      bkashEnabled: true,
+      bkashEnabled: false,
       bkashAccountNumber: null,
-      bkashInstructions: "Send payment to the published bKash merchant number and share the transaction ID.",
-      nagadEnabled: false,
-      nagadAccountNumber: null,
-      nagadInstructions: "",
-      rocketEnabled: false,
-      rocketAccountNumber: null,
-      rocketInstructions: "",
+      bkashInstructions: "",
       insideDhakaDeliveryCharge: 80,
       subDhakaDeliveryCharge: 100,
       outsideDhakaDeliveryCharge: 130,
       insideDhakaCodEnabled: true,
       subDhakaCodEnabled: true,
       outsideDhakaCodEnabled: true,
-      pathaoEnabled: true,
-      steadfastEnabled: true,
-      redxEnabled: false,
     },
   });
 }
 
 export async function getState(): Promise<DatabaseState> {
-  if (!process.env.DATABASE_URL) {
-    return demoState;
+  if (!isDatabaseConfigured()) {
+    return getDemoState();
   }
   const prisma = getPrisma();
   const [
@@ -133,12 +132,11 @@ export async function getState(): Promise<DatabaseState> {
     orderStatusHistory,
     payments,
     paymentLogs,
-    couriers,
-    deliveryShipments,
     landingPages,
     landingPageSections,
     coupons,
     inventoryLogs,
+    addresses,
     settings,
     auditLogs,
   ] = await Promise.all([
@@ -152,12 +150,11 @@ export async function getState(): Promise<DatabaseState> {
     prisma.orderStatusHistory.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.payment.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.paymentLog.findMany({ orderBy: { createdAt: "desc" } }),
-    prisma.courier.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.deliveryShipment.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.landingPage.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.landingPageSection.findMany({ orderBy: { sortOrder: "asc" } }),
     prisma.coupon.findMany({ orderBy: { createdAt: "desc" } }),
     prisma.inventoryLog.findMany({ orderBy: { createdAt: "desc" } }),
+    prisma.address.findMany({ orderBy: { createdAt: "desc" } }),
     getSettingsRow(),
     prisma.auditLog.findMany({ orderBy: { createdAt: "desc" } }),
   ]);
@@ -176,20 +173,19 @@ export async function getState(): Promise<DatabaseState> {
     orderStatusHistory: orderStatusHistory as unknown as OrderStatusHistory[],
     payments: payments as unknown as Payment[],
     paymentLogs: paymentLogs as unknown as PaymentLog[],
-    couriers: couriers as unknown as Array<{ id: string; key: "pathao" | "steadfast" | "redx"; name: string; enabled: boolean; description: string }>,
-    deliveryShipments: deliveryShipments as unknown as DeliveryShipment[],
     landingPages: landingPages as unknown as LandingPage[],
     landingPageSections: landingPageSections as unknown as LandingPageSection[],
     coupons: coupons as unknown as Coupon[],
     inventoryLogs: inventoryLogs as unknown as InventoryLog[],
+    addresses: addresses as unknown as Array<{ id: string; userId: string | null; guestKey: string | null; name: string; phone: string; email: string | null; district: string; addressLine1: string; addressLine2: string | null; city: string; state: string; postalCode: string; country: string; isDefault: boolean; createdAt: string; updatedAt: string }>,
     settings: settings as unknown as Settings,
     auditLogs: auditLogs as unknown as DatabaseState["auditLogs"],
   };
 }
 
 export async function listCategories() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.categories as unknown as Category[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().categories as unknown as Category[];
   }
   const prisma = getPrisma();
   return prisma.category.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Category[];
@@ -252,8 +248,8 @@ export async function deleteCategory(id: string, actor?: Actor) {
 }
 
 export async function listBrands() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.brands as unknown as Brand[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().brands as unknown as Brand[];
   }
   const prisma = getPrisma();
   return prisma.brand.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Brand[];
@@ -316,14 +312,18 @@ export async function deleteBrand(id: string, actor?: Actor) {
 }
 
 export async function listProducts() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.products as unknown as Product[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().products as unknown as Product[];
   }
   const prisma = getPrisma();
   return prisma.product.findMany({ orderBy: [{ featured: "desc" }, { createdAt: "desc" }] }) as unknown as Product[];
 }
 
 export async function listProductImages(productId?: string) {
+  if (!isDatabaseConfigured()) {
+    return getDemoState().productImages
+      .filter((image) => (productId ? image.productId === productId : true)) as unknown as Array<{ id: string; productId: string; url: string; alt: string; sortOrder: number }>;
+  }
   const prisma = getPrisma();
   return prisma.productImage.findMany({
     where: productId ? { productId } : undefined,
@@ -331,17 +331,17 @@ export async function listProductImages(productId?: string) {
   }) as unknown as Array<{ id: string; productId: string; url: string; alt: string; sortOrder: number }>;
 }
 
-export async function getProductBySlug(slug: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.products.find((product) => product.slug === slug) ?? null) as unknown as Product | null;
+async function getProductBySlug(slug: string) {
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().products.find((product) => product.slug === slug) ?? null) as unknown as Product | null;
   }
   const prisma = getPrisma();
   return prisma.product.findUnique({ where: { slug } }) as unknown as Product | null;
 }
 
 export async function getProduct(id: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.products.find((product) => product.id === id) ?? null) as unknown as Product | null;
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().products.find((product) => product.id === id) ?? null) as unknown as Product | null;
   }
   const prisma = getPrisma();
   return prisma.product.findUnique({ where: { id } }) as unknown as Product | null;
@@ -377,7 +377,7 @@ function buildProductSearchKeywords(input: {
 
 export async function upsertProduct(
   input: Partial<Product> &
-    Pick<Product, "name" | "description" | "price" | "categoryId" | "brandId"> & {
+    Pick<Product, "name" | "description" | "price" | "categoryId"> & {
       metadata?: Product["metadata"] | null;
     },
   actor?: Actor,
@@ -421,7 +421,9 @@ export async function upsertProduct(
           stock: input.stock ?? existing.stock,
           lowStockThreshold: input.lowStockThreshold ?? existing.lowStockThreshold,
           categoryId: input.categoryId,
-          brandId: input.brandId,
+          // An explicit null clears the brand; omitting the key leaves it alone,
+          // so a partial update cannot wipe it by accident.
+          brandId: input.brandId !== undefined ? input.brandId : existing.brandId,
           isActive: input.isActive ?? true,
           featured: input.featured ?? false,
           archivedAt: input.archivedAt ?? existing.archivedAt ?? null,
@@ -442,7 +444,7 @@ export async function upsertProduct(
           stock: input.stock ?? 0,
           lowStockThreshold: input.lowStockThreshold ?? 5,
           categoryId: input.categoryId,
-          brandId: input.brandId,
+          brandId: input.brandId ?? null,
           isActive: input.isActive ?? true,
           featured: input.featured ?? false,
           archivedAt: input.archivedAt ?? null,
@@ -465,20 +467,50 @@ export async function upsertProduct(
   return record as unknown as Product;
 }
 
+async function isUploadReferencedElsewhere(tx: Prisma.TransactionClient, url: string, productId: string) {
+  const [otherProductImage, brand, setting, landingPage, landingPageSection] = await Promise.all([
+    tx.productImage.findFirst({ where: { url, productId: { not: productId } }, select: { id: true } }),
+    tx.brand.findFirst({ where: { logoUrl: url }, select: { id: true } }),
+    tx.setting.findFirst({ where: { logoUrl: url }, select: { id: true } }),
+    tx.landingPage.findFirst({ where: { bannerImageUrl: url }, select: { id: true } }),
+    tx.landingPageSection.findFirst({ where: { imageUrl: url }, select: { id: true } }),
+  ]);
+  return Boolean(otherProductImage || brand || setting || landingPage || landingPageSection);
+}
+
 export async function replaceProductImages(productId: string, imageUrls: string[], alt: string) {
   const prisma = getPrisma();
-  await prisma.productImage.deleteMany({ where: { productId } });
-  if (!imageUrls.length) {
-    return [];
-  }
-  await prisma.productImage.createMany({
-    data: imageUrls.map((url, index) => ({
-      productId,
-      url,
-      alt,
-      sortOrder: index,
-    })),
+  const normalizedUrls = Array.from(new Set(imageUrls.map((url) => url.trim()).filter(Boolean)));
+
+  const removableUploadUrls = await prisma.$transaction(async (tx) => {
+    const existingImages = await tx.productImage.findMany({ where: { productId } });
+    const removedUrls = existingImages
+      .map((image) => image.url)
+      .filter((url) => !normalizedUrls.includes(url));
+
+    await tx.productImage.deleteMany({ where: { productId } });
+    if (normalizedUrls.length) {
+      await tx.productImage.createMany({
+        data: normalizedUrls.map((url, index) => ({
+          productId,
+          url,
+          alt,
+          sortOrder: index,
+        })),
+      });
+    }
+
+    const removable: string[] = [];
+    for (const url of removedUrls) {
+      if (url.startsWith("/uploads/") && !(await isUploadReferencedElsewhere(tx, url, productId))) {
+        removable.push(url);
+      }
+    }
+    return removable;
   });
+
+  await Promise.all(removableUploadUrls.map((url) => deleteStoredUploadFile(url)));
+
   return prisma.productImage.findMany({
     where: { productId },
     orderBy: { sortOrder: "asc" },
@@ -560,7 +592,7 @@ export async function setProductStock(productId: string, change: number, reason:
 
 export async function listCoupons() {
   if (!isDatabaseConfigured()) {
-    return demoState.coupons as unknown as Coupon[];
+    return getDemoState().coupons as unknown as Coupon[];
   }
   const prisma = getPrisma();
   return prisma.coupon.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Coupon[];
@@ -605,25 +637,9 @@ export async function upsertCoupon(input: Partial<Coupon> & Pick<Coupon, "code" 
   return record as unknown as Coupon;
 }
 
-export async function deleteCoupon(id: string, actor?: Actor) {
-  const prisma = getPrisma();
-  const existing = await prisma.coupon.findUnique({ where: { id } });
-  if (!existing) return null;
-  await prisma.coupon.delete({ where: { id } });
-  await recordAuditLog({
-    actor,
-    action: "delete",
-    entity: "coupon",
-    entityId: id,
-    oldValue: asJson(existing),
-    newValue: null,
-  });
-  return existing;
-}
-
 export async function listUsers() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.users as unknown as Array<Pick<User, "id" | "name" | "email" | "role" | "phone" | "createdAt" | "updatedAt">>;
+  if (!isDatabaseConfigured()) {
+    return getDemoState().users as unknown as Array<Pick<User, "id" | "name" | "email" | "role" | "phone" | "createdAt" | "updatedAt">>;
   }
   const prisma = getPrisma();
   return prisma.user.findMany({
@@ -642,7 +658,7 @@ export async function listUsers() {
 
 export async function findUserByEmail(email: string) {
   if (!isDatabaseConfigured()) {
-    return (demoState.users.find((user) => user.email.toLowerCase() === email.toLowerCase()) ?? null) as unknown as User | null;
+    return (getDemoState().users.find((user) => user.email.toLowerCase() === email.toLowerCase()) ?? null) as unknown as User | null;
   }
   const prisma = getPrisma();
   return prisma.user.findUnique({ where: { email: email.toLowerCase() } }) as unknown as User | null;
@@ -650,7 +666,7 @@ export async function findUserByEmail(email: string) {
 
 export async function findUserById(id: string) {
   if (!isDatabaseConfigured()) {
-    return (demoState.users.find((user) => user.id === id) ?? null) as unknown as User | null;
+    return (getDemoState().users.find((user) => user.id === id) ?? null) as unknown as User | null;
   }
   const prisma = getPrisma();
   return prisma.user.findUnique({ where: { id } }) as unknown as User | null;
@@ -672,7 +688,7 @@ export async function createUser(
       createdAt: nowIso,
       updatedAt: nowIso,
     };
-    demoState.users.push(record);
+    getDemoState().users.push(record);
     return record;
   }
   const prisma = getPrisma();
@@ -696,49 +712,404 @@ export async function createUser(
   return record as unknown as User;
 }
 
+export async function updateUserPassword(userId: string, passwordHash: string) {
+  if (!isDatabaseConfigured()) {
+    const user = getDemoState().users.find((u) => u.id === userId);
+    if (user) {
+      user.passwordHash = passwordHash;
+      user.updatedAt = new Date().toISOString();
+    }
+    return;
+  }
+  const prisma = getPrisma();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash },
+  });
+}
+
+export async function updateUser(
+  userId: string,
+  input: { name?: string; email?: string; phone?: string | null },
+  actor?: Actor,
+) {
+  if (!isDatabaseConfigured()) {
+    const userIndex = getDemoState().users.findIndex((user) => user.id === userId);
+    if (userIndex === -1) return null;
+    const updated = {
+      ...getDemoState().users[userIndex],
+      ...input,
+      email: input.email?.toLowerCase() ?? getDemoState().users[userIndex].email,
+      phone: input.phone ?? getDemoState().users[userIndex].phone,
+      updatedAt: new Date().toISOString(),
+    };
+    getDemoState().users[userIndex] = updated;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { passwordHash: _unused, ...userWithoutPassword } = updated;
+    await recordAuditLog({
+      actor,
+      action: "update",
+      entity: "user",
+      entityId: userId,
+      oldValue: asJson(getDemoState().users[userIndex]),
+      newValue: asJson(userWithoutPassword),
+    });
+    return userWithoutPassword as unknown as User;
+  }
+  const prisma = getPrisma();
+  const existing = await prisma.user.findUnique({ where: { id: userId } });
+  if (!existing) return null;
+  const data: Partial<{ name: string; email: string; phone: string | null }> = {};
+  if (input.name !== undefined) data.name = input.name;
+  if (input.email !== undefined) data.email = input.email.toLowerCase();
+  if (input.phone !== undefined) data.phone = input.phone;
+  const record = await prisma.user.update({
+    where: { id: userId },
+    data,
+  });
+  await recordAuditLog({
+    actor,
+    action: "update",
+    entity: "user",
+    entityId: userId,
+    oldValue: asJson(existing),
+    newValue: asJson({ id: record.id, email: record.email, role: record.role }),
+  });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash: _unused, ...userWithoutPassword } = record;
+  return userWithoutPassword as unknown as User;
+}
+
+export async function listAddressesForUser(userId: string) {
+  if (!isDatabaseConfigured()) {
+    return getDemoState().addresses.filter((address) => address.userId === userId);
+  }
+  const prisma = getPrisma();
+  return prisma.address.findMany({
+    where: { userId },
+    orderBy: [{ isDefault: "desc" }, { createdAt: "desc" }],
+  }) as unknown as Address[];
+}
+
+async function findAddressForUser(userId: string, addressId: string) {
+  if (!isDatabaseConfigured()) {
+    return getDemoState().addresses.find((address) => address.id === addressId && address.userId === userId) ?? null;
+  }
+  const prisma = getPrisma();
+  const address = await prisma.address.findUnique({ where: { id: addressId } });
+  return address && address.userId === userId ? (address as unknown as Address) : null;
+}
+
+type AddressInput = {
+  name: string;
+  phone: string;
+  email?: string | null;
+  district: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  isDefault?: boolean;
+};
+
+export async function createAddressForUser(userId: string, input: AddressInput, actor?: Actor) {
+  if (!isDatabaseConfigured()) {
+    const state = getDemoState();
+    if (input.isDefault) {
+      state.addresses.forEach((address) => {
+        if (address.userId === userId) address.isDefault = false;
+      });
+    }
+    const nowIso = new Date().toISOString();
+    const record: Address = {
+      id: `addr-${randomBytes(6).toString("hex")}`,
+      userId,
+      guestKey: null,
+      country: "Bangladesh",
+      ...input,
+      isDefault: input.isDefault ?? state.addresses.every((address) => address.userId !== userId),
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+    state.addresses.push(record);
+    return record;
+  }
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    if (input.isDefault) {
+      await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
+    }
+    const existingCount = await tx.address.count({ where: { userId } });
+    const record = await tx.address.create({
+      data: {
+        userId,
+        name: input.name,
+        phone: input.phone,
+        email: input.email ?? null,
+        district: input.district,
+        addressLine1: input.addressLine1,
+        addressLine2: input.addressLine2 ?? null,
+        city: input.city,
+        state: input.state,
+        postalCode: input.postalCode,
+        isDefault: input.isDefault ?? existingCount === 0,
+      },
+    });
+    await recordAuditLog({
+      actor,
+      action: "create",
+      entity: "address",
+      entityId: record.id,
+      oldValue: null,
+      newValue: asJson(record),
+    });
+    return record as unknown as Address;
+  });
+}
+
+export async function updateAddressForUser(
+  userId: string,
+  addressId: string,
+  input: AddressInput,
+  actor?: Actor,
+) {
+  const existing = await findAddressForUser(userId, addressId);
+  if (!existing) return null;
+
+  if (!isDatabaseConfigured()) {
+    const state = getDemoState();
+    if (input.isDefault) {
+      state.addresses.forEach((address) => {
+        if (address.userId === userId) address.isDefault = false;
+      });
+    }
+    const index = state.addresses.findIndex((address) => address.id === addressId);
+    const updated: Address = {
+      ...state.addresses[index],
+      ...input,
+      isDefault: input.isDefault ?? state.addresses[index].isDefault,
+      updatedAt: new Date().toISOString(),
+    };
+    state.addresses[index] = updated;
+    return updated;
+  }
+
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    if (input.isDefault) {
+      await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
+    }
+    const record = await tx.address.update({
+      where: { id: addressId },
+      data: {
+        name: input.name,
+        phone: input.phone,
+        email: input.email ?? null,
+        district: input.district,
+        addressLine1: input.addressLine1,
+        addressLine2: input.addressLine2 ?? null,
+        city: input.city,
+        state: input.state,
+        postalCode: input.postalCode,
+        isDefault: input.isDefault ?? existing.isDefault,
+      },
+    });
+    await recordAuditLog({
+      actor,
+      action: "update",
+      entity: "address",
+      entityId: addressId,
+      oldValue: asJson(existing),
+      newValue: asJson(record),
+    });
+    return record as unknown as Address;
+  });
+}
+
+export async function deleteAddressForUser(userId: string, addressId: string, actor?: Actor) {
+  const existing = await findAddressForUser(userId, addressId);
+  if (!existing) return false;
+
+  if (!isDatabaseConfigured()) {
+    const state = getDemoState();
+    state.addresses = state.addresses.filter((address) => address.id !== addressId);
+    if (existing.isDefault) {
+      const next = state.addresses.find((address) => address.userId === userId);
+      if (next) next.isDefault = true;
+    }
+    return true;
+  }
+
+  const prisma = getPrisma();
+  await prisma.$transaction(async (tx) => {
+    await tx.address.delete({ where: { id: addressId } });
+    await recordAuditLog({
+      actor,
+      action: "delete",
+      entity: "address",
+      entityId: addressId,
+      oldValue: asJson(existing),
+      newValue: null,
+    });
+    if (existing.isDefault) {
+      const next = await tx.address.findFirst({ where: { userId }, orderBy: { createdAt: "asc" } });
+      if (next) {
+        await tx.address.update({ where: { id: next.id }, data: { isDefault: true } });
+      }
+    }
+  });
+  return true;
+}
+
+export async function setDefaultAddressForUser(userId: string, addressId: string, actor?: Actor) {
+  const existing = await findAddressForUser(userId, addressId);
+  if (!existing) return null;
+
+  if (!isDatabaseConfigured()) {
+    const state = getDemoState();
+    state.addresses.forEach((address) => {
+      if (address.userId === userId) address.isDefault = address.id === addressId;
+    });
+    return existing;
+  }
+
+  const prisma = getPrisma();
+  return prisma.$transaction(async (tx) => {
+    await tx.address.updateMany({ where: { userId }, data: { isDefault: false } });
+    const record = await tx.address.update({ where: { id: addressId }, data: { isDefault: true } });
+    await recordAuditLog({
+      actor,
+      action: "update",
+      entity: "address",
+      entityId: addressId,
+      oldValue: asJson(existing),
+      newValue: asJson(record),
+    });
+    return record as unknown as Address;
+  });
+}
+
 export async function getSettings() {
   return (await getSettingsRow()) as unknown as Settings;
+}
+
+function validateSettings(settings: Settings) {
+  const requiredText: Array<[string, string]> = [
+    ["Store name", settings.storeName],
+    ["Logo text", settings.logoText],
+    ["Contact number", settings.contactNumber],
+    ["Shop address", settings.address],
+    ["Business hours", settings.businessHours],
+    ["Return/refund policy", settings.returnRefundPolicy],
+    ["Order confirmation message", settings.confirmationMessageTemplate],
+  ];
+  for (const [label, value] of requiredText) {
+    if (!value.trim()) throw new Error(`${label} is required`);
+  }
+
+  if (!settings.deliveryAreas.length || settings.deliveryAreas.some((area) => !area.trim())) {
+    throw new Error("At least one valid delivery area is required");
+  }
+
+  const nonNegativeIntegers: Array<[string, number]> = [
+    ["Default delivery charge", settings.deliveryCharge],
+    ["Free delivery threshold", settings.freeDeliveryThreshold],
+    ["Inside Dhaka delivery charge", settings.insideDhakaDeliveryCharge],
+    ["Sub-Dhaka delivery charge", settings.subDhakaDeliveryCharge],
+    ["Outside Dhaka delivery charge", settings.outsideDhakaDeliveryCharge],
+  ];
+  for (const [label, value] of nonNegativeIntegers) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`${label} must be a non-negative integer`);
+    }
+  }
+
+  if (settings.supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(settings.supportEmail)) {
+    throw new Error("Support email must be valid");
+  }
+
+  if (settings.logoUrl) {
+    const isLocalPath = settings.logoUrl.startsWith("/");
+    let isHttpUrl = false;
+    try {
+      const parsed = new URL(settings.logoUrl);
+      isHttpUrl = parsed.protocol === "http:" || parsed.protocol === "https:";
+    } catch {
+      isHttpUrl = false;
+    }
+    if (!isLocalPath && !isHttpUrl) {
+      throw new Error("Logo URL must be an absolute HTTP(S) URL or a local path");
+    }
+  }
+
+  const normalizedMetaPixelId = settings.metaPixelId ? normalizeMetaPixelId(settings.metaPixelId) : null;
+  if (settings.metaPixelId && !normalizedMetaPixelId) {
+    throw new Error("Meta Pixel ID must be numeric");
+  }
+
+  const normalizedGtmContainerId = settings.gtmContainerId ? normalizeGtmContainerId(settings.gtmContainerId) : null;
+  if (settings.gtmContainerId && !normalizedGtmContainerId) {
+    throw new Error("GTM container ID must use the GTM-XXXXXXX format");
+  }
+
+  const mobilePayments: Array<[string, boolean, string | null | undefined, string]> = [
+    ["bKash", settings.bkashEnabled, settings.bkashAccountNumber, settings.bkashInstructions],
+  ];
+  for (const [name, enabled, accountNumber, instructions] of mobilePayments) {
+    if (enabled && !accountNumber?.trim()) throw new Error(`${name} account number is required when enabled`);
+    if (enabled && !instructions.trim()) throw new Error(`${name} instructions are required when enabled`);
+  }
+
+  if (
+    settings.codEnabled &&
+    !settings.insideDhakaCodEnabled &&
+    !settings.subDhakaCodEnabled &&
+    !settings.outsideDhakaCodEnabled
+  ) {
+    throw new Error("Enable COD for at least one delivery zone or disable COD");
+  }
 }
 
 export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
   const prisma = getPrisma();
   const existing = await getSettingsRow();
+  const definedPatch = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined),
+  ) as Partial<Settings>;
+  const next = {
+    ...existing,
+    ...definedPatch,
+  } as unknown as Settings;
+  validateSettings(next);
+
   const record = await prisma.setting.update({
     where: { id: existing.id },
     data: {
-      storeName: patch.storeName ?? existing.storeName,
-      logoText: patch.logoText ?? existing.logoText,
-      logoUrl: patch.logoUrl ?? existing.logoUrl,
-      supportEmail: patch.supportEmail ?? existing.supportEmail,
-      contactNumber: patch.contactNumber ?? existing.contactNumber,
-      address: patch.address ?? existing.address,
-      businessHours: patch.businessHours ?? existing.businessHours,
-      deliveryAreas: patch.deliveryAreas ?? existing.deliveryAreas,
-      returnRefundPolicy: patch.returnRefundPolicy ?? existing.returnRefundPolicy,
-      confirmationMessageTemplate: patch.confirmationMessageTemplate ?? existing.confirmationMessageTemplate,
-      metaPixelId: patch.metaPixelId ?? existing.metaPixelId,
-      gtmContainerId: patch.gtmContainerId ?? existing.gtmContainerId,
-      deliveryCharge: patch.deliveryCharge ?? existing.deliveryCharge,
-      freeDeliveryThreshold: patch.freeDeliveryThreshold ?? existing.freeDeliveryThreshold,
-      codEnabled: patch.codEnabled ?? existing.codEnabled,
-      bkashEnabled: patch.bkashEnabled ?? existing.bkashEnabled,
-      bkashAccountNumber: patch.bkashAccountNumber ?? existing.bkashAccountNumber,
-      bkashInstructions: patch.bkashInstructions ?? existing.bkashInstructions,
-      nagadEnabled: patch.nagadEnabled ?? existing.nagadEnabled,
-      nagadAccountNumber: patch.nagadAccountNumber ?? existing.nagadAccountNumber,
-      nagadInstructions: patch.nagadInstructions ?? existing.nagadInstructions,
-      rocketEnabled: patch.rocketEnabled ?? existing.rocketEnabled,
-      rocketAccountNumber: patch.rocketAccountNumber ?? existing.rocketAccountNumber,
-      rocketInstructions: patch.rocketInstructions ?? existing.rocketInstructions,
-      insideDhakaDeliveryCharge: patch.insideDhakaDeliveryCharge ?? existing.insideDhakaDeliveryCharge,
-      subDhakaDeliveryCharge: patch.subDhakaDeliveryCharge ?? existing.subDhakaDeliveryCharge,
-      outsideDhakaDeliveryCharge: patch.outsideDhakaDeliveryCharge ?? existing.outsideDhakaDeliveryCharge,
-      insideDhakaCodEnabled: patch.insideDhakaCodEnabled ?? existing.insideDhakaCodEnabled,
-      subDhakaCodEnabled: patch.subDhakaCodEnabled ?? existing.subDhakaCodEnabled,
-      outsideDhakaCodEnabled: patch.outsideDhakaCodEnabled ?? existing.outsideDhakaCodEnabled,
-      pathaoEnabled: patch.pathaoEnabled ?? existing.pathaoEnabled,
-      steadfastEnabled: patch.steadfastEnabled ?? existing.steadfastEnabled,
-      redxEnabled: patch.redxEnabled ?? existing.redxEnabled,
+      storeName: next.storeName,
+      logoText: next.logoText,
+      logoUrl: next.logoUrl,
+      supportEmail: next.supportEmail,
+      contactNumber: next.contactNumber,
+      address: next.address,
+      businessHours: next.businessHours,
+      deliveryAreas: next.deliveryAreas,
+      returnRefundPolicy: next.returnRefundPolicy,
+      confirmationMessageTemplate: next.confirmationMessageTemplate,
+      metaPixelId: next.metaPixelId ? normalizeMetaPixelId(next.metaPixelId) : null,
+      gtmContainerId: next.gtmContainerId ? normalizeGtmContainerId(next.gtmContainerId) : null,
+      deliveryCharge: next.deliveryCharge,
+      freeDeliveryThreshold: next.freeDeliveryThreshold,
+      codEnabled: next.codEnabled,
+      bkashEnabled: next.bkashEnabled,
+      bkashAccountNumber: next.bkashAccountNumber,
+      bkashInstructions: next.bkashInstructions,
+      insideDhakaDeliveryCharge: next.insideDhakaDeliveryCharge,
+      subDhakaDeliveryCharge: next.subDhakaDeliveryCharge,
+      outsideDhakaDeliveryCharge: next.outsideDhakaDeliveryCharge,
+      insideDhakaCodEnabled: next.insideDhakaCodEnabled,
+      subDhakaCodEnabled: next.subDhakaCodEnabled,
+      outsideDhakaCodEnabled: next.outsideDhakaCodEnabled,
     },
   });
   await recordAuditLog({
@@ -752,25 +1123,10 @@ export async function updateSettings(patch: Partial<Settings>, actor?: Actor) {
   return record as unknown as Settings;
 }
 
-export async function getCartByKey(guestKey: string, ownerId?: string | null) {
-  if (!isDatabaseConfigured()) {
-    return (
-      demoState.carts.find((cart) =>
-        ownerId ? cart.guestKey === guestKey || cart.ownerId === ownerId : cart.guestKey === guestKey,
-      ) ?? null
-    ) as unknown as (Cart & { items: Array<CartItem & { product: Product }> }) | null;
-  }
-  const prisma = getPrisma();
-  return prisma.cart.findFirst({
-    where: ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey },
-    include: { items: { include: { product: true } } },
-  });
-}
-
 export async function getOrCreateCart(guestKey: string, ownerId?: string | null) {
   const cartWhere = ownerId ? { OR: [{ guestKey }, { ownerId }] } : { guestKey };
   if (!isDatabaseConfigured()) {
-    const existing = demoState.carts.find((cart) =>
+    const existing = getDemoState().carts.find((cart) =>
       ownerId ? cart.guestKey === guestKey || cart.ownerId === ownerId : cart.guestKey === guestKey,
     );
     if (existing) return existing as unknown as Cart & { items: Array<CartItem & { product: Product }> };
@@ -782,7 +1138,7 @@ export async function getOrCreateCart(guestKey: string, ownerId?: string | null)
       items: [],
       updatedAt: new Date().toISOString(),
     };
-    demoState.carts.push(created);
+    getDemoState().carts.push(created);
     return created as unknown as Cart & { items: Array<CartItem & { product: Product }> };
   }
   const prisma = getPrisma();
@@ -811,7 +1167,7 @@ export async function getOrCreateCart(guestKey: string, ownerId?: string | null)
 
 export async function clearCart(guestKey: string, ownerId?: string | null, actor?: Actor) {
   if (!isDatabaseConfigured()) {
-    const cart = demoState.carts.find((c) =>
+    const cart = getDemoState().carts.find((c) =>
       ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
     );
     if (!cart) return null;
@@ -841,7 +1197,7 @@ export async function clearCart(guestKey: string, ownerId?: string | null, actor
 
 export async function setCartCoupon(guestKey: string, couponCode: string | null, ownerId?: string | null, actor?: Actor) {
   if (!isDatabaseConfigured()) {
-    const cart = demoState.carts.find((c) =>
+    const cart = getDemoState().carts.find((c) =>
       ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
     );
     if (!cart) return null;
@@ -868,25 +1224,26 @@ export async function setCartCoupon(guestKey: string, couponCode: string | null,
 }
 
 export async function addToCart(guestKey: string, productId: string, quantity = 1, ownerId?: string | null, actor?: Actor) {
-  const product = await getProduct(productId);
+  const product = (await getProduct(productId)) ?? (await getProductBySlug(productId));
   if (!product || product.archivedAt || !product.isActive) {
     throw new Error("Product is unavailable");
   }
+  const resolvedProductId = product.id;
   const cart = await getOrCreateCart(guestKey, ownerId);
   if (!isDatabaseConfigured()) {
-    const existing = cart.items.find((item) => item.productId === productId);
+    const existing = cart.items.find((item) => item.productId === resolvedProductId);
     if (existing) {
       existing.quantity += quantity;
     } else {
-      cart.items.push({ id: `ci-${randomBytes(4).toString("hex")}`, productId, quantity });
+      cart.items.push({ id: `ci-${randomBytes(4).toString("hex")}`, productId: resolvedProductId, quantity });
     }
     cart.updatedAt = new Date().toISOString();
-    return cart.items.find((item) => item.productId === productId) as unknown as CartItem;
+    return cart.items.find((item) => item.productId === resolvedProductId) as unknown as CartItem;
   }
   const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
     const existing = await tx.cartItem.findFirst({
-      where: { cartId: cart.id, productId },
+      where: { cartId: cart.id, productId: resolvedProductId },
     });
     const record = existing
       ? await tx.cartItem.update({
@@ -894,7 +1251,7 @@ export async function addToCart(guestKey: string, productId: string, quantity = 
           data: { quantity: existing.quantity + quantity },
         })
       : await tx.cartItem.create({
-          data: { cartId: cart.id, productId, quantity },
+          data: { cartId: cart.id, productId: resolvedProductId, quantity },
         });
     await tx.cart.update({ where: { id: cart.id }, data: { updatedAt: now() } });
     await recordAuditLog({
@@ -911,7 +1268,7 @@ export async function addToCart(guestKey: string, productId: string, quantity = 
 
 export async function removeCartItem(guestKey: string, productId: string, ownerId?: string | null, actor?: Actor) {
   if (!isDatabaseConfigured()) {
-    const cart = demoState.carts.find((c) =>
+    const cart = getDemoState().carts.find((c) =>
       ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
     );
     if (!cart) return null;
@@ -946,7 +1303,7 @@ export async function updateCartQuantity(
   actor?: Actor,
 ) {
   if (!isDatabaseConfigured()) {
-    const cart = demoState.carts.find((c) =>
+    const cart = getDemoState().carts.find((c) =>
       ownerId ? c.guestKey === guestKey || c.ownerId === ownerId : c.guestKey === guestKey,
     );
     if (!cart) return null;
@@ -1020,7 +1377,7 @@ export async function getCartSummary(cart: { id: string; items: Array<CartItem &
 
 export async function listOrders() {
   if (!isDatabaseConfigured()) {
-    return demoState.orders as unknown as Order[];
+    return getDemoState().orders as unknown as Order[];
   }
   const prisma = getPrisma();
   return prisma.order.findMany({ include: { items: true }, orderBy: { createdAt: "desc" } }) as unknown as Order[];
@@ -1028,7 +1385,7 @@ export async function listOrders() {
 
 export async function getOrderByCode(orderCode: string) {
   if (!isDatabaseConfigured()) {
-    return (demoState.orders.find((order) => order.orderCode === orderCode) ?? null) as unknown as Order | null;
+    return (getDemoState().orders.find((order) => order.orderCode === orderCode) ?? null) as unknown as Order | null;
   }
   const prisma = getPrisma();
   return prisma.order.findUnique({ where: { orderCode }, include: { items: true } }) as unknown as Order | null;
@@ -1036,11 +1393,11 @@ export async function getOrderByCode(orderCode: string) {
 
 export async function getOrder(orderId: string) {
   if (!isDatabaseConfigured()) {
-    const order = demoState.orders.find((item) => item.id === orderId);
+    const order = getDemoState().orders.find((item) => item.id === orderId);
     if (!order) return null;
     return {
       ...order,
-      statusHistory: demoState.orderStatusHistory.filter((history) => history.orderId === orderId),
+      statusHistory: getDemoState().orderStatusHistory.filter((history) => history.orderId === orderId),
     } as unknown as Order & { statusHistory: OrderStatusHistory[] };
   }
   const prisma = getPrisma();
@@ -1076,15 +1433,7 @@ function assertPaymentMethodAvailable(settings: Settings, provider: PaymentProvi
     return;
   }
   if (provider === "bkash" && !settings.bkashEnabled) throw new Error("bKash is disabled");
-  if (provider === "nagad" && !settings.nagadEnabled) throw new Error("Nagad is disabled");
-  if (provider === "rocket" && !settings.rocketEnabled) throw new Error("Rocket is disabled");
-}
-
-export function assertDeliveryProviderAvailable(settings: Settings, provider?: "pathao" | "steadfast" | "redx" | null) {
-  if (!provider) return;
-  if (provider === "pathao" && !settings.pathaoEnabled) throw new Error("Pathao is disabled");
-  if (provider === "steadfast" && !settings.steadfastEnabled) throw new Error("Steadfast is disabled");
-  if (provider === "redx" && !settings.redxEnabled) throw new Error("RedX is disabled");
+  if (provider !== "bkash") throw new Error("Unsupported payment provider");
 }
 
 async function reserveOrderInventory(tx: Prisma.TransactionClient, orderId: string, actor?: Actor) {
@@ -1166,12 +1515,16 @@ export async function createOrderFromCart(
     notes?: string;
     paymentProvider?: PaymentProviderKey;
     deliveryZone?: DeliveryZone;
-    deliveryProvider?: "pathao" | "steadfast" | "redx" | null;
     couponCode?: string;
   },
   actor?: Actor,
 ) {
   const prisma = getPrisma();
+  // Every other read of the settings row goes through getSettingsRow(), which
+  // creates it on a database that has never had one. Checking out was the one
+  // path that skipped that and threw instead, so a freshly migrated or freshly
+  // wiped database rejected orders until some unrelated page happened to render.
+  await getSettingsRow();
   return prisma.$transaction(async (tx) => {
     const cart = await tx.cart.findUnique({
       where: { id: input.cart.id },
@@ -1186,7 +1539,6 @@ export async function createOrderFromCart(
     const deliveryZone = input.deliveryZone ?? deriveDeliveryZone(input.district);
     const paymentProvider = input.paymentProvider ?? "cod";
     assertPaymentMethodAvailable(settings, paymentProvider, deliveryZone);
-    assertDeliveryProviderAvailable(settings, input.deliveryProvider);
 
     const couponCode = (input.couponCode ?? cart.couponCode ?? undefined)?.toUpperCase();
     const coupon = couponCode ? await tx.coupon.findUnique({ where: { code: couponCode } }) : null;
@@ -1232,7 +1584,6 @@ export async function createOrderFromCart(
         deliveryStatus: "pending",
         paymentProvider,
         deliveryZone,
-        deliveryProvider: input.deliveryProvider ?? null,
         notes: input.notes ?? null,
         inventoryReservedAt: createdAt,
         items: {
@@ -1315,7 +1666,6 @@ export async function createManualOrder(
     paymentProvider?: PaymentProviderKey;
     paymentStatus?: Payment["status"];
     deliveryZone?: DeliveryZone;
-    deliveryProvider?: "pathao" | "steadfast" | "redx" | null;
     discountAmount?: number;
     notes?: string;
     adminNotes?: string;
@@ -1328,6 +1678,9 @@ export async function createManualOrder(
   if (!input.items.length) throw new Error("At least one order item is required");
 
   const prisma = getPrisma();
+  // Same reason as checkout: manual order creation must not be the thing that
+  // discovers the settings row was never written. See getSettingsRow().
+  await getSettingsRow();
   return prisma.$transaction(async (tx) => {
     const settings = (await tx.setting.findFirst()) as unknown as Settings | null;
     if (!settings) throw new Error("Store settings are missing");
@@ -1336,7 +1689,6 @@ export async function createManualOrder(
     const paymentProvider = input.paymentProvider ?? "cod";
     const orderStatus = input.status ?? "draft";
     assertPaymentMethodAvailable(settings, paymentProvider, deliveryZone);
-    assertDeliveryProviderAvailable(settings, input.deliveryProvider);
 
     const productIds = input.items.map((item) => item.productId);
     const products = await tx.product.findMany({ where: { id: { in: productIds } } });
@@ -1378,7 +1730,6 @@ export async function createManualOrder(
         deliveryStatus: "pending",
         paymentProvider,
         deliveryZone,
-        deliveryProvider: input.deliveryProvider ?? null,
         notes: input.notes ?? null,
         adminNotes: input.adminNotes ?? null,
         items: {
@@ -1487,8 +1838,8 @@ export async function updateOrderStatus(
 }
 
 export async function listOrderStatusHistory(orderId?: string) {
-  if (!process.env.DATABASE_URL) {
-    return demoState.orderStatusHistory.filter((history) => (orderId ? history.orderId === orderId : true)) as unknown as OrderStatusHistory[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().orderStatusHistory.filter((history) => (orderId ? history.orderId === orderId : true)) as unknown as OrderStatusHistory[];
   }
   const prisma = getPrisma();
   return prisma.orderStatusHistory.findMany({
@@ -1534,37 +1885,45 @@ export async function updateOrderPayment(
   });
 }
 
-export async function updateOrderDelivery(orderId: string, deliveryStatus: DeliveryShipment["status"], actor?: Actor) {
+export async function updateOrderDelivery(orderId: string, deliveryStatus: DeliveryStatus, actor?: Actor) {
   const prisma = getPrisma();
-  const existing = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
-  if (!existing) return null;
-  const record = await prisma.order.update({
-    where: { id: orderId },
-    data: { deliveryStatus },
-    include: { items: true },
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    if (!existing) return null;
+    if (existing.deliveryStatus === deliveryStatus) {
+      return existing as unknown as Order;
+    }
+    if (deliveryStatus === "cancelled") {
+      await releaseOrderInventory(tx, orderId, actor);
+    }
+    const record = await tx.order.update({
+      where: { id: orderId },
+      data: { deliveryStatus },
+      include: { items: true },
+    });
+    await recordAuditLog({
+      actor,
+      action: "update",
+      entity: "order_delivery",
+      entityId: orderId,
+      oldValue: asJson(existing),
+      newValue: asJson(record),
+    });
+    return record as unknown as Order;
   });
-  await recordAuditLog({
-    actor,
-    action: "update",
-    entity: "order_delivery",
-    entityId: orderId,
-    oldValue: asJson(existing),
-    newValue: asJson(record),
-  });
-  return record as unknown as Order;
 }
 
 export async function listPayments() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.payments as unknown as Payment[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().payments as unknown as Payment[];
   }
   const prisma = getPrisma();
   return prisma.payment.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Payment[];
 }
 
 export async function getPaymentById(paymentId: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.payments.find((payment) => payment.id === paymentId) ?? null) as unknown as Payment | null;
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().payments.find((payment) => payment.id === paymentId) ?? null) as unknown as Payment | null;
   }
   const prisma = getPrisma();
   return prisma.payment.findUnique({ where: { id: paymentId } }) as unknown as Payment | null;
@@ -1627,142 +1986,25 @@ export async function addPaymentLog(paymentId: string, stage: PaymentLog["stage"
   });
 }
 
-export async function listDeliveryShipments() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.deliveryShipments as unknown as DeliveryShipment[];
-  }
-  const prisma = getPrisma();
-  return prisma.deliveryShipment.findMany({ orderBy: { createdAt: "desc" } }) as unknown as DeliveryShipment[];
-}
-
-export async function getShipmentById(shipmentId: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.deliveryShipments.find((shipment) => shipment.id === shipmentId) ?? null) as unknown as DeliveryShipment | null;
-  }
-  const prisma = getPrisma();
-  return prisma.deliveryShipment.findUnique({ where: { id: shipmentId } }) as unknown as DeliveryShipment | null;
-}
-
-export async function getShipmentByTrackingId(trackingId: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.deliveryShipments.find((shipment) => shipment.trackingId === trackingId) ?? null) as unknown as DeliveryShipment | null;
-  }
-  const prisma = getPrisma();
-  return prisma.deliveryShipment.findFirst({ where: { trackingId } }) as unknown as DeliveryShipment | null;
-}
-
-export async function getShipmentByConsignmentId(consignmentId: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.deliveryShipments.find((shipment) => shipment.consignmentId === consignmentId) ?? null) as unknown as DeliveryShipment | null;
-  }
-  const prisma = getPrisma();
-  return prisma.deliveryShipment.findFirst({ where: { consignmentId } }) as unknown as DeliveryShipment | null;
-}
-
-export async function upsertShipment(
-  input: Partial<DeliveryShipment> &
-    Pick<DeliveryShipment, "orderId" | "courierKey" | "trackingId" | "customerName" | "customerPhone" | "customerAddress">,
-  actor?: Actor,
-) {
-  const prisma = getPrisma();
-  const existing = input.id ? await prisma.deliveryShipment.findUnique({ where: { id: input.id } }) : null;
-  const record = existing
-    ? await prisma.deliveryShipment.update({
-        where: { id: existing.id },
-        data: {
-          orderId: input.orderId,
-          courierKey: input.courierKey,
-          trackingId: input.trackingId,
-          consignmentId: input.consignmentId ?? null,
-          status: input.status ?? "courier_created",
-          customerName: input.customerName,
-          customerPhone: input.customerPhone,
-          customerAddress: input.customerAddress,
-          rawResponse: asJson(input.rawResponse ?? {}) as Prisma.InputJsonValue,
-        },
-      })
-    : await prisma.deliveryShipment.create({
-        data: {
-          orderId: input.orderId,
-          courierKey: input.courierKey,
-          trackingId: input.trackingId,
-          consignmentId: input.consignmentId ?? null,
-          status: input.status ?? "courier_created",
-          customerName: input.customerName,
-          customerPhone: input.customerPhone,
-          customerAddress: input.customerAddress,
-          rawResponse: asJson(input.rawResponse ?? {}) as Prisma.InputJsonValue,
-        },
-      });
-
-  await recordAuditLog({
-    actor,
-    action: existing ? "update" : "create",
-    entity: "shipment",
-    entityId: record.id,
-    oldValue: existing ? asJson(existing) : null,
-    newValue: asJson(record),
-  });
-
-  await prisma.order.update({
-    where: { id: record.orderId },
-    data: {
-      deliveryProvider: record.courierKey,
-      trackingId: record.trackingId,
-      consignmentId: record.consignmentId,
-      deliveryStatus: record.status,
-    },
-  });
-
-  return record as unknown as DeliveryShipment;
-}
-
-export async function updateShipmentStatus(
-  shipmentId: string,
-  status: DeliveryShipment["status"],
-  actor?: Actor,
-) {
-  const prisma = getPrisma();
-  const existing = await prisma.deliveryShipment.findUnique({ where: { id: shipmentId } });
-  if (!existing) return null;
-  const record = await prisma.deliveryShipment.update({
-    where: { id: shipmentId },
-    data: { status },
-  });
-  await prisma.order.update({
-    where: { id: existing.orderId },
-    data: { deliveryStatus: status },
-  });
-  await recordAuditLog({
-    actor,
-    action: "update",
-    entity: "shipment_status",
-    entityId: shipmentId,
-    oldValue: asJson(existing),
-    newValue: asJson(record),
-  });
-  return record as unknown as DeliveryShipment;
-}
-
 export async function listLandingPages() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.landingPages as unknown as LandingPage[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().landingPages as unknown as LandingPage[];
   }
   const prisma = getPrisma();
   return prisma.landingPage.findMany({ orderBy: { createdAt: "desc" } }) as unknown as LandingPage[];
 }
 
 export async function getLandingPage(slug: string) {
-  if (!process.env.DATABASE_URL) {
-    return (demoState.landingPages.find((page) => page.slug === slug) ?? null) as unknown as LandingPage | null;
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().landingPages.find((page) => page.slug === slug) ?? null) as unknown as LandingPage | null;
   }
   const prisma = getPrisma();
   return prisma.landingPage.findUnique({ where: { slug } }) as unknown as LandingPage | null;
 }
 
 export async function getLandingPageSections(landingPageId: string) {
-  if (!process.env.DATABASE_URL) {
-    return demoState.landingPageSections.filter((section) => section.landingPageId === landingPageId) as unknown as LandingPageSection[];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().landingPageSections.filter((section) => section.landingPageId === landingPageId) as unknown as LandingPageSection[];
   }
   const prisma = getPrisma();
   return prisma.landingPageSection.findMany({
@@ -1870,46 +2112,15 @@ export async function upsertLandingPageSection(
   return record as unknown as LandingPageSection;
 }
 
-export async function listPaymentsForOrder(orderId: string) {
-  if (!process.env.DATABASE_URL) {
-    return demoState.payments.filter((payment) => payment.orderId === orderId) as unknown as Payment[];
-  }
-  const prisma = getPrisma();
-  return prisma.payment.findMany({ where: { orderId }, orderBy: { createdAt: "desc" } }) as unknown as Payment[];
-}
-
 export async function listAuditLogs() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.auditLogs as unknown as DatabaseState["auditLogs"];
+  if (!isDatabaseConfigured()) {
+    return getDemoState().auditLogs as unknown as DatabaseState["auditLogs"];
   }
   const prisma = getPrisma();
   return prisma.auditLog.findMany({ orderBy: { createdAt: "desc" } });
 }
 
-export async function listInventoryLogs() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.inventoryLogs as unknown as InventoryLog[];
-  }
-  const prisma = getPrisma();
-  return prisma.inventoryLog.findMany({ orderBy: { createdAt: "desc" } });
-}
 
-export async function listCouriers() {
-  if (!process.env.DATABASE_URL) {
-    return demoState.couriers as unknown as Array<{ id: string; key: "pathao" | "steadfast" | "redx"; name: string; enabled: boolean; description: string }>;
-  }
-  const prisma = getPrisma();
-  return prisma.courier.findMany({ orderBy: { createdAt: "asc" } });
-}
 
-export async function ensureCourierSeed() {
-  const prisma = getPrisma();
-  const count = await prisma.courier.count();
-  if (count > 0) return;
-  await prisma.courier.createMany({
-    data: [
-      { key: "pathao", name: "Pathao Courier", enabled: true, description: "Fast last-mile coverage for paid and COD shipments." },
-      { key: "steadfast", name: "Steadfast Courier", enabled: true, description: "Reliable nationwide parcel coverage." },
-    ],
-  });
-}
+
+

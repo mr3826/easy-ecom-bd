@@ -1,12 +1,17 @@
 import Link from "next/link";
-import Image from "next/image";
+import { Home, MessageCircleMore, Phone, ShoppingBag, Store } from "lucide-react";
+import { SiteLogo } from "@/components/site-logo";
 import { getSettings } from "@/server/store";
-import { storefrontCollections, storefrontPrimaryNav } from "@/lib/bornohin-storefront";
+import { storefrontPrimaryNav } from "@/lib/bornohin-storefront";
+import { getStorefrontCategoryRail } from "@/server/storefront-catalog";
 import { siteBrand } from "@/lib/site-brand";
 
 export async function SiteFooter() {
-  const settings = await getSettings();
-  const categoryLinks = storefrontCollections.slice(0, 6);
+  // The category list is read from the real catalogue, not from the hardcoded
+  // template it used to slice, so the footer cannot advertise categories the
+  // store does not have.
+  const [settings, categoryRail] = await Promise.all([getSettings(), getStorefrontCategoryRail()]);
+  const categoryLinks = categoryRail.slice(0, 6);
 
   return (
     <footer className="border-t border-[color:var(--border)] bg-[color:var(--footer-background)] text-[color:var(--footer-foreground)]">
@@ -14,7 +19,7 @@ export async function SiteFooter() {
         <div>
           <div className="flex items-center gap-4">
             <span className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-[1.5rem] border border-white/10 bg-white p-2 shadow-[0_16px_34px_rgba(0,0,0,0.16)]">
-              <Image src={siteBrand.logoPath} alt="" width={128} height={128} className="h-full w-full object-contain" />
+              <SiteLogo logoUrl={settings.logoUrl} size={128} className="h-full w-full object-contain" />
             </span>
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.28em] text-white">{settings.storeName}</p>
@@ -27,7 +32,7 @@ export async function SiteFooter() {
           <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.22em]">
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">COD ready</span>
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Mobile-first</span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Courier aware</span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2">Delivery zones</span>
           </div>
         </div>
 
@@ -51,9 +56,9 @@ export async function SiteFooter() {
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Categories</h2>
           <div className="mt-4 grid gap-3 text-sm text-[color:var(--footer-muted)]">
-            {categoryLinks.map((collection) => (
-              <Link key={collection.slug} href={`/shop?category=${collection.slug}`} className="transition hover:text-white">
-                {collection.title}
+            {categoryLinks.map((category) => (
+              <Link key={category.href} href={category.href} className="transition hover:text-white">
+                {category.label}
               </Link>
             ))}
           </div>
@@ -65,6 +70,8 @@ export async function SiteFooter() {
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-[0.28em] text-white">Get In Touch</h2>
             <p className="mt-3 max-w-2xl leading-7">{settings.address}</p>
+            <p className="mt-2">{settings.businessHours}</p>
+            <p className="mt-2">{settings.deliveryAreas.join(" | ")}</p>
             <div className="mt-3 flex flex-wrap gap-4">
               <a href={`tel:${settings.contactNumber.replace(/\D/g, "")}`} className="transition hover:text-white">
                 {settings.contactNumber}
@@ -100,21 +107,26 @@ export async function SiteFooter() {
       </div>
 
       <div className="border-t border-white/10 bg-[color:var(--footer-background)] sm:hidden">
-        <nav className="grid grid-cols-5 text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--footer-foreground)]">
-          <Link href="tel:09639279024" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Phone</span>
-          </Link>
-          <a href={siteBrand.messengerUrl} className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Messenger</span>
+        <nav className="safe-bottom grid grid-cols-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--footer-foreground)]">
+          <a href={`tel:${settings.contactNumber.replace(/\D/g, "")}`} className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Call store support">
+            <Phone className="h-5 w-5" aria-hidden="true" />
+            <span>Call</span>
           </a>
-          <Link href="/" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Home</span>
+          <a href={siteBrand.messengerUrl} className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Open Messenger">
+            <MessageCircleMore className="h-5 w-5" aria-hidden="true" />
+            <span>Chat</span>
+          </a>
+          <Link href="/" className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Go to home">
+            <Home className="h-5 w-5" aria-hidden="true" />
+            <span>Home</span>
           </Link>
-          <Link href="/shop" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Shop</span>
+          <Link href="/shop" className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Browse shop">
+            <Store className="h-5 w-5" aria-hidden="true" />
+            <span>Shop</span>
           </Link>
-          <Link href="/cart" className="flex flex-col items-center gap-2 px-2 py-3 text-center">
-            <span className="text-[10px]">Cart</span>
+          <Link href="/cart" className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2 text-center transition hover:text-white" aria-label="Open cart">
+            <ShoppingBag className="h-5 w-5" aria-hidden="true" />
+            <span>Cart</span>
           </Link>
         </nav>
       </div>

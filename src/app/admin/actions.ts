@@ -2,12 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  createPathaoShipment,
-  createRedxShipment,
-  createSteadfastShipment,
-  syncCourierStatus,
-} from "@/server/integrations";
 import { requireAdmin } from "@/server/auth";
 import {
   deleteBrand,
@@ -20,7 +14,6 @@ import {
   listCategories,
   listProducts,
   listProductImages,
-  setProductStock,
   upsertBrand,
   upsertCategory,
   upsertCoupon,
@@ -32,10 +25,10 @@ import {
   updateOrderPayment,
   updateOrderStatus,
   updateSettings,
-  getSettings,
-  assertDeliveryProviderAvailable,
 } from "@/server/store";
 import { getFileStorage } from "@/server/storage";
+import { getBkashIntegrationConfig } from "@/server/integration-config";
+import { assertRateLimit, buildSecurityKey, getClientIp, requireSameOrigin } from "@/server/security";
 import { asNumber, asString } from "@/lib/utils";
 import type { ProductVariantGroup } from "@/lib/domain";
 import { parseProductUploadCsv } from "@/lib/product-import";
@@ -48,7 +41,18 @@ import {
 } from "@/lib/product-admin";
 
 async function guard() {
-  return requireAdmin();
+  const actor = await requireAdmin();
+  return actor;
+}
+
+async function requireAdminMutation(operation: string, actorId: string) {
+  const requestHeaders = await requireSameOrigin(operation);
+  assertRateLimit({
+    scope: operation,
+    key: buildSecurityKey(getClientIp(requestHeaders), actorId),
+    limit: 300,
+    windowMs: 10 * 60 * 1000,
+  });
 }
 
 function readTrimmedString(formData: FormData, name: string) {
@@ -94,6 +98,18 @@ function parseNumberField(
     throw new Error(`${label} must be at most ${options.max}`);
   }
   return normalized;
+}
+
+function parseRequiredNonNegativeInteger(formData: FormData, name: string, label: string) {
+  const value = parseNumberField(formData, name, label, {
+    required: true,
+    integer: true,
+    min: 0,
+  });
+  if (value === null) {
+    throw new Error(`${label} is required`);
+  }
+  return value;
 }
 
 function parseOptionalDateString(formData: FormData, name: string, label: string) {
@@ -188,6 +204,7 @@ function buildLookupMap<T extends { id: string; name: string; slug?: string }>(i
 
 export async function saveCategoryAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveCategoryAction", actor.id);
   await upsertCategory({
     id: asString(formData.get("id")) || undefined,
     name: asString(formData.get("name")),
@@ -201,6 +218,7 @@ export async function saveCategoryAction(formData: FormData) {
 
 export async function deleteCategoryAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("deleteCategoryAction", actor.id);
   const id = asString(formData.get("id"));
   await deleteCategory(id, actor);
   revalidatePath("/admin/categories");
@@ -208,6 +226,7 @@ export async function deleteCategoryAction(formData: FormData) {
 
 export async function saveBrandAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveBrandAction", actor.id);
   await upsertBrand({
     id: asString(formData.get("id")) || undefined,
     name: asString(formData.get("name")),
@@ -221,12 +240,14 @@ export async function saveBrandAction(formData: FormData) {
 
 export async function deleteBrandAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("deleteBrandAction", actor.id);
   await deleteBrand(asString(formData.get("id")), actor);
   revalidatePath("/admin/brands");
 }
 
 export async function saveProductAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveProductAction", actor.id);
   const productId = readTrimmedString(formData, "id");
   const existingProduct = productId ? await getProduct(productId) : null;
   const existingMetadata = normalizeProductMetadata(existingProduct?.metadata ?? null);
@@ -250,7 +271,8 @@ export async function saveProductAction(formData: FormData) {
         fallback: 5,
       }) ?? 5) as number,
       categoryId: parseRequiredString(formData, "categoryId", "Category"),
-      brandId: parseRequiredString(formData, "brandId", "Brand"),
+      // Optional: an empty selection clears the brand rather than failing.
+      brandId: readTrimmedString(formData, "brandId") || null,
       isActive: parseBooleanValue(formData.get("isActive"), true),
       featured: parseBooleanValue(formData.get("featured"), false),
       weightGrams: (parseNumberField(formData, "weightGrams", "Weight grams", {
@@ -363,6 +385,7 @@ export async function saveProductAction(formData: FormData) {
 
 export async function bulkUploadProductsAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("bulkUploadProductsAction", actor.id);
   const file = formData.get("productFile");
   if (!(file instanceof File) || file.size === 0) {
     throw new Error("Product file is required");
@@ -446,24 +469,14 @@ export async function bulkUploadProductsAction(formData: FormData) {
 
 export async function deleteProductAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("deleteProductAction", actor.id);
   await deleteProduct(asString(formData.get("id")), actor);
-  revalidatePath("/admin/products");
-}
-
-export async function adjustInventoryAction(formData: FormData) {
-  const actor = await guard();
-  await setProductStock(
-    asString(formData.get("productId")),
-    asNumber(formData.get("change")),
-    asString(formData.get("reason")),
-    actor,
-  );
-  revalidatePath("/admin/inventory");
   revalidatePath("/admin/products");
 }
 
 export async function saveCouponAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveCouponAction", actor.id);
   await upsertCoupon({
     id: asString(formData.get("id")) || undefined,
     code: asString(formData.get("code")),
@@ -479,53 +492,87 @@ export async function saveCouponAction(formData: FormData) {
 
 export async function saveSettingsAction(formData: FormData) {
   const actor = await guard();
-  const deliveryAreas = asString(formData.get("deliveryAreas"))
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-  await updateSettings({
-    storeName: asString(formData.get("storeName")),
-    logoText: asString(formData.get("logoText")),
-    logoUrl: asString(formData.get("logoUrl")) || undefined,
-    supportEmail: asString(formData.get("supportEmail")) || undefined,
-    contactNumber: asString(formData.get("contactNumber")),
-    address: asString(formData.get("address")),
-    businessHours: asString(formData.get("businessHours")),
-    deliveryAreas,
-    returnRefundPolicy: asString(formData.get("returnRefundPolicy")),
-    confirmationMessageTemplate: asString(formData.get("confirmationMessageTemplate")),
-    metaPixelId: asString(formData.get("metaPixelId")) || undefined,
-    gtmContainerId: asString(formData.get("gtmContainerId")) || undefined,
-    deliveryCharge: asNumber(formData.get("deliveryCharge")),
-    freeDeliveryThreshold: asNumber(formData.get("freeDeliveryThreshold")),
-    codEnabled: asString(formData.get("codEnabled")) === "on",
-    bkashEnabled: asString(formData.get("bkashEnabled")) === "on",
-    bkashAccountNumber: asString(formData.get("bkashAccountNumber")) || undefined,
-    bkashInstructions: asString(formData.get("bkashInstructions")),
-    nagadEnabled: asString(formData.get("nagadEnabled")) === "on",
-    nagadAccountNumber: asString(formData.get("nagadAccountNumber")) || undefined,
-    nagadInstructions: asString(formData.get("nagadInstructions")),
-    rocketEnabled: asString(formData.get("rocketEnabled")) === "on",
-    rocketAccountNumber: asString(formData.get("rocketAccountNumber")) || undefined,
-    rocketInstructions: asString(formData.get("rocketInstructions")),
-    insideDhakaDeliveryCharge: asNumber(formData.get("insideDhakaDeliveryCharge")),
-    subDhakaDeliveryCharge: asNumber(formData.get("subDhakaDeliveryCharge")),
-    outsideDhakaDeliveryCharge: asNumber(formData.get("outsideDhakaDeliveryCharge")),
-    insideDhakaCodEnabled: asString(formData.get("insideDhakaCodEnabled")) === "on",
-    subDhakaCodEnabled: asString(formData.get("subDhakaCodEnabled")) === "on",
-    outsideDhakaCodEnabled: asString(formData.get("outsideDhakaCodEnabled")) === "on",
-    pathaoEnabled: asString(formData.get("pathaoEnabled")) === "on",
-    steadfastEnabled: asString(formData.get("steadfastEnabled")) === "on",
-    redxEnabled: asString(formData.get("redxEnabled")) === "on",
-  }, actor);
+  await requireAdminMutation("saveSettingsAction", actor.id);
+  try {
+    const deliveryAreas = parseCsvList(formData.get("deliveryAreas"));
+    if (!deliveryAreas.length) {
+      throw new Error("At least one delivery area is required");
+    }
+    const bkashEnabled = asString(formData.get("bkashEnabled")) === "on";
+    if (bkashEnabled && !getBkashIntegrationConfig().enabled) {
+      throw new Error("bKash gateway credentials must be configured before bKash can be enabled");
+    }
+
+    await updateSettings({
+      storeName: parseRequiredString(formData, "storeName", "Store name"),
+      logoText: parseRequiredString(formData, "logoText", "Logo text"),
+      logoUrl: readTrimmedString(formData, "logoUrl") || null,
+      supportEmail: readTrimmedString(formData, "supportEmail") || null,
+      contactNumber: parseRequiredString(formData, "contactNumber", "Contact number"),
+      address: parseRequiredString(formData, "address", "Shop address"),
+      businessHours: parseRequiredString(formData, "businessHours", "Business hours"),
+      deliveryAreas,
+      returnRefundPolicy: parseRequiredString(formData, "returnRefundPolicy", "Return/refund policy"),
+      confirmationMessageTemplate: parseRequiredString(
+        formData,
+        "confirmationMessageTemplate",
+        "Order confirmation message",
+      ),
+      metaPixelId: readTrimmedString(formData, "metaPixelId") || null,
+      gtmContainerId: readTrimmedString(formData, "gtmContainerId") || null,
+      freeDeliveryThreshold: parseRequiredNonNegativeInteger(
+        formData,
+        "freeDeliveryThreshold",
+        "Free delivery threshold",
+      ),
+      codEnabled: asString(formData.get("codEnabled")) === "on",
+      bkashEnabled,
+      bkashAccountNumber: readTrimmedString(formData, "bkashAccountNumber") || null,
+      bkashInstructions: readTrimmedString(formData, "bkashInstructions"),
+      insideDhakaDeliveryCharge: parseRequiredNonNegativeInteger(
+        formData,
+        "insideDhakaDeliveryCharge",
+        "Inside Dhaka delivery charge",
+      ),
+      subDhakaDeliveryCharge: parseRequiredNonNegativeInteger(
+        formData,
+        "subDhakaDeliveryCharge",
+        "Sub-Dhaka delivery charge",
+      ),
+      outsideDhakaDeliveryCharge: parseRequiredNonNegativeInteger(
+        formData,
+        "outsideDhakaDeliveryCharge",
+        "Outside Dhaka delivery charge",
+      ),
+      insideDhakaCodEnabled: asString(formData.get("insideDhakaCodEnabled")) === "on",
+      subDhakaCodEnabled: asString(formData.get("subDhakaCodEnabled")) === "on",
+      outsideDhakaCodEnabled: asString(formData.get("outsideDhakaCodEnabled")) === "on",
+    }, actor);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Store settings could not be saved";
+    redirect(`/admin/settings?error=${encodeURIComponent(message)}`);
+  }
+
   revalidatePath("/");
+  revalidatePath("/cart");
+  revalidatePath("/checkout");
+  revalidatePath("/terms");
+  revalidatePath("/track-order");
+  revalidatePath("/admin");
   revalidatePath("/admin/settings");
+  redirect("/admin/settings?saved=1");
 }
 
 export async function createManualOrderAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("createManualOrderAction", actor.id);
   const productIds = formData.getAll("productId").map((item) => asString(item));
   const quantities = formData.getAll("quantity").map((item) => asNumber(item, 1));
+  const rawPaymentProvider = asString(formData.get("paymentProvider"));
+  if (rawPaymentProvider !== "cod" && rawPaymentProvider !== "bkash") {
+    throw new Error("Unsupported payment method");
+  }
+  const paymentProvider = rawPaymentProvider as "cod" | "bkash";
   await createManualOrder({
     customerName: asString(formData.get("customerName")),
     customerPhone: asString(formData.get("customerPhone")),
@@ -533,10 +580,9 @@ export async function createManualOrderAction(formData: FormData) {
     district: asString(formData.get("district")),
     shippingAddress: asString(formData.get("shippingAddress")),
     status: asString(formData.get("status")) as "draft" | "pending" | "confirmed" | "cancelled" | "delivered",
-    paymentProvider: asString(formData.get("paymentProvider")) as "cod" | "bkash" | "nagad" | "rocket",
+    paymentProvider,
     paymentStatus: asString(formData.get("paymentStatus")) as "pending" | "processing" | "paid" | "failed" | "cancelled" | "refunded",
     deliveryZone: asString(formData.get("deliveryZone")) as "inside_dhaka" | "sub_dhaka" | "outside_dhaka",
-    deliveryProvider: (asString(formData.get("deliveryProvider")) || undefined) as "pathao" | "steadfast" | "redx" | undefined,
     discountAmount: asNumber(formData.get("discountAmount")),
     notes: asString(formData.get("notes")) || undefined,
     adminNotes: asString(formData.get("adminNotes")) || undefined,
@@ -550,6 +596,7 @@ export async function createManualOrderAction(formData: FormData) {
 
 export async function updateOrderStatusAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("updateOrderStatusAction", actor.id);
   await updateOrderStatus(
     asString(formData.get("orderId")),
     asString(formData.get("status")) as "draft" | "pending" | "confirmed" | "cancelled" | "delivered",
@@ -562,6 +609,7 @@ export async function updateOrderStatusAction(formData: FormData) {
 
 export async function saveLandingPageAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveLandingPageAction", actor.id);
   const landingPage = await upsertLandingPage({
     id: asString(formData.get("id")) || undefined,
     slug: asString(formData.get("slug")),
@@ -578,13 +626,18 @@ export async function saveLandingPageAction(formData: FormData) {
   }, actor);
   revalidatePath("/admin/landing-pages");
   revalidatePath(`/l/${landingPage.slug}`);
+  if (landingPage.slug === "home") {
+    revalidatePath("/");
+  }
 }
 
 export async function saveLandingPageSectionAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("saveLandingPageSectionAction", actor.id);
   const landingPageId = asString(formData.get("landingPageId"));
   const type = asString(formData.get("type")) as
     | "banner"
+    | "carousel"
     | "title"
     | "subtitle"
     | "product_section"
@@ -609,10 +662,12 @@ export async function saveLandingPageSectionAction(formData: FormData) {
     sortOrder: asNumber(formData.get("sortOrder")),
   }, actor);
   revalidatePath("/admin/landing-pages");
+  revalidatePath("/");
 }
 
 export async function toggleOrderPaymentAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("toggleOrderPaymentAction", actor.id);
   const orderId = asString(formData.get("orderId"));
   const status = asString(formData.get("status")) as
     | "pending"
@@ -632,10 +687,10 @@ export async function toggleOrderPaymentAction(formData: FormData) {
 
 export async function toggleOrderDeliveryAction(formData: FormData) {
   const actor = await guard();
+  await requireAdminMutation("toggleOrderDeliveryAction", actor.id);
   const orderId = asString(formData.get("orderId"));
   const status = asString(formData.get("status")) as
     | "pending"
-    | "courier_created"
     | "picked_up"
     | "in_transit"
     | "delivered"
@@ -645,44 +700,5 @@ export async function toggleOrderDeliveryAction(formData: FormData) {
   if (order) {
     await updateOrderDelivery(orderId, status, actor);
     revalidatePath("/admin/orders");
-    revalidatePath("/admin/deliveries");
   }
-}
-
-export async function createCourierShipmentAction(formData: FormData) {
-  const actor = await guard();
-  const orderId = asString(formData.get("orderId"));
-  const courierKey = asString(formData.get("courierKey"));
-  const order = await getOrder(orderId);
-  if (!order) return;
-  const settings = await getSettings();
-  assertDeliveryProviderAvailable(settings, courierKey as "pathao" | "steadfast" | "redx");
-  const payload = {
-    orderId: order.id,
-    customerName: order.customerName,
-    customerPhone: order.customerPhone,
-    customerAddress: order.shippingAddress,
-    district: order.district,
-    actor,
-  };
-  if (courierKey === "pathao") await createPathaoShipment(payload);
-  else if (courierKey === "redx") await createRedxShipment(payload);
-  else await createSteadfastShipment(payload);
-  revalidatePath("/admin/deliveries");
-  revalidatePath("/admin/orders");
-}
-
-export async function syncShipmentStatusAction(formData: FormData) {
-  const actor = await guard();
-  await syncCourierStatus(
-    asString(formData.get("shipmentId")),
-    asString(formData.get("status")) as
-      | "picked_up"
-      | "in_transit"
-      | "delivered"
-      | "returned"
-      | "cancelled",
-    actor,
-  );
-  revalidatePath("/admin/deliveries");
 }

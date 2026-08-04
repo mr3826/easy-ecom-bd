@@ -2,6 +2,7 @@
 
 import { useId, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { ProductVariantGroup } from "@/lib/domain";
 
 type VariantGroupDraft = {
@@ -66,14 +67,10 @@ export function ProductVariantEditor({
             Capture size, color, or bundle options now. The storefront can stay unchanged until variant pricing is needed.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={addGroup}
-          className="inline-flex items-center gap-2 rounded-full border border-[color:var(--brand)]/20 bg-[color:var(--brand-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--brand)] transition hover:border-[color:var(--brand)]/40 hover:bg-[#efd7d1]"
-        >
+        <Button type="button" variant="secondary" size="sm" onClick={addGroup}>
           <Plus className="h-4 w-4" />
           Add group
-        </button>
+        </Button>
       </div>
 
       <div className="grid gap-4">
@@ -85,14 +82,15 @@ export function ProductVariantEditor({
                 <h3 className="mt-1 text-base font-semibold text-[color:var(--foreground)]">{group.name.trim() || "Untitled group"}</h3>
               </div>
               {groups.length > 1 ? (
-                <button
+                <Button
                   type="button"
+                  variant="danger"
+                  size="sm"
                   onClick={() => removeGroup(group.id)}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:var(--border)] text-[color:var(--muted)] transition hover:border-rose-400/60 hover:text-rose-500"
                   aria-label={`Remove variant group ${index + 1}`}
                 >
-                  <Trash2 className="h-4 w-4" />
-                </button>
+                  <Trash2 className="h-5 w-5" />
+                </Button>
               ) : null}
             </div>
 
@@ -116,7 +114,7 @@ export function ProductVariantEditor({
                   className="rounded-2xl border border-[color:var(--border)] bg-white px-4 py-3 text-[color:var(--foreground)] outline-none ring-0 placeholder:text-[color:var(--muted)] focus:border-[color:var(--brand)]/60"
                 />
               </label>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-2 text-sm text-[color:var(--foreground)]">
                   <span>Price adjustment</span>
                   <input

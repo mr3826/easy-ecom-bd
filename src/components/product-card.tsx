@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, ShoppingBag } from "lucide-react";
 import { money, cn } from "@/lib/utils";
 import { addToCartAction } from "@/app/actions";
@@ -14,7 +15,12 @@ type ProductCardProps = {
     badge?: string;
     soldOut?: boolean;
     collectionSlug?: string;
+    collectionTitle?: string;
+    brandSlug?: string;
+    brandTitle?: string;
     tone?: string;
+    imageUrl?: string | null;
+    imageAlt?: string | null;
   };
   href?: string;
   actionLabel?: string;
@@ -26,6 +32,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
   const isSoldOut = product.soldOut || buttonLabel === "Sold Out";
   const canQuickAdd = !isSoldOut && buttonLabel === "Add to Cart";
   const collectionLabel = categoryName ?? product.collectionSlug?.replace(/-/g, " ") ?? "featured";
+  const displayCollectionLabel = product.brandTitle ?? categoryName ?? product.collectionTitle ?? collectionLabel;
   const toneClass = product.tone ?? "from-[#e6ddd0] via-[#f2ece4] to-[#cbb9a4]";
 
   return (
@@ -33,6 +40,9 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
       <Link href={href} className="block">
         <div className="relative aspect-[9/16] overflow-hidden bg-[color:var(--surface-soft)]">
           <div className={cn("absolute inset-0 bg-gradient-to-br", toneClass)} />
+          {product.imageUrl ? (
+            <Image src={product.imageUrl} alt={product.imageAlt ?? product.name} fill className="object-cover" sizes="(min-width: 1280px) 25vw, (min-width: 640px) 33vw, 50vw" />
+          ) : null}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.54),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(255,255,255,0.18),transparent_26%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(0,0,0,0.22))]" />
           <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/28 to-transparent" />
 
@@ -71,15 +81,15 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
             </div>
           ) : null}
 
-          <div className="absolute inset-0 flex items-end p-4">
-            <div className="max-w-[72%] text-white">
+          <div className="absolute inset-0 flex items-end p-3 sm:p-4">
+            <div className="max-w-[72%] min-w-0 text-white">
               <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/78">
-                {collectionLabel}
+                {displayCollectionLabel}
               </p>
-              <h3 className="mt-2 text-lg font-black leading-tight sm:text-xl">{product.name}</h3>
+              <h3 className="mt-1.5 text-sm font-black leading-tight sm:text-base">{product.name}</h3>
             </div>
-            <div className="ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/14 text-white backdrop-blur">
-              <ShoppingBag className="h-5 w-5" />
+            <div className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/25 bg-white/14 text-white backdrop-blur">
+              <ShoppingBag className="h-4 w-4" />
             </div>
           </div>
         </div>
@@ -89,7 +99,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[color:var(--muted)]">
-              {collectionLabel}
+              {displayCollectionLabel}
             </p>
             <h3 className="mt-2 truncate text-[15px] font-semibold text-[color:var(--foreground)] sm:text-base">
               {product.name}
@@ -109,7 +119,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
             <button
               type="button"
               disabled
-              className="inline-flex w-full items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]"
+              className="touch-target inline-flex min-h-[2.75rem] w-full items-center justify-center rounded-full border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-[color:var(--muted)]"
             >
               Sold Out
             </button>
@@ -119,7 +129,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
               <input type="hidden" name="quantity" value="1" />
               <button
                 type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
+                className="touch-target inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
               >
                 {buttonLabel}
                 <ShoppingBag className="h-4 w-4" />
@@ -128,7 +138,7 @@ export function ProductCard({ product, href = `/product/${product.slug}`, action
           ) : (
             <Link
               href={href}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
+              className="touch-target inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-full bg-[color:var(--accent)] px-4 py-3 text-sm font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_28px_rgba(79,54,215,0.16)] transition hover:bg-[color:var(--brand)]"
             >
               {buttonLabel}
               <ArrowRight className="h-4 w-4" />

@@ -24,7 +24,7 @@ export default async function SearchPage({
               {query ? `Results for “${query}”` : "Search the store"}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[color:var(--muted)]">
-              This page mirrors the public store search overlay and uses the same product data as the shop pages.
+              This page mirrors the public store search overlay and uses backend product data.
             </p>
           </div>
           <div className="p-6">

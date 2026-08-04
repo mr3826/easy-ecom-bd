@@ -1,0 +1,42 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_app_root:
+        description: 'Type the Passenger app root exactly (bornohin_app) to confirm the deploy target'
+        required: true
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: windows-latest
+    environment: production
+    permissions:
+      contents: read
+
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
+      DEPLOY_RESTART_TOKEN: ${{ secrets.DEPLOY_RESTART_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Preflight
+        shell: pwsh
+        run: .\scripts\cpanel-preflight.ps1
+
+      - name: Deploy to cPanel
+        shell: pwsh
+        run: .\scripts\deploy-cpanel.ps1 -AppRoot bornohin_app -ConfirmAppRoot "${{ github.event.inputs.confirm_app_root }}"

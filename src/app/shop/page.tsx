@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
-import { searchStorefrontProducts } from "@/server/storefront-catalog";
+import {
+  filterStorefrontProducts,
+  getStorefrontBrandBySlug,
+  getStorefrontBrandRail,
+  getStorefrontCollectionBySlug,
+} from "@/server/storefront-catalog";
 import type { StorefrontProduct } from "@/lib/bornohin-storefront";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +25,20 @@ function sortProducts(
 export default async function ShopPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ query?: string; sort?: string }>;
+  searchParams?: Promise<{ brand?: string; category?: string; query?: string; sort?: string }>;
 }) {
   const params = (await searchParams) ?? {};
   const query = params.query ?? "";
+  const category = params.category ?? "";
+  const brand = params.brand ?? "";
   const sort = params.sort ?? "";
-  const products = sortProducts(await searchStorefrontProducts(query), sort);
+  const [products, selectedCollection, selectedBrand, brandRail] = await Promise.all([
+    filterStorefrontProducts(query, category, brand),
+    category ? getStorefrontCollectionBySlug(category) : Promise.resolve(null),
+    brand ? getStorefrontBrandBySlug(brand) : Promise.resolve(null),
+    getStorefrontBrandRail(),
+  ]);
+  const sortedProducts = sortProducts(products, sort);
 
   return (
     <PublicShell showCategoryRail>
@@ -37,30 +50,41 @@ export default async function ShopPage({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[color:var(--brand)]">Catalog</p>
                 <h1 className="mt-2 text-3xl font-black uppercase tracking-tight text-[color:var(--foreground)]">All products</h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--muted)]">
+                  {selectedCollection ? `${selectedCollection.title}. ` : ""}
+                  {selectedBrand ? `${selectedBrand.label}. ` : ""}
                   {query ? `Searching for “${query}”. ` : ""}
-                  This page now uses a simple free-text search and a single responsive product grid.
+                  This page uses backend product, category, brand, and inventory data.
                 </p>
               </div>
               <div className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--muted)]">
-                {products.length} items
+                {sortedProducts.length} items
               </div>
             </div>
 
-            <div className="mt-5 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)]">
-              {query ? (
-                <Link href="/shop" className="rounded-full bg-[color:var(--accent)] px-3 py-2 text-white">
-                  Clear search
+            <div className="mt-5 grid gap-3 overflow-x-auto pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--muted)] sm:grid-cols-2 sm:gap-4 sm:overflow-visible sm:text-sm">
+              {brandRail.map((entry) => (
+                <Link
+                  key={entry.href}
+                  href={entry.href}
+                  className="touch-target inline-flex items-center justify-center rounded-full border border-[color:var(--border)] bg-white px-4 py-2.5 text-[color:var(--foreground)] whitespace-nowrap transition hover:border-[color:var(--brand)] hover:bg-[color:var(--brand)] hover:text-white"
+                >
+                  {entry.label}
+                </Link>
+              ))}
+              {query || category || brand ? (
+                <Link href="/shop" className="touch-target inline-flex items-center justify-center rounded-full bg-[color:var(--accent)] px-4 py-2.5 text-white whitespace-nowrap">
+                  Clear filters
                 </Link>
               ) : null}
             </div>
 
             <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-              {products.map((product) => (
+              {sortedProducts.map((product) => (
                 <StorefrontCard key={product.slug} product={product} />
               ))}
             </div>
 
-            {!products.length ? (
+            {!sortedProducts.length ? (
               <div className="mt-8 rounded-[2rem] border border-dashed border-[color:var(--border)] bg-[color:var(--surface-soft)] p-8 text-center">
                 <p className="text-lg font-semibold text-[color:var(--foreground)]">No products match this search.</p>
                 <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">Clear the query to continue browsing the catalog.</p>

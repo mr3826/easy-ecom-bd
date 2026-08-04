@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { ContentPage } from "@/components/content-page";
+import { StatusPill } from "@/components/status-pill";
 import { storefrontPolicyPages } from "@/lib/bornohin-storefront";
+import { money, shortDate } from "@/lib/utils";
+import { getOrderByCode, getSettings } from "@/server/store";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +16,10 @@ export default async function TrackOrderPage({
   const params = (await searchParams) ?? {};
   const page = storefrontPolicyPages["track-order"];
   const trackingCode = params.code ?? params.invoice ?? "";
+  const [order, settings] = await Promise.all([
+    trackingCode ? getOrderByCode(trackingCode.trim()) : null,
+    getSettings(),
+  ]);
 
   return (
     <PublicShell>
@@ -23,18 +30,47 @@ export default async function TrackOrderPage({
             <div className="mb-6 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--brand)]">Tracking reference</p>
               <p className="mt-1 text-base font-semibold text-[color:var(--foreground)]">{trackingCode}</p>
-              <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
-                Your order redirect has been preserved on this canonical route so the backend checkout flow can hand off here cleanly.
-              </p>
+              {order ? (
+                <>
+                  <p className="mt-3 text-sm leading-6 text-[color:var(--foreground)]">
+                    {settings.confirmationMessageTemplate}
+                  </p>
+                  <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                      <p className="text-[color:var(--muted)]">Order</p>
+                      <p className="mt-1 font-semibold text-[color:var(--foreground)]">{order.orderCode}</p>
+                    </div>
+                    <div>
+                      <p className="text-[color:var(--muted)]">Total</p>
+                      <p className="mt-1 font-semibold text-[color:var(--foreground)]">{money(order.total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[color:var(--muted)]">Created</p>
+                      <p className="mt-1 font-semibold text-[color:var(--foreground)]">{shortDate(order.createdAt)}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusPill label={order.status} tone={order.status} />
+                      <StatusPill label={order.paymentStatus} tone={order.paymentStatus} />
+                      <StatusPill label={order.deliveryStatus} tone={order.deliveryStatus} />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-2 text-sm leading-6 text-[color:var(--muted)]">
+                  No matching order was found for this reference.
+                </p>
+              )}
             </div>
           ) : null}
 
-          <label className="grid gap-2 text-sm font-medium text-[color:var(--foreground)]">
-            Invoice number
-            <input className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 outline-none" placeholder="Enter invoice number" />
-          </label>
+          <form method="get" action="/track-order" className="grid gap-4">
+            <label className="grid gap-2 text-sm font-medium text-[color:var(--foreground)]">
+              Invoice number
+              <input name="code" defaultValue={trackingCode} autoComplete="off" autoCapitalize="characters" spellCheck={false} enterKeyHint="search" className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] px-4 py-3 outline-none" placeholder="Enter invoice number" />
+            </label>
+            <button className="w-fit rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white">Track order</button>
+          </form>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button className="rounded-full bg-[color:var(--accent)] px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-white">Track order</button>
             <Link href="/shop" className="rounded-full border border-[color:var(--border)] bg-white px-5 py-3 text-sm font-semibold uppercase tracking-[0.18em] text-[color:var(--foreground)]">
               Browse shop
             </Link>

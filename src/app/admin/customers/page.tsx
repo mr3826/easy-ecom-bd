@@ -10,17 +10,17 @@ export default async function AdminCustomersPage() {
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Customers</p>
         <h1 className="mt-2 text-3xl font-semibold text-[color:var(--foreground)]">Customer management</h1>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         {users.map((user) => (
           <div key={user.id} className="rounded-[2rem] border border-[color:var(--border)] bg-white p-5">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-[color:var(--foreground)]">{user.name}</h2>
-                <p className="mt-1 text-sm text-[color:var(--muted)]">{user.email}</p>
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-[color:var(--foreground)]">{user.name}</h2>
+                <p className="mt-1 text-xs text-[color:var(--muted)]">{user.email}</p>
               </div>
               <StatusPill label={user.role} tone={user.role === "admin" ? "active" : "processing"} />
             </div>
-            <p className="mt-4 text-sm text-[color:var(--muted)]">{user.phone ?? "No phone"}</p>
+            <p className="mt-3 text-sm text-[color:var(--muted)]">{user.phone ?? "No phone"}</p>
           </div>
         ))}
       </div>

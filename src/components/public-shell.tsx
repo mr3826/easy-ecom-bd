@@ -48,23 +48,37 @@ export async function PublicShell({
   const cookieStore = await cookies();
   const hasDatabase = Boolean(process.env.DATABASE_URL);
   const guestKey = cookieStore.get("easy_ecom_guest")?.value ?? "guest-preview";
-  const user = hasDatabase ? await getCurrentUser() : null;
+  const user = await getCurrentUser();
   const cartSummary = hasDatabase
     ? await getCartSummary(await getOrCreateCart(guestKey, user?.id))
     : buildFallbackCartSummary();
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#fff3de_0%,#f5efe5_34%,#eef2f6_100%)] text-[color:var(--foreground)]">
+    <div className="min-h-svh bg-[radial-gradient(circle_at_top,#fff3de_0%,#f5efe5_34%,#eef2f6_100%)] text-[color:var(--foreground)]">
       <SiteAnalytics />
       <SiteHeader
         storeName={settings.storeName}
+        logoText={settings.logoText}
+        logoUrl={settings.logoUrl}
         contactNumber={settings.contactNumber}
         supportEmail={settings.supportEmail ?? siteBrand.supportEmail}
         cartSummary={cartSummary}
         categoryRail={categoryRail}
         showCategoryRail={showCategoryRail}
+        currentUser={
+          user
+            ? {
+                name: user.name,
+                email: user.email,
+                role: user.role,
+              }
+            : null
+        }
+        insideDhakaDeliveryCharge={settings.insideDhakaDeliveryCharge}
+        subDhakaDeliveryCharge={settings.subDhakaDeliveryCharge}
+        outsideDhakaDeliveryCharge={settings.outsideDhakaDeliveryCharge}
       />
-      <main className="pb-20 sm:pb-0">{children}</main>
+      <main className="pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-0">{children}</main>
       <SiteFooter />
     </div>
   );

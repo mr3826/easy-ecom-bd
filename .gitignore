@@ -33,6 +33,7 @@ dev*.log
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -40,3 +41,18 @@ dev*.log
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local infrastructure inventories
+/cpanel-preflight.json
+
+# generated local release and workspace artifacts
+/.kilo/
+deploy-package/
+e2e/.auth/
+test-results/
+playwright-report/
+
+deploy-log.jsonl
+
+# Playwright MCP session snapshots
+.playwright-mcp/

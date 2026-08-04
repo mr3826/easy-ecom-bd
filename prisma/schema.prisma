@@ -15,8 +15,6 @@ enum UserRole {
 enum PaymentProviderKey {
   cod
   bkash
-  nagad
-  rocket
 }
 
 enum OrderStatus {
@@ -38,18 +36,11 @@ enum PaymentStatus {
 
 enum DeliveryStatus {
   pending
-  courier_created
   picked_up
   in_transit
   delivered
   returned
   cancelled
-}
-
-enum CourierKey {
-  pathao
-  steadfast
-  redx
 }
 
 enum DeliveryZone {
@@ -60,6 +51,7 @@ enum DeliveryZone {
 
 enum LandingSectionType {
   banner
+  carousel
   title
   subtitle
   product_section
@@ -74,20 +66,25 @@ enum CouponType {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(customer)
-  phone        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  email           String    @unique
+  passwordHash    String
+  role            UserRole  @default(customer)
+  phone           String?
+  emailVerified   Boolean   @default(false)
+  emailVerifiedAt DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  carts         Cart[]
-  orders        Order[]
-  sessions      Session[]
-  auditLogs     AuditLog[]
-  inventoryLogs InventoryLog[]
+  carts           Cart[]
+  orders          Order[]
+  sessions        Session[]
+  auditLogs       AuditLog[]
+  inventoryLogs   InventoryLog[]
+  passwordResetTokens      PasswordResetToken[]
+  emailVerificationTokens  EmailVerificationToken[]
+  addresses       Address[]
 
   @@map("users")
 }
@@ -130,7 +127,7 @@ model Product {
   stock             Int       @default(0)
   lowStockThreshold Int       @default(5)
   categoryId        String
-  brandId           String
+  brandId           String?
   isActive          Boolean   @default(true)
   featured          Boolean   @default(false)
   archivedAt        DateTime?
@@ -142,7 +139,7 @@ model Product {
   updatedAt         DateTime  @updatedAt
 
   category      Category       @relation(fields: [categoryId], references: [id])
-  brand         Brand          @relation(fields: [brandId], references: [id])
+  brand         Brand?         @relation(fields: [brandId], references: [id])
   images        ProductImage[]
   cartItems     CartItem[]
   orderItems    OrderItem[]
@@ -212,9 +209,6 @@ model Order {
   deliveryStatus      DeliveryStatus      @default(pending)
   paymentProvider     PaymentProviderKey?
   deliveryZone        DeliveryZone        @default(inside_dhaka)
-  deliveryProvider    CourierKey?
-  trackingId          String?
-  consignmentId       String?
   notes               String?
   adminNotes          String?
   inventoryReservedAt DateTime?
@@ -225,7 +219,6 @@ model Order {
   customer      User?                @relation(fields: [customerId], references: [id])
   items         OrderItem[]
   payments      Payment[]
-  shipments     DeliveryShipment[]
   inventoryLogs InventoryLog[]
   statusHistory OrderStatusHistory[]
 
@@ -290,37 +283,6 @@ model PaymentLog {
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@map("payment_logs")
-}
-
-model Courier {
-  id          String     @id @default(cuid())
-  key         CourierKey @unique
-  name        String
-  enabled     Boolean    @default(true)
-  description String
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-
-  @@map("couriers")
-}
-
-model DeliveryShipment {
-  id              String         @id @default(cuid())
-  orderId         String
-  courierKey      CourierKey
-  trackingId      String         @unique
-  consignmentId   String?
-  status          DeliveryStatus @default(courier_created)
-  customerName    String
-  customerPhone   String
-  customerAddress String
-  rawResponse     Json
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@map("delivery_shipments")
 }
 
 model LandingPage {
@@ -414,24 +376,15 @@ model Setting {
   deliveryCharge              Int
   freeDeliveryThreshold       Int
   codEnabled                  Boolean  @default(true)
-  bkashEnabled                Boolean  @default(true)
+  bkashEnabled                Boolean  @default(false)
   bkashAccountNumber          String?
   bkashInstructions           String   @default("")
-  nagadEnabled                Boolean  @default(false)
-  nagadAccountNumber          String?
-  nagadInstructions           String   @default("")
-  rocketEnabled               Boolean  @default(false)
-  rocketAccountNumber         String?
-  rocketInstructions          String   @default("")
   insideDhakaDeliveryCharge   Int      @default(80)
   subDhakaDeliveryCharge      Int      @default(100)
   outsideDhakaDeliveryCharge  Int      @default(130)
   insideDhakaCodEnabled       Boolean  @default(true)
   subDhakaCodEnabled          Boolean  @default(true)
   outsideDhakaCodEnabled      Boolean  @default(true)
-  pathaoEnabled               Boolean  @default(true)
-  steadfastEnabled            Boolean  @default(true)
-  redxEnabled                 Boolean  @default(false)
   createdAt                   DateTime @default(now())
   updatedAt                   DateTime @updatedAt
 
@@ -451,6 +404,31 @@ model Session {
   @@map("sessions")
 }
 
+model Address {
+  id           String   @id @default(cuid())
+  userId       String?
+  guestKey     String?
+  name         String
+  phone        String
+  email        String?
+  district     String
+  addressLine1 String
+  addressLine2 String?
+  city         String
+  state        String
+  postalCode   String
+  country      String   @default("Bangladesh")
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([guestKey])
+  @@map("addresses")
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?
@@ -465,4 +443,28 @@ model AuditLog {
   actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@map("audit_logs")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
 }

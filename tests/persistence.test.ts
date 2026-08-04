@@ -1,10 +1,12 @@
 import { randomUUID } from "crypto";
-import { afterEach, expect, test } from "vitest";
+import { access, mkdtemp } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
+import { afterEach, expect, test as baseTest } from "vitest";
 import { getPrisma } from "@/server/db";
 import {
   addToCart,
   archiveProduct,
-  assertDeliveryProviderAvailable,
   createManualOrder,
   createOrderFromCart,
   deleteProduct,
@@ -29,11 +31,31 @@ import {
   replaceProductImages,
   clearCart,
 } from "@/server/store";
+import { getFileStorage, resetFileStorageForTests } from "@/server/storage";
 
-const prisma = getPrisma();
+// These are integration tests: they need a live Postgres and they delete rows
+// matching the `test-` / `TEST-` / `@test.local` fixtures. Without DATABASE_URL
+// getPrisma() throws at import and takes the whole suite down, which reads as a
+// broken build rather than an absent database. Skip instead, so a missing local
+// database is reported as "skipped" and never as "passed".
+const hasDatabase = Boolean(process.env.DATABASE_URL?.trim());
+const test = baseTest.skipIf(!hasDatabase);
+const prisma = hasDatabase ? getPrisma() : (undefined as unknown as ReturnType<typeof getPrisma>);
 
 function unique(prefix: string) {
   return `${prefix}-${randomUUID().slice(0, 8)}`;
+}
+
+function makeTestFile(name: string, content: string, type = "image/png") {
+  const bytes = Buffer.from(content);
+  return {
+    name,
+    type,
+    size: bytes.byteLength,
+    async arrayBuffer() {
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    },
+  } as File;
 }
 
 async function cleanupTestData() {
@@ -98,6 +120,7 @@ async function createCatalogItem(stock = 5) {
 }
 
 afterEach(async () => {
+  if (!hasDatabase) return;
   await cleanupTestData();
 });
 
@@ -215,6 +238,22 @@ test("cart flow and coupon application persist on the backend", async () => {
   expect(cleared.couponCode ?? null).toBeNull();
 });
 
+test("cart insertion accepts product id and slug while storing backend product ids", async () => {
+  const { actor, product } = await createCatalogItem(6);
+  const cart = await getOrCreateCart(unique("test-cart"), actor?.id);
+
+  const firstItem = await addToCart(cart.guestKey, product.slug, 1, actor?.id, actor ?? null);
+  expect(firstItem.productId).toBe(product.id);
+
+  const secondItem = await addToCart(cart.guestKey, product.id, 2, actor?.id, actor ?? null);
+  expect(secondItem.id).toBe(firstItem.id);
+  expect(secondItem.productId).toBe(product.id);
+
+  const summary = await getCartSummary(await getOrCreateCart(cart.guestKey, actor?.id));
+  expect(summary.itemCount).toBe(3);
+  expect(summary.subtotal).toBe(3000);
+});
+
 test("checkout reserves inventory, applies coupons, and persists order totals", async () => {
   const actor = await findUserByEmail("admin@easy-ecom.test");
   const category = await upsertCategory(
@@ -274,7 +313,7 @@ test("checkout reserves inventory, applies coupons, and persists order totals", 
       customerEmail: `checkout-${unique("customer")}@test.local`,
       district: "Dhaka",
       shippingAddress: "Test address",
-      paymentProvider: "bkash",
+      paymentProvider: "cod",
       couponCode: coupon.code,
     },
     actor ?? undefined,
@@ -361,6 +400,79 @@ test("inventory and order state changes are durable", async () => {
   expect(logs.some((log) => log.entity === "order_payment" && log.entityId === order.id)).toBe(true);
 });
 
+test("delivery cancellation restores reserved inventory", async () => {
+  const { actor, product } = await createCatalogItem(4);
+  const cart = await getOrCreateCart(unique("test-cart"), actor?.id);
+  await addToCart(cart.guestKey, product.id, 2, actor?.id, actor ?? null);
+
+  const order = await createOrderFromCart(
+    {
+      cart: await getOrCreateCart(cart.guestKey, actor?.id),
+      customerName: "Delivery Cancel Test",
+      customerPhone: "01700000005",
+      customerEmail: `delivery-${unique("customer")}@test.local`,
+      district: "Dhaka",
+      shippingAddress: "Delivery cancellation test address",
+      paymentProvider: "cod",
+    },
+    actor ?? undefined,
+  );
+
+  const reserved = await prisma.product.findUnique({ where: { id: product.id } });
+  expect(reserved?.stock).toBe(2);
+
+  const cancelled = await updateOrderDelivery(order.id, "cancelled", actor ?? undefined);
+  expect(cancelled?.deliveryStatus).toBe("cancelled");
+
+  const restored = await prisma.product.findUnique({ where: { id: product.id } });
+  expect(restored?.stock).toBe(4);
+
+  const refreshedOrder = await prisma.order.findUnique({ where: { id: order.id } });
+  expect(refreshedOrder?.inventoryReleasedAt).toBeTruthy();
+});
+
+test("replacing product images removes orphaned local files but preserves shared references", async () => {
+  const originalUploadDir = process.env.UPLOAD_DIR;
+  const uploadDir = await mkdtemp(join(tmpdir(), "easy-ecom-uploads-"));
+  process.env.UPLOAD_DIR = uploadDir;
+  resetFileStorageForTests();
+
+  try {
+    const { actor, brand, product } = await createCatalogItem(3);
+    const storage = getFileStorage();
+
+    const shared = await storage.save(makeTestFile("shared.png", "shared"), `products/${product.id}`);
+    const orphan = await storage.save(makeTestFile("orphan.png", "orphan"), `products/${product.id}`);
+    const retained = await storage.save(makeTestFile("retained.png", "retained"), `products/${product.id}`);
+
+    await upsertBrand(
+      {
+        id: brand.id,
+        name: brand.name,
+        slug: brand.slug,
+        description: brand.description,
+        logoUrl: shared.url,
+        isActive: brand.isActive,
+      },
+      actor ?? undefined,
+    );
+
+    await replaceProductImages(product.id, [shared.url, orphan.url, retained.url], product.name);
+    await replaceProductImages(product.id, [shared.url, retained.url], product.name);
+
+    await expect(access(join(uploadDir, orphan.key))).rejects.toHaveProperty("code", "ENOENT");
+    await expect(access(join(uploadDir, shared.key))).resolves.toBeUndefined();
+    await expect(access(join(uploadDir, retained.key))).resolves.toBeUndefined();
+  } finally {
+    resetFileStorageForTests();
+    if (originalUploadDir === undefined) {
+      delete process.env.UPLOAD_DIR;
+    } else {
+      process.env.UPLOAD_DIR = originalUploadDir;
+    }
+  }
+});
+
 test("product stock validation rejects negative inventory", async () => {
   const { actor, product } = await createCatalogItem(1);
 
@@ -437,14 +549,115 @@ test("disabled payment methods are rejected by backend order creation", async ()
   }
 });
 
-test("delivery zones calculate configured charges and provider config rejects disabled couriers", async () => {
+test("delivery zones calculate configured charges", async () => {
   const settings = await getSettings();
 
   expect(getDeliveryChargeForZone(settings, "inside_dhaka", 0)).toBe(settings.insideDhakaDeliveryCharge);
   expect(getDeliveryChargeForZone(settings, "sub_dhaka", 0)).toBe(settings.subDhakaDeliveryCharge);
   expect(getDeliveryChargeForZone(settings, "outside_dhaka", 0)).toBe(settings.outsideDhakaDeliveryCharge);
   expect(getDeliveryChargeForZone(settings, "outside_dhaka", settings.freeDeliveryThreshold)).toBe(0);
+});
 
-  expect(() => assertDeliveryProviderAvailable({ ...settings, redxEnabled: false }, "redx")).toThrow(/RedX is disabled/);
-  expect(() => assertDeliveryProviderAvailable({ ...settings, redxEnabled: true }, "redx")).not.toThrow();
+test("settings allow nullable fields to be cleared and reject negative charges", async () => {
+  const settings = await getSettings();
+  const actor = await findUserByEmail("admin@easy-ecom.test");
+
+  try {
+    await updateSettings(
+      {
+        logoUrl: "https://example.com/test-logo.png",
+        supportEmail: "settings@test.local",
+      },
+      actor ?? undefined,
+    );
+    await updateSettings({ logoUrl: null, supportEmail: null }, actor ?? undefined);
+
+    const cleared = await getSettings();
+    expect(cleared.logoUrl).toBeNull();
+    expect(cleared.supportEmail).toBeNull();
+
+    await expect(
+      updateSettings({ metaPixelId: '12345";alert(1)//' }, actor ?? undefined),
+    ).rejects.toThrow(/Meta Pixel ID/);
+    await expect(
+      updateSettings({ gtmContainerId: 'GTM-ABC123"><script>alert(1)</script>' }, actor ?? undefined),
+    ).rejects.toThrow(/GTM container ID/);
+
+    await expect(
+      updateSettings({ outsideDhakaDeliveryCharge: -1 }, actor ?? undefined),
+    ).rejects.toThrow(/non-negative integer/);
+  } finally {
+    await updateSettings(
+      {
+        logoUrl: settings.logoUrl,
+        supportEmail: settings.supportEmail,
+      },
+      actor ?? undefined,
+    );
+  }
+});
+
+test("a product can be created without a brand, and a brand can be cleared and restored", async () => {
+  const { actor, category, brand, product } = await createCatalogItem();
+
+  // Creating with no brand at all.
+  const brandless = await upsertProduct(
+    {
+      name: unique("test-product"),
+      slug: unique("test-product"),
+      sku: unique("SKU"),
+      description: "Test product without a brand",
+      price: 1000,
+      stock: 1,
+      lowStockThreshold: 2,
+      categoryId: category.id,
+      isActive: true,
+      featured: false,
+      tags: ["test"],
+    },
+    actor ?? undefined,
+  );
+  expect(brandless.brandId).toBeNull();
+
+  // An explicit null clears an existing brand.
+  const cleared = await upsertProduct(
+    {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      categoryId: category.id,
+      brandId: null,
+    },
+    actor ?? undefined,
+  );
+  expect(cleared.brandId).toBeNull();
+
+  // Omitting the key leaves whatever is stored alone, so a partial update of
+  // some other field cannot wipe the brand as a side effect.
+  const reassigned = await upsertProduct(
+    {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      categoryId: category.id,
+      brandId: brand.id,
+    },
+    actor ?? undefined,
+  );
+  expect(reassigned.brandId).toBe(brand.id);
+
+  const untouched = await upsertProduct(
+    {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: 1234,
+      categoryId: category.id,
+    },
+    actor ?? undefined,
+  );
+  expect(untouched.brandId).toBe(brand.id);
+  expect(untouched.price).toBe(1234);
 });

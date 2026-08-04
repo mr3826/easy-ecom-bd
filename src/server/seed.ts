@@ -1,6 +1,7 @@
 import { hashSync } from "bcryptjs";
 import type { DatabaseState } from "@/lib/domain";
 import { storefrontCollections } from "@/lib/bornohin-storefront";
+import { homepageCarouselItemsTemplate } from "@/lib/homepage-carousel";
 import { createDefaultProductMetadata } from "@/lib/product-admin";
 import { slugify } from "@/lib/utils";
 import { siteBrand } from "@/lib/site-brand";
@@ -137,12 +138,9 @@ export function createSeedState(): DatabaseState {
         total: demoOrderSubtotal - 90 + 80,
         status: "confirmed",
         paymentStatus: "processing",
-        deliveryStatus: "courier_created",
+        deliveryStatus: "in_transit",
         paymentProvider: "bkash",
         deliveryZone: "inside_dhaka",
-        deliveryProvider: "pathao",
-        trackingId: "PT-778899",
-        consignmentId: "CON-778899",
         notes: "Ring before delivery",
         adminNotes: "Seed order for operations dashboard",
         createdAt: now,
@@ -182,46 +180,40 @@ export function createSeedState(): DatabaseState {
         createdAt: now,
       },
     ],
-    couriers: [
+    addresses: [
       {
-        id: "courier-1",
-        key: "pathao",
-        name: "Pathao Courier",
-        enabled: true,
-        description: "Fast last-mile coverage for paid and COD shipments.",
-      },
-      {
-        id: "courier-2",
-        key: "steadfast",
-        name: "Steadfast Courier",
-        enabled: true,
-        description: "Reliable nationwide parcel coverage.",
-      },
-      {
-        id: "courier-3",
-        key: "redx",
-        name: "RedX Courier",
-        enabled: false,
-        description: "Placeholder for RedX booking readiness.",
-      },
-    ],
-    deliveryShipments: [
-      {
-        id: "ship-1",
-        orderId: "order-1",
-        courierKey: "pathao",
-        trackingId: "PT-778899",
-        consignmentId: "CON-778899",
-        status: "in_transit",
-        customerName: customerUser.name,
-        customerPhone: customerUser.phone ?? "",
-        customerAddress: "House 22, Road 4, Dhanmondi, Dhaka",
-        rawResponse: { status: "accepted" },
+        id: "addr-1",
+        userId: customerUser.id,
+        guestKey: null,
+        name: "Amina Rahman",
+        phone: "01811111111",
+        email: "amina@example.com",
+        district: "Dhaka",
+        addressLine1: "House 22, Road 4",
+        addressLine2: "Dhanmondi",
+        city: "Dhaka",
+        state: "Dhaka",
+        postalCode: "1209",
+        country: "Bangladesh",
+        isDefault: true,
         createdAt: now,
         updatedAt: now,
       },
     ],
     landingPages: [
+      {
+        id: "lp-home",
+        slug: "home",
+        title: "Home",
+        metaDescription: "Homepage carousel and storefront campaign content.",
+        heroTitle: "Fresh, image-led fashion shelves built for quick browsing",
+        heroSubtitle: "Move through featured collections with admin-managed slides.",
+        bannerImageUrl: "/hero-fashion-1.svg",
+        published: true,
+        attachedProductIds: products.slice(0, 4).map((product) => product.id),
+        createdAt: now,
+        updatedAt: now,
+      },
       {
         id: "lp-1",
         slug: "ramadan-collection",
@@ -237,6 +229,20 @@ export function createSeedState(): DatabaseState {
       },
     ],
     landingPageSections: [
+      {
+        id: "lp-section-home-carousel",
+        landingPageId: "lp-home",
+        type: "carousel",
+        title: "Homepage carousel",
+        subtitle: "Featured",
+        body: "Admin-managed homepage slider.",
+        imageUrl: "/hero-fashion-1.svg",
+        productIds: [],
+        items: JSON.parse(homepageCarouselItemsTemplate),
+        ctaLabel: "Shop now",
+        ctaHref: "/shop",
+        sortOrder: 1,
+      },
       {
         id: "lp-section-1",
         landingPageId: "lp-1",
@@ -261,7 +267,7 @@ export function createSeedState(): DatabaseState {
         productIds: [],
         items: [
           { title: "Do you support bKash?", body: "Yes, direct merchant checkout is built in." },
-          { title: "Can I assign courier after payment?", body: "Yes, Pathao and Steadfast shipments can be created from admin." },
+          { title: "Can I manage delivery status?", body: "Yes, order delivery status and delivery zones are managed from admin." },
         ],
         sortOrder: 2,
       },
@@ -294,24 +300,15 @@ export function createSeedState(): DatabaseState {
       deliveryCharge: 80,
       freeDeliveryThreshold: 1990,
       codEnabled: true,
-      bkashEnabled: true,
-      bkashAccountNumber: "01700123456",
-      bkashInstructions: "Send payment to bKash merchant number and share transaction ID.",
-      nagadEnabled: false,
-      nagadAccountNumber: null,
-      nagadInstructions: "",
-      rocketEnabled: false,
-      rocketAccountNumber: null,
-      rocketInstructions: "",
+      bkashEnabled: false,
+      bkashAccountNumber: null,
+      bkashInstructions: "",
       insideDhakaDeliveryCharge: 80,
       subDhakaDeliveryCharge: 100,
       outsideDhakaDeliveryCharge: 130,
       insideDhakaCodEnabled: true,
       subDhakaCodEnabled: true,
       outsideDhakaCodEnabled: true,
-      pathaoEnabled: true,
-      steadfastEnabled: true,
-      redxEnabled: false,
     },
     auditLogs: [
       {
@@ -328,6 +325,4 @@ export function createSeedState(): DatabaseState {
   };
 }
 
-export function defaultLandingSlug(title: string) {
-  return slugify(title);
-}
+

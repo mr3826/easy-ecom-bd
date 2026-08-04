@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { MetricCard } from "@/components/metric-card";
 import { StatusPill } from "@/components/status-pill";
-import { getState, listOrders, listProducts, listPayments, listDeliveryShipments } from "@/server/store";
+import { Button } from "@/components/ui/button";
+import { getSettings, listOrders, listProducts, listPayments } from "@/server/store";
 import { money } from "@/lib/utils";
 
 export default async function AdminDashboardPage() {
-  const [state, orders, products, payments, shipments] = await Promise.all([
-    getState(),
+  const [settings, orders, products, payments] = await Promise.all([
+    getSettings(),
     listOrders(),
     listProducts(),
     listPayments(),
-    listDeliveryShipments(),
   ]);
   const grossSales = orders.reduce((sum, order) => sum + order.total, 0);
   const pendingOrders = orders.filter((order) => order.status === "pending").length;
@@ -24,19 +24,16 @@ export default async function AdminDashboardPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[color:var(--muted)]">Dashboard</p>
           <h1 className="mt-2 text-3xl font-semibold text-[color:var(--foreground)]">Store overview</h1>
         </div>
-        <Link
-          href="/admin/orders"
-          className="rounded-full bg-[color:var(--brand)] px-5 py-3 text-sm font-semibold text-white transition hover:bg-[color:var(--accent)]"
-        >
-          Manage orders
-        </Link>
+        <Button asChild>
+            <Link href="/admin/orders">Manage orders</Link>
+          </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Products" value={`${products.length}`} delta="Live catalog" tone="slate" />
         <MetricCard label="Orders" value={`${orders.length}`} delta={`${pendingOrders} pending, ${confirmedOrders} confirmed`} tone="emerald" />
         <MetricCard label="Revenue" value={money(grossSales)} delta="Gross sales" tone="amber" />
-        <MetricCard label="Stock risk" value={`${lowStockProducts}`} delta={`${payments.length} payments, ${shipments.length} shipments`} tone="sky" />
+        <MetricCard label="Stock risk" value={`${lowStockProducts}`} delta={`${payments.length} payments tracked`} tone="sky" />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
@@ -71,13 +68,8 @@ export default async function AdminDashboardPage() {
         <section className="rounded-[2rem] border border-[color:var(--border)] bg-white p-6 shadow-[0_24px_80px_rgba(61,39,35,0.06)]">
           <h2 className="text-xl font-semibold text-[color:var(--foreground)]">Configuration</h2>
           <div className="mt-5 space-y-3 text-sm text-[color:var(--muted)]">
-            <p>bKash: {state.settings.bkashEnabled ? "enabled" : "disabled"}</p>
-            <p>Nagad: {state.settings.nagadEnabled ? "enabled" : "disabled"}</p>
-            <p>Rocket: {state.settings.rocketEnabled ? "enabled" : "disabled"}</p>
-            <p>COD: {state.settings.codEnabled ? "enabled" : "disabled"}</p>
-            <p>Pathao: {state.settings.pathaoEnabled ? "enabled" : "disabled"}</p>
-            <p>Steadfast: {state.settings.steadfastEnabled ? "enabled" : "disabled"}</p>
-            <p>RedX: {state.settings.redxEnabled ? "enabled" : "disabled"}</p>
+            <p>bKash: {settings.bkashEnabled ? "enabled" : "disabled"}</p>
+            <p>COD: {settings.codEnabled ? "enabled" : "disabled"}</p>
           </div>
         </section>
       </div>

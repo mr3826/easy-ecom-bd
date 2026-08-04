@@ -42,7 +42,7 @@ function toSessionUser(user: {
 }
 
 function getDemoSessionSecret() {
-  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "easy-ecom-demo-session";
+  return process.env.AUTH_SECRET || "easy-ecom-demo-session";
 }
 
 function signDemoPayload(payload: string) {
@@ -107,7 +107,7 @@ async function getSessionUserByToken(token: string) {
   return toSessionUser(user);
 }
 
-export async function createSession(userId: string) {
+async function createSession(userId: string) {
   if (!isDatabaseConfigured()) {
     const user = await findUserById(userId);
     if (!user) {
@@ -161,12 +161,7 @@ export async function getCurrentUser() {
   return getSessionUserByToken(token);
 }
 
-export async function getUserFromToken(token: string | null | undefined) {
-  if (!token) return null;
-  return getSessionUserByToken(token);
-}
-
-export async function requireAuth(roles?: Array<SessionUser["role"]>) {
+async function requireAuth(roles?: Array<SessionUser["role"]>) {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error("Unauthorized");
@@ -180,3 +175,109 @@ export async function requireAuth(roles?: Array<SessionUser["role"]>) {
 export async function requireAdmin() {
   return requireAuth(["admin", "super_admin"]);
 }
+
+export function getPostLoginRedirectPath(role: SessionUser["role"]) {
+  return role === "admin" || role === "super_admin" ? "/admin" : "/account";
+}
+
+const PASSWORD_RESET_TTL_MS = 1000 * 60 * 60;
+const EMAIL_VERIFICATION_TTL_MS = 1000 * 60 * 60 * 24;
+
+export async function createPasswordResetToken(email: string) {
+  if (!isDatabaseConfigured()) {
+    return makeToken();
+  }
+
+  const prisma = getPrisma();
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    return null;
+  }
+
+  const token = makeToken();
+  await prisma.passwordResetToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: tokenHash(token),
+      expiresAt: new Date(Date.now() + PASSWORD_RESET_TTL_MS),
+    },
+  });
+  return token;
+}
+
+export async function consumePasswordResetToken(token: string) {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const prisma = getPrisma();
+  const tokenHashVal = tokenHash(token);
+  const record = await prisma.passwordResetToken.findUnique({
+    where: { tokenHash: tokenHashVal },
+    include: { user: true },
+  });
+
+  if (!record || record.expiresAt.getTime() < Date.now()) {
+    if (record) {
+      await prisma.passwordResetToken.delete({ where: { id: record.id } }).catch(() => {});
+    }
+    return null;
+  }
+
+  await prisma.passwordResetToken.delete({ where: { id: record.id } });
+  return record.user;
+}
+
+export async function createEmailVerificationToken(userId: string) {
+  if (!isDatabaseConfigured()) {
+    return makeToken();
+  }
+
+  const prisma = getPrisma();
+  const token = makeToken();
+  await prisma.emailVerificationToken.create({
+    data: {
+      userId,
+      tokenHash: tokenHash(token),
+      expiresAt: new Date(Date.now() + EMAIL_VERIFICATION_TTL_MS),
+    },
+  });
+  return token;
+}
+
+export async function consumeEmailVerificationToken(token: string) {
+  if (!isDatabaseConfigured()) {
+    return null;
+  }
+
+  const prisma = getPrisma();
+  const tokenHashVal = tokenHash(token);
+  const record = await prisma.emailVerificationToken.findUnique({
+    where: { tokenHash: tokenHashVal },
+    include: { user: true },
+  });
+
+  if (!record || record.expiresAt.getTime() < Date.now()) {
+    if (record) {
+      await prisma.emailVerificationToken.delete({ where: { id: record.id } }).catch(() => {});
+    }
+    return null;
+  }
+
+  await prisma.emailVerificationToken.delete({ where: { id: record.id } });
+  return record.user;
+}
+
+export async function markEmailVerified(userId: string) {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+
+  const prisma = getPrisma();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { emailVerified: true, emailVerifiedAt: new Date() },
+  });
+}
+
+

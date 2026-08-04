@@ -30,7 +30,6 @@
     "tests/**/*.tsx",
     "prisma/**/*.ts",
     "prisma.config.ts",
-    "next.config.ts",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
     "**/*.mts"
