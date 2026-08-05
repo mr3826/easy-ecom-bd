@@ -21,6 +21,10 @@ jobs:
     environment: production
     permissions:
       contents: read
+      # checks.listForRef backs the green-CI gate below; without this the gate
+      # fails with "Resource not accessible by integration" and blocks every
+      # deploy regardless of whether CI passed.
+      checks: read
 
     env:
       NEXT_TELEMETRY_DISABLED: "1"
@@ -49,11 +53,18 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: context.sha,
-              check_name: 'ci',
             });
-            const ok = data.check_runs.some(r => r.conclusion === 'success');
+            const runs = data.check_runs.map(r => `${r.name}=${r.conclusion ?? r.status}`);
+            const ok = data.check_runs.some(r => r.name === 'ci' && r.conclusion === 'success');
             if (!ok) {
-              core.setFailed(`No successful CI run for ${context.sha}. Push it through CI before deploying.`);
+              // List what was actually found: a renamed CI job would otherwise
+              // block every deploy with no clue why.
+              core.setFailed(
+                `No successful 'ci' check for ${context.sha}. Found: ${runs.join(', ') || '(none)'}. ` +
+                `Push this commit through CI before deploying.`
+              );
+            } else {
+              core.info(`CI is green for ${context.sha}.`);
             }
 
       - name: Preflight
