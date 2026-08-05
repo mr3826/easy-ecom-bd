@@ -336,19 +336,49 @@ The bundle must carry the target platform's package regardless of build host.
 $imgDir = Join-Path $DeployDir "node_modules\@img"
 if (Test-Path -LiteralPath (Join-Path $DeployDir "node_modules\sharp")) {
     $sharpVersion = (Get-Content -Raw -LiteralPath (Join-Path $ProjectRoot "node_modules\sharp\package.json") | ConvertFrom-Json).version
-    Write-Step "Adding the linux-x64 sharp binary for the target host (sharp $sharpVersion)"
-    $stage = Join-Path ([System.IO.Path]::GetTempPath()) "sharp-linux-$([guid]::NewGuid().ToString('N'))"
-    New-Item -ItemType Directory -Path $stage -Force | Out-Null
-    try {
-        npm pack "@img/sharp-linux-x64@$sharpVersion" --pack-destination $stage --silent 2>&1 | Out-Null
-        $tarball = Get-ChildItem -LiteralPath $stage -Filter "*.tgz" | Select-Object -First 1
-        if (-not $tarball) { Stop-Deploy "Could not fetch @img/sharp-linux-x64@$sharpVersion; the release would ship a Windows-only sharp." }
-        tar -xzf $tarball.FullName -C $stage
-        New-Item -ItemType Directory -Path (Join-Path $imgDir "sharp-linux-x64") -Force | Out-Null
-        Copy-Item -Path (Join-Path $stage "package\*") -Destination (Join-Path $imgDir "sharp-linux-x64") -Recurse -Force
-        Write-OK "Bundled @img/sharp-linux-x64@$sharpVersion"
-    } finally {
-        Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Step "Adding the linux-x64 sharp runtime for the target host (sharp $sharpVersion)"
+
+    # @img/sharp-linux-x64 carries sharp-linux-x64.node, which dynamically links
+    # against libvips shipped in a SEPARATE optional dependency
+    # (@img/sharp-libvips-linux-x64). Windows prebuilds bundle their DLLs inside
+    # the platform package, so this indirection only bites on Linux — fetching
+    # the platform package alone would still leave sharp unloadable there.
+    # Resolve the companion from the package's own metadata rather than pinning
+    # a libvips version that drifts from sharp's.
+    function Get-NpmPackage {
+        param([string]$Spec, [string]$Destination)
+        $stage = Join-Path ([System.IO.Path]::GetTempPath()) "npmpkg-$([guid]::NewGuid().ToString('N'))"
+        New-Item -ItemType Directory -Path $stage -Force | Out-Null
+        try {
+            npm pack $Spec --pack-destination $stage --silent 2>&1 | Out-Null
+            $tarball = Get-ChildItem -LiteralPath $stage -Filter "*.tgz" | Select-Object -First 1
+            if (-not $tarball) { Stop-Deploy "Could not fetch $Spec; the release would ship an unloadable sharp." }
+            # Extract from inside $stage with a bare filename. GNU tar (which is
+            # what a Git-for-Windows PATH resolves first) reads "C:\..." as a
+            # remote host spec and fails with "Cannot connect to C:"; Windows'
+            # own bsdtar does not. Passing no drive letter works under both.
+            Push-Location $stage
+            try { tar -xzf $tarball.Name } finally { Pop-Location }
+            New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+            Copy-Item -Path (Join-Path $stage "package\*") -Destination $Destination -Recurse -Force
+            return (Get-Content -Raw -LiteralPath (Join-Path $stage "package\package.json") | ConvertFrom-Json)
+        } finally {
+            Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    $platformPkg = Get-NpmPackage -Spec "@img/sharp-linux-x64@$sharpVersion" -Destination (Join-Path $imgDir "sharp-linux-x64")
+    Write-OK "Bundled @img/sharp-linux-x64@$sharpVersion"
+
+    $libvips = $platformPkg.optionalDependencies.PSObject.Properties |
+        Where-Object { $_.Name -like "*libvips*" } | Select-Object -First 1
+    if ($libvips) {
+        $null = Get-NpmPackage -Spec "$($libvips.Name)@$($libvips.Value)" -Destination (Join-Path $imgDir ($libvips.Name -replace '^@img/', ''))
+        Write-OK "Bundled $($libvips.Name)@$($libvips.Value)"
+    }
+
+    if (-not (Test-Path -LiteralPath (Join-Path $imgDir "sharp-linux-x64\lib\sharp-linux-x64.node"))) {
+        Stop-Deploy "The linux sharp binary is missing from the bundle; refusing to ship a release whose image optimization cannot start."
     }
 
     # A win32 binary on a Linux host is dead weight and misleads anyone reading
