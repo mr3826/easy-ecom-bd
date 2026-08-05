@@ -293,6 +293,11 @@ SELECT 'users' AS t, count(*) FROM users
 UNION ALL SELECT 'products', count(*) FROM products
 UNION ALL SELECT 'orders', count(*) FROM orders
 UNION ALL SELECT 'settings', count(*) FROM settings;
+
+\echo == accounts ==
+-- Who can actually sign in. Never selects passwordHash: this report is printed
+-- to a terminal and pasted into tickets.
+SELECT email, role, "emailVerified", "createdAt"::date AS created FROM users ORDER BY "createdAt";
 '@
 
 Write-Step "Reading the live schema"

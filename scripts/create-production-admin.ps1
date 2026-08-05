@@ -192,11 +192,15 @@ if ($newPassword.Length -lt 12) { throw "NEW_ADMIN_PASSWORD must contain at leas
 
 Push-Location $ProjectRoot
 try {
-    $adminHash = (node -e "process.stdout.write(require('bcryptjs').hashSync(process.env.NEW_ADMIN_PASSWORD, 12))" `
-        --% 2>$null)
+    # The password reaches node through the environment and never the command
+    # line. The previous cmd /c "%VAR%" round-trip did not parse at all, and had
+    # it parsed it would have mangled any password containing & | < > or ^.
     $env:NEW_ADMIN_PASSWORD_FOR_NODE = $newPassword
-    $adminHash = (cmd /c "set NEW_ADMIN_PASSWORD=%NEW_ADMIN_PASSWORD_FOR_NODE% && node -e ""process.stdout.write(require('bcryptjs').hashSync(process.env.NEW_ADMIN_PASSWORD, 12))""" 2>$null)
-} finally { Pop-Location }
+    $adminHash = & node -e "process.stdout.write(require('bcryptjs').hashSync(process.env.NEW_ADMIN_PASSWORD_FOR_NODE, 12))"
+} finally {
+    Remove-Item Env:\NEW_ADMIN_PASSWORD_FOR_NODE -ErrorAction SilentlyContinue
+    Pop-Location
+}
 if ($adminHash -notmatch '^\$2[aby]\$') { throw "Could not generate the administrator password hash." }
 Write-OK "New administrator: $adminEmail"
 
