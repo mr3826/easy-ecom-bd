@@ -6,6 +6,10 @@ on:
       confirm_app_root:
         description: 'Type the Passenger app root exactly (bornohin_app) to confirm the deploy target'
         required: true
+      dry_run:
+        description: 'Build and assemble the release bundle but upload nothing. Run this first after any change to the deploy path.'
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy-production
@@ -58,4 +62,27 @@ jobs:
 
       - name: Deploy to cPanel
         shell: pwsh
-        run: .\scripts\deploy-cpanel.ps1 -AppRoot bornohin_app -ConfirmAppRoot "${{ github.event.inputs.confirm_app_root }}"
+        run: |
+          # Not $args — that is an automatic variable in PowerShell.
+          $deployArgs = @('-AppRoot','bornohin_app','-ConfirmAppRoot','${{ github.event.inputs.confirm_app_root }}')
+          if ('${{ github.event.inputs.dry_run }}' -eq 'true') {
+            Write-Host '::notice::Dry run - the bundle is built and assembled but nothing is uploaded.'
+            $deployArgs += '-DryRun'
+          }
+          & .\scripts\deploy-cpanel.ps1 @deployArgs
+
+      # The bundle must carry a Linux sharp runtime whatever host built it. This
+      # asserts it from outside the script that produces it, so a regression in
+      # the bundling logic fails the deploy rather than silently shipping a
+      # release whose /_next/image requests all fail.
+      - name: Verify the release bundle carries a loadable Linux sharp
+        shell: pwsh
+        run: |
+          $img = 'deploy-package/node_modules/@img'
+          if (-not (Test-Path $img)) { Write-Host '::notice::no @img in bundle; sharp is not part of this release'; exit 0 }
+          $node = Join-Path $img 'sharp-linux-x64/lib/sharp-linux-x64.node'
+          $vips = Get-ChildItem -Path $img -Recurse -Filter 'libvips-cpp.so*' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not (Test-Path $node)) { Write-Error "Missing $node"; exit 1 }
+          if (-not $vips) { Write-Error 'Missing libvips shared library next to the linux sharp binary'; exit 1 }
+          if (Test-Path (Join-Path $img 'sharp-win32-x64')) { Write-Error 'A win32 sharp binary is still in the Linux release bundle'; exit 1 }
+          Write-Host "OK: $node and $($vips.Name)"
