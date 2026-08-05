@@ -57,19 +57,23 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
       # A schema.prisma change with no matching migration builds and tests
       # clean, then fails on deploy against the real database. That drift has
       # already reached main once (7a76df3).
+      #
+      # Diffing the freshly migrated database against the datamodel proves the
+      # migrations actually reproduce schema.prisma — stronger than diffing the
+      # migration folder, and it needs no shadow database. --exit-code returns
+      # 2 when a difference exists, which fails the step.
       - name: Check migrations reproduce schema.prisma
         run: |
           npx prisma migrate diff \
-            --from-migrations prisma/migrations \
-            --to-schema-datamodel prisma/schema.prisma \
-            --shadow-database-url "$DATABASE_URL" \
+            --from-config-datasource \
+            --to-schema prisma/schema.prisma \
             --exit-code
-
-      - name: Apply migrations
-        run: npx prisma migrate deploy
 
       - name: Typecheck
         run: npx tsc --noEmit
