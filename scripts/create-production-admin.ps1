@@ -31,7 +31,11 @@ param(
     # Typed back by the operator. Nothing runs until it matches the live database.
     [Parameter(Mandatory = $true)][string]$ConfirmDatabase,
     [Parameter(Mandatory = $true)][string]$AdminEmail,
-    [string]$AdminName = "Bornohin Admin"
+    [string]$AdminName = "Bornohin Admin",
+    # Replace an existing account's password instead of creating a new account.
+    # There is no other way in: production has no SMTP configured, so the
+    # /forgot-password flow accepts the request and silently delivers nothing.
+    [switch]$ResetPassword
 )
 
 Set-StrictMode -Version Latest
@@ -192,11 +196,15 @@ if ($newPassword.Length -lt 12) { throw "NEW_ADMIN_PASSWORD must contain at leas
 
 Push-Location $ProjectRoot
 try {
-    $adminHash = (node -e "process.stdout.write(require('bcryptjs').hashSync(process.env.NEW_ADMIN_PASSWORD, 12))" `
-        --% 2>$null)
+    # The password reaches node through the environment and never the command
+    # line. The previous cmd /c "%VAR%" round-trip did not parse at all, and had
+    # it parsed it would have mangled any password containing & | < > or ^.
     $env:NEW_ADMIN_PASSWORD_FOR_NODE = $newPassword
-    $adminHash = (cmd /c "set NEW_ADMIN_PASSWORD=%NEW_ADMIN_PASSWORD_FOR_NODE% && node -e ""process.stdout.write(require('bcryptjs').hashSync(process.env.NEW_ADMIN_PASSWORD, 12))""" 2>$null)
-} finally { Pop-Location }
+    $adminHash = & node -e "process.stdout.write(require('bcryptjs').hashSync(process.env.NEW_ADMIN_PASSWORD_FOR_NODE, 12))"
+} finally {
+    Remove-Item Env:\NEW_ADMIN_PASSWORD_FOR_NODE -ErrorAction SilentlyContinue
+    Pop-Location
+}
 if ($adminHash -notmatch '^\$2[aby]\$') { throw "Could not generate the administrator password hash." }
 Write-OK "New administrator: $adminEmail"
 
@@ -221,30 +229,51 @@ $checkOutput = Invoke-RemoteCommand `
     -Command "$loadEnv && psql -t `"`$PSQL_URL`" -f $workDir/check-admin.sql" `
     -OutputName "check-admin.log" -TimeoutSeconds 300
 Assert-RemoteSuccess -Output $checkOutput -What "The email check"
-if ($checkOutput -match "(?m)^\s*1\s*$") {
-    throw "$adminEmail already exists on production. Choose a different email or use the existing account."
-}
-Write-OK "$adminEmail is free"
+$emailExists = $checkOutput -match "(?m)^\s*1\s*$"
 
-Write-Step "Creating the administrator"
-# ON CONFLICT DO NOTHING as a second guard: if the email won the race between
-# the check above and here, this is a no-op instead of an overwrite.
-$adminSql = @"
+if ($ResetPassword) {
+    if (-not $emailExists) {
+        throw "$adminEmail does not exist on production. Drop -ResetPassword to create it."
+    }
+    Write-OK "$adminEmail exists and will have its password replaced"
+} else {
+    if ($emailExists) {
+        throw "$adminEmail already exists on production. Pass -ResetPassword to replace its password, or choose a different email."
+    }
+    Write-OK "$adminEmail is free"
+}
+
+if ($ResetPassword) {
+    Write-Step "Resetting the password"
+    # Sessions are deleted in the same statement batch: a password reset that
+    # leaves existing sessions valid does not lock anyone out of the account.
+    $adminSql = @"
+UPDATE public.users
+SET "passwordHash" = $(ConvertTo-SqlLiteral $adminHash), "updatedAt" = now()
+WHERE email = $(ConvertTo-SqlLiteral $adminEmail);
+DELETE FROM public.sessions WHERE "userId" IN (SELECT id FROM public.users WHERE email = $(ConvertTo-SqlLiteral $adminEmail));
+"@
+} else {
+    Write-Step "Creating the administrator"
+    # ON CONFLICT DO NOTHING as a second guard: if the email won the race between
+    # the check above and here, this is a no-op instead of an overwrite.
+    $adminSql = @"
 INSERT INTO public.users (id, name, email, "passwordHash", role, "emailVerified", "createdAt", "updatedAt")
 VALUES (gen_random_uuid()::text, $(ConvertTo-SqlLiteral $AdminName), $(ConvertTo-SqlLiteral $adminEmail), $(ConvertTo-SqlLiteral $adminHash), 'super_admin', true, now(), now())
 ON CONFLICT (email) DO NOTHING;
 "@
+}
 Save-RemoteFile -Dir $workDir -Name "create-admin.sql" -Content $adminSql
 $createOutput = Invoke-RemoteCommand `
     -Command "$loadEnv && psql -v ON_ERROR_STOP=1 `"`$PSQL_URL`" -f $workDir/create-admin.sql -c `"SELECT id, email, role FROM public.users WHERE email = $(ConvertTo-SqlLiteral $adminEmail)`"" `
     -OutputName "create-admin.log" -TimeoutSeconds 300
-Assert-RemoteSuccess -Output $createOutput -What "The admin creation"
-Write-OK "Administrator row created"
+Assert-RemoteSuccess -Output $createOutput -What $(if ($ResetPassword) { "The password reset" } else { "The admin creation" })
+Write-OK $(if ($ResetPassword) { "Password replaced and existing sessions cleared" } else { "Administrator row created" })
 Write-Host $createOutput.Trim()
 
 Write-Host @"
 
-Done. dev@bornohin.com-style admin account created with zero business data.
+Done. $(if ($ResetPassword) { "Password reset; no other field was touched." } else { "Administrator account created with zero business data." })
   Login URL: $AppUrl/login
   Email:     $adminEmail
   Password:  $newPassword

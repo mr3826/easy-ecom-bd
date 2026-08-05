@@ -18,8 +18,28 @@ jobs:
     permissions:
       contents: read
 
+    # The integration suite in tests/persistence.test.ts skips itself when
+    # DATABASE_URL is absent. Without a database here, CI reported green while
+    # never executing the 13 tests that cover the data layer — the layer where
+    # every critical finding in docs/AUDIT-2026-08-05.md lived.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ecommerce_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ecommerce_test
 
     steps:
       - name: Checkout
@@ -37,6 +57,27 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      # A schema.prisma change with no matching migration builds and tests
+      # clean, then fails on deploy against the real database. That drift has
+      # already reached main once (7a76df3).
+      #
+      # Diffing the freshly migrated database against the datamodel proves the
+      # migrations actually reproduce schema.prisma — stronger than diffing the
+      # migration folder, and it needs no shadow database. --exit-code returns
+      # 2 when a difference exists, which fails the step.
+      - name: Check migrations reproduce schema.prisma
+        run: |
+          npx prisma migrate diff \
+            --from-config-datasource \
+            --to-schema prisma/schema.prisma \
+            --exit-code
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
       - name: Lint
         run: npm run lint
 
@@ -45,3 +86,20 @@ jobs:
 
       - name: Build standalone app
         run: npm run build
+
+      # A production ops script has already shipped with a parse error (c14fee4).
+      # Nothing else in CI ever opens these files.
+      - name: Parse-check PowerShell scripts
+        shell: pwsh
+        run: |
+          $failed = $false
+          Get-ChildItem scripts -Filter *.ps1 | ForEach-Object {
+            $errs = $null
+            $null = [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs)
+            if ($errs -and $errs.Count -gt 0) {
+              $failed = $true
+              Write-Host "::error file=scripts/$($_.Name)::$($errs.Count) parse error(s)"
+              $errs | ForEach-Object { Write-Host "  $($_.Message)" }
+            }
+          }
+          if ($failed) { exit 1 }

@@ -261,6 +261,16 @@ if (-not $SkipBuild) {
         npm run lint
         if ($LASTEXITCODE -ne 0) { Stop-Deploy "Lint failed." }
 
+        Write-Step "Typechecking"
+        npx tsc --noEmit
+        if ($LASTEXITCODE -ne 0) { Stop-Deploy "Typecheck failed." }
+
+        # The deploy used to run lint and build but never the tests, so a change
+        # that broke checkout could ship as long as it compiled.
+        Write-Step "Running tests"
+        npm test
+        if ($LASTEXITCODE -ne 0) { Stop-Deploy "Tests failed." }
+
         Write-Step "Building standalone application"
         npm run build
         if ($LASTEXITCODE -ne 0) { Stop-Deploy "Build failed." }
@@ -314,6 +324,38 @@ if ($leaked) { Stop-Deploy "Refusing to deploy: $($leaked.Name -join ', ') is in
 Copy-Item -LiteralPath (Join-Path $ProjectRoot ".next\static") -Destination (Join-Path $DeployDir ".next\static") -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $ProjectRoot "public") -Destination (Join-Path $DeployDir "public") -Recurse -Force
 New-Item -ItemType Directory -Path (Join-Path $DeployDir "tmp") -Force | Out-Null
+
+<#
+sharp arrives as an optional dependency of next, and npm resolves its native
+binary for the machine running the build — not for the machine running the app.
+A build on Windows (this script's normal home, and what deploy-production.yml
+used) therefore bundled @img/sharp-win32-x64 and nothing else, so every
+/_next/image request on the Linux host hit a sharp with no loadable binary.
+The bundle must carry the target platform's package regardless of build host.
+#>
+$imgDir = Join-Path $DeployDir "node_modules\@img"
+if (Test-Path -LiteralPath (Join-Path $DeployDir "node_modules\sharp")) {
+    $sharpVersion = (Get-Content -Raw -LiteralPath (Join-Path $ProjectRoot "node_modules\sharp\package.json") | ConvertFrom-Json).version
+    Write-Step "Adding the linux-x64 sharp binary for the target host (sharp $sharpVersion)"
+    $stage = Join-Path ([System.IO.Path]::GetTempPath()) "sharp-linux-$([guid]::NewGuid().ToString('N'))"
+    New-Item -ItemType Directory -Path $stage -Force | Out-Null
+    try {
+        npm pack "@img/sharp-linux-x64@$sharpVersion" --pack-destination $stage --silent 2>&1 | Out-Null
+        $tarball = Get-ChildItem -LiteralPath $stage -Filter "*.tgz" | Select-Object -First 1
+        if (-not $tarball) { Stop-Deploy "Could not fetch @img/sharp-linux-x64@$sharpVersion; the release would ship a Windows-only sharp." }
+        tar -xzf $tarball.FullName -C $stage
+        New-Item -ItemType Directory -Path (Join-Path $imgDir "sharp-linux-x64") -Force | Out-Null
+        Copy-Item -Path (Join-Path $stage "package\*") -Destination (Join-Path $imgDir "sharp-linux-x64") -Recurse -Force
+        Write-OK "Bundled @img/sharp-linux-x64@$sharpVersion"
+    } finally {
+        Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # A win32 binary on a Linux host is dead weight and misleads anyone reading
+    # the deployed tree; sharp picks its platform package at require time.
+    $win32 = Join-Path $imgDir "sharp-win32-x64"
+    if (Test-Path -LiteralPath $win32) { Remove-Item -LiteralPath $win32 -Recurse -Force }
+}
 
 $absoluteAppRoot = "$($CpanelHome.TrimEnd("/"))/$($AppRoot.Trim("/"))"
 

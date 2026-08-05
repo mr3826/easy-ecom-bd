@@ -48,8 +48,14 @@ UPLOAD_DIR=/home/bornohin/bornohin_uploads
 DEPLOY_RESTART_TOKEN=...      # lets the deploy stop a stale process
 ```
 
-bKash stays disabled unless every provider credential and `BKASH_WEBHOOK_SECRET`
-is configured. There is no production payment simulator.
+bKash stays disabled unless every provider credential is configured. There is no
+production payment simulator.
+
+`BKASH_WEBHOOK_SECRET` is **not** an interlock. `src/server/integration-config.ts`
+falls back to `appSecret` when it is unset, so callback signature verification
+still runs — against a secret bKash was never given, which no real callback can
+produce. Set it explicitly to the value bKash issued, or callbacks silently fail
+verification rather than being refused outright.
 
 Two secrets live only in your shell, never in a file or in chat:
 

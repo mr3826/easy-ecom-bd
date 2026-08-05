@@ -33,6 +33,25 @@ jobs:
           node-version: 20
           cache: npm
 
+      # workflow_dispatch will happily ship any ref, including one CI never saw.
+      # Require a successful CI run for this exact SHA before touching
+      # production. deploy-cpanel.ps1 also runs lint/typecheck/test itself, but
+      # it has no database, so only CI proves the integration suite passed.
+      - name: Require green CI for this commit
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data } = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              check_name: 'ci',
+            });
+            const ok = data.check_runs.some(r => r.conclusion === 'success');
+            if (!ok) {
+              core.setFailed(`No successful CI run for ${context.sha}. Push it through CI before deploying.`);
+            }
+
       - name: Preflight
         shell: pwsh
         run: .\scripts\cpanel-preflight.ps1

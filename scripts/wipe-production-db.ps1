@@ -277,10 +277,14 @@ if (-not $SkipBackup) {
     Write-Step "Backing up before anything is deleted"
     $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
     $dumpPath = "$workDir/pre-wipe-$stamp.sql.gz"
+    # See the identical note in apply-production-migration.ps1: piping pg_dump
+    # into gzip hid pg_dump's exit status behind gzip's, so this backup — the
+    # only thing standing between a wipe and permanent data loss — could be an
+    # empty archive that passed the success check.
     $output = Invoke-RemoteCommand `
-        -Command "$loadEnv && pg_dump `"`$PSQL_URL`" | gzip -9 > $dumpPath && ls -l $dumpPath" `
+        -Command "$loadEnv && pg_dump -Z 9 -f $dumpPath `"`$PSQL_URL`" && [ `"`$(wc -c < $dumpPath)`" -gt 1000 ] && ls -l $dumpPath" `
         -OutputName "backup.log" -TimeoutSeconds 600
-    Assert-RemoteSuccess -Output $output -What "pg_dump"
+    Assert-RemoteSuccess -Output $output -What "pg_dump (or the backup was empty/truncated)"
     Write-OK "Backup written to $dumpPath"
     Write-Host $output.Trim()
 } else {

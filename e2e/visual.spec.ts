@@ -20,7 +20,10 @@ const ROUTES = [
 ];
 
 test.describe("visual baseline", () => {
-  test.use({ reducedMotion: "reduce" });
+  // Must be nested under contextOptions — a bare `reducedMotion` key is not a
+  // Playwright test option, so it was accepted by JS and ignored at runtime,
+  // leaving animations live in the one suite that needs deterministic pixels.
+  test.use({ contextOptions: { reducedMotion: "reduce" } });
 
   test.beforeEach(({}, testInfo) => {
     test.skip(process.env.E2E_VISUAL !== "1", "set E2E_VISUAL=1 to run the pixel baseline");

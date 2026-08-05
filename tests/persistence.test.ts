@@ -661,3 +661,128 @@ test("a product can be created without a brand, and a brand can be cleared and r
   expect(untouched.brandId).toBe(brand.id);
   expect(untouched.price).toBe(1234);
 });
+
+// ---------------------------------------------------------------------------
+// Regression tests for the four critical findings in docs/AUDIT-2026-08-05.md.
+// Each of these passed before the fix, which is the point: they live here, in
+// the suite that needs a real database, because every one of them is a
+// concurrency or constraint behaviour that a mocked Prisma cannot reproduce.
+// ---------------------------------------------------------------------------
+
+test("C1: a negative quantity cannot lower the order total or raise stock", async () => {
+  const { product } = await createCatalogItem(5);
+  const guestKey = unique("test-guest");
+
+  await addToCart(guestKey, product.id, -5);
+
+  const cart = await getOrCreateCart(guestKey);
+  const line = cart.items.find((item) => item.productId === product.id);
+  expect(line?.quantity).toBe(1);
+
+  await updateCartQuantity(guestKey, product.id, -3);
+  const afterUpdate = await getOrCreateCart(guestKey);
+  expect(afterUpdate.items.find((item) => item.productId === product.id)?.quantity).toBe(1);
+
+  const summary = await getCartSummary(afterUpdate);
+  expect(summary.subtotal).toBeGreaterThan(0);
+
+  const stock = await prisma.product.findUniqueOrThrow({ where: { id: product.id } });
+  expect(stock.stock).toBe(5);
+});
+
+test("C2: a coupon switched to Hidden stops discounting", async () => {
+  const { actor, product } = await createCatalogItem(5);
+  const code = unique("TEST-OFF").toUpperCase();
+  await upsertCoupon(
+    { code, description: "regression", type: "fixed", value: 100, minOrderAmount: 0, isActive: false },
+    actor ?? undefined,
+  );
+
+  const guestKey = unique("test-guest");
+  await addToCart(guestKey, product.id, 1);
+  const cart = await getOrCreateCart(guestKey);
+
+  const order = await createOrderFromCart({
+    cart,
+    customerName: "Coupon Test",
+    customerPhone: "01700000000",
+    customerEmail: `coupon-${randomUUID().slice(0, 8)}@test.local`,
+    district: "Dhaka",
+    shippingAddress: "test address",
+    couponCode: code,
+  });
+
+  expect(order.discountAmount).toBe(0);
+});
+
+test("C3: a coupon worth more than the cart cannot drive the total negative", async () => {
+  const { actor, product } = await createCatalogItem(5);
+  const code = unique("TEST-BIG").toUpperCase();
+  // product.price is 1000; this coupon is worth ten carts.
+  await upsertCoupon(
+    { code, description: "regression", type: "fixed", value: 10_000, minOrderAmount: 0, isActive: true },
+    actor ?? undefined,
+  );
+
+  const guestKey = unique("test-guest");
+  await addToCart(guestKey, product.id, 1);
+  const cart = await getOrCreateCart(guestKey);
+
+  const order = await createOrderFromCart({
+    cart,
+    customerName: "Coupon Test",
+    customerPhone: "01700000000",
+    customerEmail: `bigcoupon-${randomUUID().slice(0, 8)}@test.local`,
+    district: "Dhaka",
+    shippingAddress: "test address",
+    couponCode: code,
+  });
+
+  expect(order.discountAmount).toBeLessThanOrEqual(order.subtotal);
+  expect(order.total).toBeGreaterThanOrEqual(0);
+});
+
+test("C3: a percentage coupon above 100 is rejected at write time", async () => {
+  const actor = await findUserByEmail("admin@easy-ecom.test");
+  await expect(
+    upsertCoupon(
+      {
+        code: unique("TEST-PCT").toUpperCase(),
+        description: "regression",
+        type: "percentage",
+        value: 200,
+        minOrderAmount: 0,
+        isActive: true,
+      },
+      actor ?? undefined,
+    ),
+  ).rejects.toThrow(/cannot exceed 100/);
+});
+
+test("C4: concurrent checkouts of the last unit produce one order, not two", async () => {
+  const { product } = await createCatalogItem(1);
+
+  const place = async () => {
+    const guestKey = unique("test-guest");
+    await addToCart(guestKey, product.id, 1);
+    const cart = await getOrCreateCart(guestKey);
+    return createOrderFromCart({
+      cart,
+      customerName: "Race Test",
+      customerPhone: "01700000000",
+      customerEmail: `race-${randomUUID().slice(0, 8)}@test.local`,
+      district: "Dhaka",
+      shippingAddress: "test address",
+    });
+  };
+
+  const results = await Promise.allSettled([place(), place()]);
+  const fulfilled = results.filter((r) => r.status === "fulfilled");
+  const rejected = results.filter((r) => r.status === "rejected");
+
+  expect(fulfilled).toHaveLength(1);
+  expect(rejected).toHaveLength(1);
+
+  const after = await prisma.product.findUniqueOrThrow({ where: { id: product.id } });
+  expect(after.stock).toBe(0);
+});

@@ -293,6 +293,11 @@ SELECT 'users' AS t, count(*) FROM users
 UNION ALL SELECT 'products', count(*) FROM products
 UNION ALL SELECT 'orders', count(*) FROM orders
 UNION ALL SELECT 'settings', count(*) FROM settings;
+
+\echo == accounts ==
+-- Who can actually sign in. Never selects passwordHash: this report is printed
+-- to a terminal and pasted into tickets.
+SELECT email, role, "emailVerified", "createdAt"::date AS created FROM users ORDER BY "createdAt";
 '@
 
 Write-Step "Reading the live schema"
@@ -338,10 +343,17 @@ if (-not $SkipBackup) {
     Write-Step "Backing up before anything changes"
     $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMdd-HHmmss")
     $dumpPath = "$workDir/pre-migration-$stamp.sql.gz"
+    # No pipe into gzip: a shell pipeline exits with the status of its LAST
+    # command, so `pg_dump | gzip` reported success whenever gzip succeeded —
+    # including when it compressed nothing because pg_dump had died. The exit
+    # check below then passed on an empty backup, immediately before a
+    # migration. pg_dump -Z compresses natively, so its own status is the
+    # command's status. The size floor catches a dump that is technically valid
+    # but truncated.
     $output = Invoke-RemoteCommand `
-        -Command "$loadEnv && pg_dump `"`$PSQL_URL`" | gzip -9 > $dumpPath && ls -l $dumpPath" `
+        -Command "$loadEnv && pg_dump -Z 9 -f $dumpPath `"`$PSQL_URL`" && [ `"`$(wc -c < $dumpPath)`" -gt 1000 ] && ls -l $dumpPath" `
         -OutputName "backup.log" -TimeoutSeconds 600
-    Assert-RemoteSuccess -Output $output -What "pg_dump"
+    Assert-RemoteSuccess -Output $output -What "pg_dump (or the backup was empty/truncated)"
     Write-OK "Backup written to $dumpPath"
     Write-Host $output.Trim()
 } else {

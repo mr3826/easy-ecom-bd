@@ -1,7 +1,16 @@
 import crypto from "node:crypto";
-import { expect, test } from "vitest";
+import { afterEach, expect, test, vi } from "vitest";
 import { verifyProviderSignature } from "@/server/integrations";
 import { consumeRateLimit, isSameOriginRequest } from "@/server/security";
+
+// getExpectedOrigin() prefers APP_URL / NEXT_PUBLIC_APP_URL and only falls back
+// to the Host header when neither is set. These tests used to run with an empty
+// environment, so they silently exercised the fallback while claiming to test
+// the configured origin. Pin it explicitly instead of inheriting whatever .env
+// happens to hold.
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 test("payment callback signatures require an exact HMAC match", () => {
   const body = "paymentId=payment-1&status=paid";
@@ -15,6 +24,9 @@ test("payment callback signatures require an exact HMAC match", () => {
 });
 
 test("same-origin protection accepts the application origin and rejects cross-site requests", () => {
+  vi.stubEnv("APP_URL", "https://bornohin.com");
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://bornohin.com");
+
   const allowed = new Headers({
     origin: "https://bornohin.com",
     host: "bornohin.com",
