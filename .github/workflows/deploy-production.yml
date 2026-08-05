@@ -74,11 +74,18 @@ jobs:
       - name: Deploy to cPanel
         shell: pwsh
         run: |
-          # Not $args — that is an automatic variable in PowerShell.
-          $deployArgs = @('-AppRoot','bornohin_app','-ConfirmAppRoot','${{ github.event.inputs.confirm_app_root }}')
+          # MUST be a hashtable. Splatting an ARRAY binds positionally: the
+          # script received AppRoot='-AppRoot' and silently dropped -DryRun, so
+          # a dry run would have performed a real deploy had the ConfirmAppRoot
+          # guard not caught the mangled value first. Not $args either — that is
+          # an automatic variable in PowerShell.
+          $deployArgs = @{
+            AppRoot        = 'bornohin_app'
+            ConfirmAppRoot = '${{ github.event.inputs.confirm_app_root }}'
+          }
           if ('${{ github.event.inputs.dry_run }}' -eq 'true') {
             Write-Host '::notice::Dry run - the bundle is built and assembled but nothing is uploaded.'
-            $deployArgs += '-DryRun'
+            $deployArgs.DryRun = $true
           }
           & .\scripts\deploy-cpanel.ps1 @deployArgs
 
