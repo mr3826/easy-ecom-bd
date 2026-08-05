@@ -1,13 +1,16 @@
 # Remediation Plan — post-audit
 
-Derived from [AUDIT-2026-08-05.md](AUDIT-2026-08-05.md). Branch
-`chore/dead-code-audit` @ `a96bf26`, 62 commits ahead of `main`.
+Derived from [AUDIT-2026-08-05.md](AUDIT-2026-08-05.md).
+
 
 Seven packets, ordered by what blocks a deploy. Each is independently landable
-and independently revertable. **P0–P2 are the release gate: the current tree
-must not go to production until they land**, because the audit found four ways a
-customer can set their own order total and one way the pre-migration backup can
-be empty.
+and independently revertable.
+
+> **P0, P1 and P2 shipped on 2026-08-05.** Merged to `main` and deployed to
+> production as commit `b50e8b7` (PRs #5–#10). `/api/version` reports it live;
+> the release gate at the end of this document was satisfied in full. P3 onward
+> remain open. One P2 item was deliberately **not** done — see the note in that
+> section.
 
 Convention follows [archive/](archive/README.md)'s predecessor plan: a packet is
 done when its checklist is ticked *and* its verification command passes.
@@ -19,10 +22,10 @@ done when its checklist is ticked *and* its verification command passes.
 Four defects, all in `src/server/store.ts`, all reachable by an ordinary
 customer. Audit §2.
 
-- [ ] **C1** Clamp quantity at the boundary. `addToCart` (`store.ts:1226`) and `updateCartQuantity` (`store.ts:1323`): `quantity = Math.max(1, Math.trunc(quantity))`. Do it in the store, not in the action — `asNumber` has three callers and the guard belongs where every path converges.
-- [ ] **C2** `store.ts:1544` — `where: { code: couponCode, isActive: true }`.
-- [ ] **C3** `store.ts:1557` — clamp the discount: `Math.min(subtotal, computed)`. Validate `value` in `saveCouponAction` (`admin/actions.ts:485`): `1..100` for percentage, `> 0` for fixed.
-- [ ] **C4** Replace read-then-write stock with a conditional atomic update in all four sites (`store.ts:1607`, `:1450`, `:1482`, `:560`):
+- [x] **C1** Clamp quantity at the boundary. `addToCart` (`store.ts:1226`) and `updateCartQuantity` (`store.ts:1323`): `quantity = Math.max(1, Math.trunc(quantity))`. Do it in the store, not in the action — `asNumber` has three callers and the guard belongs where every path converges.
+- [x] **C2** `store.ts:1544` — `where: { code: couponCode, isActive: true }`.
+- [x] **C3** `store.ts:1557` — clamp the discount: `Math.min(subtotal, computed)`. Validate `value` in `saveCouponAction` (`admin/actions.ts:485`): `1..100` for percentage, `> 0` for fixed.
+- [x] **C4** Replace read-then-write stock with a conditional atomic update in all four sites (`store.ts:1607`, `:1450`, `:1482`, `:560`):
   ```ts
   const { count } = await tx.product.updateMany({
     where: { id: item.productId, stock: { gte: item.quantity } },
@@ -41,26 +44,41 @@ without P1.
 The suite reports green while skipping the only tests that touch the layer P0
 fixes. Audit §1, §6.
 
-- [ ] `vitest.config.ts` — load `.env` so `hasDatabase` is true locally (`import "dotenv/config"` in the config, or `setupFiles`).
-- [ ] `.github/workflows/ci.yml` — add a `postgres:16` service, set `DATABASE_URL`, run `prisma migrate deploy` before `npm test`.
-- [ ] Add `npx tsc --noEmit` as its own CI step. `next build` typechecks, but it runs last and costs minutes.
-- [ ] Add a schema-drift gate: `prisma migrate diff --from-migrations --to-schema-datamodel --exit-code`. This drift already reached `main` once (`7a76df3`).
-- [ ] `tsconfig.json:25` — stop excluding `e2e/` from the TypeScript program.
+- [x] `vitest.config.ts` — load `.env` so `hasDatabase` is true locally (`import "dotenv/config"` in the config, or `setupFiles`).
+- [x] `.github/workflows/ci.yml` — add a `postgres:16` service, set `DATABASE_URL`, run `prisma migrate deploy` before `npm test`.
+- [x] Add `npx tsc --noEmit` as its own CI step. `next build` typechecks, but it runs last and costs minutes.
+- [x] Add a schema-drift gate. Shipped as `prisma migrate diff --from-config-datasource --to-schema --exit-code` after `migrate deploy` — the flags above are Prisma 6 and were removed in 7, and diffing the *migrated database* proves the same thing without needing a shadow database.
+- [x] `tsconfig.json:25` — stop excluding `e2e/` from the TypeScript program. (It was never in `exclude`; it simply was not in `include`. `scripts/` had the same hole.)
 
-**Verify:** CI log shows `Tests 62 passed` with zero skipped, and the drift gate
-runs.
+**Verified 2026-08-05:** CI reports **67 passed, 0 skipped** (was 49 passed / 13
+skipped). Both new gates earned their place immediately: the typecheck caught
+`test.use({ reducedMotion })` in `visual.spec.ts`, which is not a Playwright
+option and was silently ignored at runtime; the drift gate caught **real drift**
+— the `DeliveryStatus` enum still carried `courier_created` in the database, and
+two scalar-list columns carried defaults the schema did not declare. Closed by
+migration `20260805000000_close_schema_drift`. Note a local database can hide
+this: mine reported clean while CI failed, because earlier `migrate dev` runs had
+already dragged it into agreement with the schema.
 
 ## P2 · Production safety — blocks release
 
 Audit §6. The deploy path can destroy data with no recoverable backup.
 
-- [ ] `scripts/apply-production-migration.ps1:347` and the equivalent in `wipe-production-db.ps1` — add `set -o pipefail` to the remote command so a `pg_dump` failure is not masked by `gzip` succeeding on empty input. Assert a minimum byte count on the resulting dump, not just a zero exit.
-- [ ] `.github/workflows/deploy-production.yml:16` — build the Linux bundle on `ubuntu-latest`, or install platform-correct `sharp`. It currently ships win32 binaries to a Linux host.
-- [ ] Gate `deploy-production.yml` on a green CI run for the same SHA. Today `workflow_dispatch` can ship any ref, untested.
-- [ ] Keep one previous release directory on the host so a bad deploy has somewhere to roll back to (`deploy-cpanel.ps1:615` overwrites in place).
+- [x] `scripts/apply-production-migration.ps1:347` and the equivalent in `wipe-production-db.ps1` — add `set -o pipefail` to the remote command so a `pg_dump` failure is not masked by `gzip` succeeding on empty input. Assert a minimum byte count on the resulting dump, not just a zero exit.
+- [x] `.github/workflows/deploy-production.yml:16` — build the Linux bundle on `ubuntu-latest`, or install platform-correct `sharp`. It currently ships win32 binaries to a Linux host.
+- [x] Gate `deploy-production.yml` on a green CI run for the same SHA. Today `workflow_dispatch` can ship any ref, untested.
+- [ ] **NOT DONE.** Keep one previous release directory on the host so a bad deploy has somewhere to roll back to (`deploy-cpanel.ps1:615` overwrites in place). The 2026-08-05 deploy went out without this. `RELEASE.json` records the previous commit, so a rollback today means rebuilding that commit and redeploying — minutes, not seconds, and it needs a working build of the old tree. **Carry this into P3.**
 
-**Verify:** a dry-run deploy against a scratch app root; confirm the backup file
-is non-trivially sized and the previous release survives.
+**Verified 2026-08-05:** `dry_run=true` exercised the whole pipeline — preflight,
+`npm ci`, lint, typecheck, tests, build, bundle assembly, sharp bundling, archive
+creation — and uploaded nothing. Three defects surfaced in the deploy path this
+way and were fixed before the real run: a missing libvips companion package, a
+`tar` invocation that broke under GNU tar, and an array splat that silently
+dropped `-DryRun` (a "dry run" would have deployed for real). The real deploy
+then reported *"Verified: linux sharp binary and libvips are in the bundle,
+win32 is not"*, and `/_next/image` on production returns a genuinely resized
+640px image at 71 KB against a 1.9 MB original — proof the Linux sharp runtime
+loads.
 
 ---
 
