@@ -377,14 +377,24 @@ if (Test-Path -LiteralPath (Join-Path $DeployDir "node_modules\sharp")) {
         Write-OK "Bundled $($libvips.Name)@$($libvips.Value)"
     }
 
-    if (-not (Test-Path -LiteralPath (Join-Path $imgDir "sharp-linux-x64\lib\sharp-linux-x64.node"))) {
-        Stop-Deploy "The linux sharp binary is missing from the bundle; refusing to ship a release whose image optimization cannot start."
-    }
-
     # A win32 binary on a Linux host is dead weight and misleads anyone reading
     # the deployed tree; sharp picks its platform package at require time.
     $win32 = Join-Path $imgDir "sharp-win32-x64"
     if (Test-Path -LiteralPath $win32) { Remove-Item -LiteralPath $win32 -Recurse -Force }
+
+    # Assert here rather than in the workflow: this is the only point at which
+    # the assembled bundle exists. The dry-run path deletes both the bundle and
+    # the archive as soon as it reports the skipped upload, so anything checking
+    # afterwards silently finds nothing and passes.
+    if (-not (Test-Path -LiteralPath (Join-Path $imgDir "sharp-linux-x64\lib\sharp-linux-x64.node"))) {
+        Stop-Deploy "The linux sharp binary is missing from the bundle; refusing to ship a release whose image optimization cannot start."
+    }
+    if (-not (Get-ChildItem -LiteralPath $imgDir -Recurse -File -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -like "libvips-cpp.so*" } | Select-Object -First 1)) {
+        Stop-Deploy "The libvips shared library is missing; sharp-linux-x64.node cannot load without it."
+    }
+    if (Test-Path -LiteralPath $win32) { Stop-Deploy "A win32 sharp binary is still in the Linux release bundle." }
+    Write-OK "Verified: linux sharp binary and libvips are in the bundle, win32 is not"
 }
 
 $absoluteAppRoot = "$($CpanelHome.TrimEnd("/"))/$($AppRoot.Trim("/"))"

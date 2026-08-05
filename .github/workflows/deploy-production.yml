@@ -89,18 +89,7 @@ jobs:
           }
           & .\scripts\deploy-cpanel.ps1 @deployArgs
 
-      # The bundle must carry a Linux sharp runtime whatever host built it. This
-      # asserts it from outside the script that produces it, so a regression in
-      # the bundling logic fails the deploy rather than silently shipping a
-      # release whose /_next/image requests all fail.
-      - name: Verify the release bundle carries a loadable Linux sharp
-        shell: pwsh
-        run: |
-          $img = 'deploy-package/node_modules/@img'
-          if (-not (Test-Path $img)) { Write-Host '::notice::no @img in bundle; sharp is not part of this release'; exit 0 }
-          $node = Join-Path $img 'sharp-linux-x64/lib/sharp-linux-x64.node'
-          $vips = Get-ChildItem -Path $img -Recurse -Filter 'libvips-cpp.so*' -ErrorAction SilentlyContinue | Select-Object -First 1
-          if (-not (Test-Path $node)) { Write-Error "Missing $node"; exit 1 }
-          if (-not $vips) { Write-Error 'Missing libvips shared library next to the linux sharp binary'; exit 1 }
-          if (Test-Path (Join-Path $img 'sharp-win32-x64')) { Write-Error 'A win32 sharp binary is still in the Linux release bundle'; exit 1 }
-          Write-Host "OK: $node and $($vips.Name)"
+      # The Linux-sharp assertion lives in deploy-cpanel.ps1, at the only point
+      # where the assembled bundle still exists — the dry-run path deletes the
+      # bundle and the archive as soon as it reports the skipped upload, so a
+      # check here silently found nothing and passed.
