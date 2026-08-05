@@ -67,11 +67,18 @@ function uniqueEmail() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "error").mockImplementation(() => {});
+  // The mocked request headers claim bornohin.com. requireSameOrigin compares
+  // them against APP_URL, so without pinning it these tests inherit whatever
+  // .env holds, the origin check fails, and every login is reported as a
+  // generic "Something went wrong" rather than the behaviour under test.
+  vi.stubEnv("APP_URL", "https://bornohin.com");
+  vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://bornohin.com");
 });
 
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 test("wrong credentials return a message instead of throwing", async () => {

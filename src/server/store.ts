@@ -552,26 +552,78 @@ export async function deleteProduct(id: string, actor?: Actor) {
   return existing;
 }
 
+/**
+ * Cart quantities arrive as raw FormData and reach a Prisma Int column and the
+ * order subtotal. A negative or fractional value used to pass every guard: the
+ * stock check `stock < quantity` is false for a negative quantity, and the
+ * subtotal is `price * quantity`. Clamp once, here, rather than at each caller.
+ */
+function normalizeQuantity(quantity: number) {
+  if (!Number.isFinite(quantity)) return 1;
+  return Math.max(1, Math.trunc(quantity));
+}
+
+/**
+ * Stock moves must be one statement, not read-then-write.
+ *
+ * The previous shape read `product.stock`, compared it, then wrote the absolute
+ * literal it had computed in JS. Prisma's interactive transactions run at
+ * PostgreSQL's default READ COMMITTED and nothing took a row lock, so two
+ * checkouts of the last unit both read 1, both passed the check, and both wrote
+ * 0 — one sale silently lost, with two inventory_logs rows each claiming
+ * oldStock 1 -> newStock 0.
+ *
+ * The conditional updateMany makes the check and the decrement a single
+ * statement, so the row lock serialises the decision. `count !== 1` means
+ * another transaction got there first.
+ */
+async function decrementStock(
+  tx: Prisma.TransactionClient,
+  productId: string,
+  quantity: number,
+  productName: string,
+) {
+  const { count } = await tx.product.updateMany({
+    where: { id: productId, stock: { gte: quantity } },
+    data: { stock: { decrement: quantity } },
+  });
+  if (count !== 1) {
+    throw new Error(`Insufficient stock for ${productName}`);
+  }
+  const after = await tx.product.findUniqueOrThrow({
+    where: { id: productId },
+    select: { stock: true },
+  });
+  return { oldStock: after.stock + quantity, newStock: after.stock };
+}
+
+/** Releases are unconditional — there is no upper bound to race against. */
+async function incrementStock(tx: Prisma.TransactionClient, productId: string, quantity: number) {
+  const after = await tx.product.update({
+    where: { id: productId },
+    data: { stock: { increment: quantity } },
+    select: { stock: true },
+  });
+  return { oldStock: after.stock - quantity, newStock: after.stock };
+}
+
 export async function setProductStock(productId: string, change: number, reason: string, actor?: Actor, orderId?: string) {
   const prisma = getPrisma();
   return prisma.$transaction(async (tx) => {
-    const product = await tx.product.findUnique({ where: { id: productId } });
+    const product = await tx.product.findUnique({ where: { id: productId }, select: { id: true, name: true } });
     if (!product) return null;
-    const nextStock = product.stock + change;
-    if (nextStock < 0) {
-      throw new Error(`Insufficient stock for ${product.name}`);
-    }
-    const updated = await tx.product.update({
-      where: { id: productId },
-      data: { stock: nextStock },
-    });
+    const { oldStock, newStock: nextStock } =
+      change < 0
+        ? await decrementStock(tx, productId, -change, product.name)
+        : await incrementStock(tx, productId, change);
+    const updated = await tx.product.findUniqueOrThrow({ where: { id: productId } });
     await tx.inventoryLog.create({
       data: {
         productId,
         orderId: orderId ?? null,
         actorId: actor?.id ?? null,
         change,
-        oldStock: product.stock,
+        oldStock,
         newStock: nextStock,
         reason,
         referenceType: orderId ? "order" : "manual",
@@ -583,7 +635,7 @@ export async function setProductStock(productId: string, change: number, reason:
       action: "inventory_adjust",
       entity: "inventory",
       entityId: productId,
-      oldValue: asJson({ stock: product.stock }),
+      oldValue: asJson({ stock: oldStock }),
       newValue: asJson({ stock: nextStock, change, reason }),
     });
     return updated as unknown as Product;
@@ -600,7 +652,20 @@ export async function listCoupons() {
 
 export async function upsertCoupon(input: Partial<Coupon> & Pick<Coupon, "code" | "description" | "type" | "value">, actor?: Actor) {
   const prisma = getPrisma();
-  const code = input.code.toUpperCase();
+  const code = input.code.trim().toUpperCase();
+  // The admin form reads these with asNumber and validates nothing, so a typo
+  // (1000 instead of 10) used to reach checkout as a discount larger than the
+  // cart. Checkout clamps too; this is so the admin sees the mistake.
+  if (!code) throw new Error("Coupon code is required");
+  if (!Number.isFinite(input.value) || input.value <= 0) {
+    throw new Error("Coupon value must be greater than zero");
+  }
+  if (input.type === "percentage" && input.value > 100) {
+    throw new Error("A percentage coupon cannot exceed 100");
+  }
+  if ((input.minOrderAmount ?? 0) < 0) {
+    throw new Error("Minimum order amount cannot be negative");
+  }
   const existing = input.id ? await prisma.coupon.findUnique({ where: { id: input.id } }) : await prisma.coupon.findUnique({ where: { code } });
   const record = existing
     ? await prisma.coupon.update({
@@ -1223,7 +1288,8 @@ export async function setCartCoupon(guestKey: string, couponCode: string | null,
   return updated;
 }
 
-export async function addToCart(guestKey: string, productId: string, quantity = 1, ownerId?: string | null, actor?: Actor) {
+export async function addToCart(guestKey: string, productId: string, rawQuantity = 1, ownerId?: string | null, actor?: Actor) {
+  const quantity = normalizeQuantity(rawQuantity);
   const product = (await getProduct(productId)) ?? (await getProductBySlug(productId));
   if (!product || product.archivedAt || !product.isActive) {
     throw new Error("Product is unavailable");
@@ -1309,7 +1375,7 @@ export async function updateCartQuantity(
     if (!cart) return null;
     const existing = cart.items.find((item) => item.productId === productId);
     if (!existing) return null;
-    existing.quantity = Math.max(1, quantity);
+    existing.quantity = normalizeQuantity(quantity);
     cart.updatedAt = new Date().toISOString();
     return existing as unknown as CartItem;
   }
@@ -1320,7 +1386,7 @@ export async function updateCartQuantity(
   if (!existing) return null;
   const record = await prisma.cartItem.update({
     where: { id: existing.id },
-    data: { quantity: Math.max(1, quantity) },
+    data: { quantity: normalizeQuantity(quantity) },
   });
   await recordAuditLog({
     actor,
@@ -1443,23 +1509,21 @@ async function reserveOrderInventory(tx: Prisma.TransactionClient, orderId: stri
     if (!item.product || item.product.archivedAt || !item.product.isActive) {
       throw new Error(`Product ${item.productId} is unavailable`);
     }
-    if (item.product.stock < item.quantity) {
-      throw new Error(`Insufficient stock for ${item.product.name}`);
-    }
   }
   for (const item of order.items) {
-    const nextStock = item.product.stock - item.quantity;
-    await tx.product.update({
-      where: { id: item.productId },
-      data: { stock: nextStock },
-    });
+    const { oldStock, newStock: nextStock } = await decrementStock(
+      tx,
+      item.productId,
+      item.quantity,
+      item.product!.name,
+    );
     await tx.inventoryLog.create({
       data: {
         productId: item.productId,
         orderId: order.id,
         actorId: actor?.id ?? null,
         change: -item.quantity,
-        oldStock: item.product.stock,
+        oldStock,
         newStock: nextStock,
         reason: "order reservation",
         referenceType: "order",
@@ -1477,20 +1541,16 @@ async function releaseOrderInventory(tx: Prisma.TransactionClient, orderId: stri
   const order = await tx.order.findUnique({ where: { id: orderId }, include: { items: true } });
   if (!order || order.inventoryReleasedAt) return order;
   for (const item of order.items) {
-    const product = await tx.product.findUnique({ where: { id: item.productId } });
+    const product = await tx.product.findUnique({ where: { id: item.productId }, select: { id: true } });
     if (!product) continue;
-    const nextStock = product.stock + item.quantity;
-    await tx.product.update({
-      where: { id: item.productId },
-      data: { stock: nextStock },
-    });
+    const { oldStock, newStock: nextStock } = await incrementStock(tx, item.productId, item.quantity);
     await tx.inventoryLog.create({
       data: {
         productId: item.productId,
         orderId: order.id,
         actorId: actor?.id ?? null,
         change: item.quantity,
-        oldStock: product.stock,
+        oldStock,
         newStock: nextStock,
         reason: "order release",
         referenceType: "order",
@@ -1541,25 +1601,31 @@ export async function createOrderFromCart(
     assertPaymentMethodAvailable(settings, paymentProvider, deliveryZone);
 
     const couponCode = (input.couponCode ?? cart.couponCode ?? undefined)?.toUpperCase();
-    const coupon = couponCode ? await tx.coupon.findUnique({ where: { code: couponCode } }) : null;
+    // findFirst, not findUnique: isActive is not part of the unique index, and a
+    // coupon the admin has switched to Hidden must stop discounting. The admin
+    // UI has always written this column; nothing used to read it.
+    const coupon = couponCode
+      ? await tx.coupon.findFirst({ where: { code: couponCode, isActive: true } })
+      : null;
 
     let subtotal = 0;
     for (const item of cart.items) {
       if (!item.product || item.product.archivedAt || !item.product.isActive) {
         throw new Error(`Product ${item.productId} is unavailable`);
       }
-      if (item.product.stock < item.quantity) {
-        throw new Error(`Insufficient stock for ${item.product.name}`);
-      }
-      subtotal += item.product.price * item.quantity;
+      subtotal += item.product.price * normalizeQuantity(item.quantity);
     }
 
-    const discountAmount =
+    // Clamped to the subtotal: a fixed coupon worth more than the cart, or a
+    // percentage above 100, would otherwise produce a negative total and feed a
+    // negative value into the free-delivery threshold below.
+    const rawDiscount =
       coupon && subtotal >= coupon.minOrderAmount
         ? coupon.type === "percentage"
-          ? Math.round((subtotal * coupon.value) / 100)
+          ? Math.round((subtotal * Math.min(100, Math.max(0, coupon.value))) / 100)
           : coupon.value
         : 0;
+    const discountAmount = Math.min(subtotal, Math.max(0, rawDiscount));
 
     const deliveryCharge = getDeliveryChargeForZone(settings, deliveryZone, subtotal - discountAmount);
     const total = subtotal - discountAmount + deliveryCharge;
@@ -1611,18 +1677,19 @@ export async function createOrderFromCart(
 
     for (const item of cart.items) {
       const product = item.product!;
-      const nextStock = product.stock - item.quantity;
-      await tx.product.update({
-        where: { id: item.productId },
-        data: { stock: nextStock },
-      });
+      const { oldStock, newStock: nextStock } = await decrementStock(
+        tx,
+        item.productId,
+        normalizeQuantity(item.quantity),
+        product.name,
+      );
       await tx.inventoryLog.create({
         data: {
           productId: item.productId,
           orderId: order.id,
           actorId: actor?.id ?? null,
           change: -item.quantity,
-          oldStock: product.stock,
+          oldStock,
           newStock: nextStock,
           reason: "order reservation",
           referenceType: "order",

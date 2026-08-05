@@ -28,6 +28,8 @@
     "src/**/*.tsx",
     "tests/**/*.ts",
     "tests/**/*.tsx",
+    "e2e/**/*.ts",
+    "scripts/**/*.ts",
     "prisma/**/*.ts",
     "prisma.config.ts",
     ".next/types/**/*.ts",

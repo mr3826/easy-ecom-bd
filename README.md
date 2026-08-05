@@ -33,17 +33,24 @@ Services:
 
 - App: `http://localhost:3000`
 - PostgreSQL: `localhost:5432`
-- Redis: `localhost:6379`
 - Prisma Studio: `http://localhost:5555`
+
+`docker-compose.yml` also starts Redis and passes `REDIS_URL` to the app, but no
+application code reads it. Nothing depends on the service.
 
 For a host-based development run:
 
 ```powershell
-Copy-Item .env.example .env.local
+Copy-Item .env.example .env
 npm ci
 npm run prisma:generate
 npm run dev
 ```
+
+Use `.env`, not `.env.local`. Next.js reads both, but `prisma.config.ts` loads
+only `.env` — so a `DATABASE_URL` that lives in `.env.local` reaches the dev
+server while `prisma:migrate`, `prisma:seed`, and `db:reset` silently fall back
+to the local default in `prisma.config.ts` and operate on a different database.
 
 `DATABASE_URL` is required for persistent application and test behavior.
 
@@ -82,6 +89,24 @@ See [the production cutover plan](docs/remaining-integration-execution-plan.md) 
 
 ## Maintenance
 
-[docs/DEAD_CODE_CLEANUP_PLAN.md](docs/DEAD_CODE_CLEANUP_PLAN.md) is the audited
-backlog of dead code, unused dependencies, and the three severe bugs the audit
-surfaced. It is split into six independently landable work packets.
+**[docs/AUDIT-2026-08-05.md](docs/AUDIT-2026-08-05.md)** is the current audit:
+four critical defects on the money path, forty frontend/backend contract gaps,
+build and operations findings, and a documentation review.
+**[docs/REMEDIATION_PLAN.md](docs/REMEDIATION_PLAN.md)** turns it into nine
+landable packets and a release gate. Start there.
+
+> **Release status: blocked.** Packets P0–P2 must land before the next
+> production deploy. See the release gate at the end of the plan.
+
+[docs/DEAD_CODE_CLEANUP_PLAN.md](docs/DEAD_CODE_CLEANUP_PLAN.md) is the previous
+dead-code audit. All six packets shipped on 2026-08-04; it is kept for the
+reasoning, not as a to-do. Two items from it are still open and are carried
+forward in the current audit.
+
+Seven dated reports from finished work live in
+[docs/archive/](docs/archive/README.md). Several contradict the current code —
+read them as history, not as guidance.
+
+[docs/remaining-integration-execution-plan.md](docs/remaining-integration-execution-plan.md)
+is not history: the production cutover is unfinished, and it records the open
+ExonHost DNS blocker.
