@@ -7,6 +7,12 @@ on:
   pull_request:
     branches:
       - main
+  # The deploy workflow refuses to ship a SHA without a green 'ci' check for it.
+  # When the push/pull_request events do not fire — as happened on 2026-08-06,
+  # with the workflow active and nothing queued — that gate blocks every deploy
+  # and there is no way to produce the missing check. This runs the same job on
+  # demand so a release is never stuck waiting on an event that never arrives.
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
