@@ -126,4 +126,34 @@ test.describe("admin", () => {
       page.getByText(`E2E No Brand ${stamp}`).filter({ visible: true }).first(),
     ).toBeVisible({ timeout: 30_000 });
   });
+
+  test("a product saves with a photo larger than Next's default 1 MB action body", async ({
+    page,
+    baseURL,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop-1280", "one run is enough; this writes a row");
+    const local = Boolean(baseURL && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(baseURL));
+    test.skip(!local, "writes a product; localhost only");
+    test.setTimeout(240_000);
+
+    await page.goto("/admin/products/new", { timeout: 180_000 });
+
+    const stamp = Date.now();
+    await page.locator('input[name="name"]').fill(`E2E Big Photo ${stamp}`);
+    await page.locator('textarea[name="description"]').fill("Created by an e2e test to prove large uploads survive.");
+    await page.locator('input[name="price"]').fill("1500");
+    await page.locator('input[name="stock"]').fill("3");
+    // 2 MB: under next.config.mjs's serverActions.bodySizeLimit but over the
+    // 1 MB default, which used to 413 the POST and render the error boundary.
+    await page.locator('input[name="productImages"]').setInputFiles({
+      name: "phone-photo.jpg",
+      mimeType: "image/jpeg",
+      buffer: Buffer.alloc(2 * 1024 * 1024, 7),
+    });
+
+    await page.getByRole("button", { name: /save|create/i }).first().click();
+
+    await expect(page.getByText(/that did not go through/i)).toHaveCount(0);
+    await expect(page).toHaveURL(/\/admin\/products$/, { timeout: 120_000 });
+  });
 });

@@ -12,6 +12,10 @@ type ExistingImage = {
   sortOrder: number;
 };
 
+// Must stay under experimental.serverActions.bodySizeLimit in next.config.mjs —
+// the images share one request body with the rest of the product form.
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 export function ProductImageUploader({
   productName,
   existingImages,
@@ -24,6 +28,7 @@ export function ProductImageUploader({
   const [retainedImages, setRetainedImages] = useState(existingImages);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [previewImages, setPreviewImages] = useState<Array<{ name: string; url: string; size: number }>>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -35,6 +40,7 @@ export function ProductImageUploader({
     previewImages.forEach((item) => URL.revokeObjectURL(item.url));
     setSelectedFiles([]);
     setPreviewImages([]);
+    setUploadError(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -71,6 +77,18 @@ export function ProductImageUploader({
           className="sr-only"
           onChange={(event) => {
             const files = Array.from(event.currentTarget.files ?? []);
+            const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+            if (totalBytes > MAX_UPLOAD_BYTES) {
+              // Rejecting here rather than on submit: past the server action's
+              // body limit the request is refused before the action runs, so
+              // the admin only ever sees the generic error page.
+              setUploadError(
+                `Those images total ${Math.round(totalBytes / (1024 * 1024))} MB. Keep the batch under ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB.`,
+              );
+              event.currentTarget.value = "";
+              return;
+            }
+            setUploadError(null);
             previewImages.forEach((item) => URL.revokeObjectURL(item.url));
             setSelectedFiles(files);
             setPreviewImages(
@@ -83,6 +101,12 @@ export function ProductImageUploader({
           }}
         />
       </div>
+
+      {uploadError ? (
+        <p role="alert" className="text-xs font-medium text-[color:var(--brand)]">
+          {uploadError}
+        </p>
+      ) : null}
 
       <div className="flex items-center justify-between gap-3 text-xs text-[color:var(--muted)]">
         <span>
