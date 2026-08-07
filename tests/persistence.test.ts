@@ -32,7 +32,11 @@ import {
   clearCart,
   getLandingPage,
   upsertLandingPage,
+  createUser,
+  upsertPayment,
+  getOrder,
 } from "@/server/store";
+import { confirmPayment } from "@/server/integrations";
 import { getFileStorage, resetFileStorageForTests } from "@/server/storage";
 
 // These are integration tests: they need a live Postgres and they delete rows
@@ -873,5 +877,173 @@ test("F3: getLandingPage hides drafts and returns published pages", async () => 
   } finally {
     await prisma.landingPageSection.deleteMany({ where: { landingPageId: draft.id } });
     await prisma.landingPage.delete({ where: { id: draft.id } }).catch(() => {});
+  }
+});
+
+/*
+H2: Order.customerId exists in the schema, is indexed, and /account filters on
+it — but nothing wrote it, so a signed-in customer's order attached to their
+account only when the checkout email happened to match, and checkout email is
+optional. These pin both halves: the column is written when a customer is known,
+and left null for a guest.
+*/
+test("H2: an order records the signed-in customer, and stays null for a guest", async () => {
+  const { product } = await createCatalogItem(4);
+  const customer = await createUser({
+    name: "H2 Customer",
+    email: `${unique("test-h2")}@test.local`,
+    passwordHash: "$2a$10$notarealhashnotarealhashnotarealhashnotarealhashnotare",
+  });
+
+  const orderIds: string[] = [];
+  try {
+    const signedInKey = unique("test-guest");
+    await addToCart(signedInKey, product.id, 1);
+    const signedInCart = await getOrCreateCart(signedInKey);
+    const linked = await createOrderFromCart({
+      cart: signedInCart,
+      customerName: "H2 Customer",
+      customerPhone: "01700000000",
+      // Deliberately NOT the account's email: matching on email is exactly the
+      // accident this column exists to stop relying on.
+      customerEmail: "someone-else@test.local",
+      customerId: customer.id,
+      district: "Dhaka",
+      shippingAddress: "H2 test address",
+      paymentProvider: "cod",
+    });
+    orderIds.push(linked.id);
+    expect(
+      (await prisma.order.findUniqueOrThrow({ where: { id: linked.id } })).customerId,
+      "a signed-in customer's order is not linked to their account",
+    ).toBe(customer.id);
+
+    const guestKey = unique("test-guest");
+    await addToCart(guestKey, product.id, 1);
+    const guestCart = await getOrCreateCart(guestKey);
+    const guest = await createOrderFromCart({
+      cart: guestCart,
+      customerName: "H2 Guest",
+      customerPhone: "01700000001",
+      district: "Dhaka",
+      shippingAddress: "H2 guest address",
+      paymentProvider: "cod",
+    });
+    orderIds.push(guest.id);
+    expect(
+      (await prisma.order.findUniqueOrThrow({ where: { id: guest.id } })).customerId,
+      "a guest order invented a customer link",
+    ).toBeNull();
+  } finally {
+    for (const orderId of orderIds) {
+      await prisma.inventoryLog.deleteMany({ where: { orderId } });
+      await prisma.orderItem.deleteMany({ where: { orderId } });
+      await prisma.orderStatusHistory.deleteMany({ where: { orderId } });
+      await prisma.payment.deleteMany({ where: { orderId } });
+      await prisma.order.delete({ where: { id: orderId } }).catch(() => {});
+    }
+    await prisma.user.delete({ where: { id: customer.id } }).catch(() => {});
+  }
+});
+
+/*
+H7: updateOrderStatus has always checked allowedOrderTransitions. Payment status
+had no equivalent, so a settled order could be written back to pending from the
+admin screen or by a replayed gateway callback.
+*/
+test("H7: a paid order cannot move to anything but refunded", async () => {
+  const { product } = await createCatalogItem(3);
+  const guestKey = unique("test-guest");
+  await addToCart(guestKey, product.id, 1);
+  const cart = await getOrCreateCart(guestKey);
+  const order = await createOrderFromCart({
+    cart,
+    customerName: "H7 Test",
+    customerPhone: "01700000000",
+    district: "Dhaka",
+    shippingAddress: "H7 test address",
+    paymentProvider: "cod",
+  });
+
+  try {
+    await updateOrderPayment(order.id, { paymentStatus: "paid" });
+    expect((await getOrder(order.id))?.paymentStatus).toBe("paid");
+
+    await expect(
+      updateOrderPayment(order.id, { paymentStatus: "pending" }),
+      "a paid order was allowed back to pending",
+    ).rejects.toThrow(/Cannot move payment status from paid to pending/);
+    expect((await getOrder(order.id))?.paymentStatus).toBe("paid");
+
+    // The one move that must still be allowed.
+    await updateOrderPayment(order.id, { paymentStatus: "refunded" });
+    expect((await getOrder(order.id))?.paymentStatus).toBe("refunded");
+  } finally {
+    await prisma.inventoryLog.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderStatusHistory.deleteMany({ where: { orderId: order.id } });
+    await prisma.payment.deleteMany({ where: { orderId: order.id } });
+    await prisma.order.delete({ where: { id: order.id } }).catch(() => {});
+  }
+});
+
+/*
+H6: confirmPayment wrote the payment row, its verification log and the order
+update on three separate connections, committing independently. A failure after
+the first left the payment reading one thing and its order another.
+
+Driving that failure needs no fault injection now that H7 exists: confirming a
+`pending` status against an already-paid order makes the third write throw. If
+the three are one transaction the first two must roll back with it.
+*/
+test("H6: a confirmPayment that fails on the order update rolls back the payment row", async () => {
+  const { product } = await createCatalogItem(3);
+  const guestKey = unique("test-guest");
+  await addToCart(guestKey, product.id, 1);
+  const cart = await getOrCreateCart(guestKey);
+  const order = await createOrderFromCart({
+    cart,
+    customerName: "H6 Test",
+    customerPhone: "01700000000",
+    district: "Dhaka",
+    shippingAddress: "H6 test address",
+    // COD, not bKash: createOrderFromCart refuses a provider the store has
+    // disabled, and which provider the ORDER used is irrelevant here — the
+    // subject is confirmPayment's transaction boundary.
+    paymentProvider: "cod",
+  });
+
+  try {
+    const payment = await upsertPayment({
+      orderId: order.id,
+      provider: "cod",
+      transactionId: unique("TEST-TXN"),
+      amount: order.total,
+      status: "paid",
+      rawResponse: {},
+    });
+    await updateOrderPayment(order.id, { paymentStatus: "paid", paymentProvider: "cod" });
+
+    const logsBefore = await prisma.paymentLog.count({ where: { paymentId: payment.id } });
+
+    await expect(
+      confirmPayment(payment.id, "pending", { replayed: true }),
+      "confirmPayment accepted an illegal transition",
+    ).rejects.toThrow(/Cannot move payment status from paid to pending/);
+
+    const after = await prisma.payment.findUniqueOrThrow({ where: { id: payment.id } });
+    expect(after.status, "the payment row committed without its order update").toBe("paid");
+    expect(
+      await prisma.paymentLog.count({ where: { paymentId: payment.id } }),
+      "a verification log survived the rolled-back transaction",
+    ).toBe(logsBefore);
+    expect((await getOrder(order.id))?.paymentStatus).toBe("paid");
+  } finally {
+    await prisma.paymentLog.deleteMany({ where: { payment: { orderId: order.id } } });
+    await prisma.inventoryLog.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
+    await prisma.orderStatusHistory.deleteMany({ where: { orderId: order.id } });
+    await prisma.payment.deleteMany({ where: { orderId: order.id } });
+    await prisma.order.delete({ where: { id: order.id } }).catch(() => {});
   }
 });
