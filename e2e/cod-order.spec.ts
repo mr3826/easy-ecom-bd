@@ -34,6 +34,30 @@ function taka(text: string) {
   return Number(text.replace(/[^\d.]/g, ""));
 }
 
+/**
+ * Selects a district so that React actually observes the change.
+ *
+ * page.selectOption() assigns to element.value, which silently advances React's
+ * internal value tracker; the change event that follows then looks like a
+ * no-op and onChange never fires. The DOM shows the right option selected while
+ * React state stays empty — so the delivery-fee block, which is conditional on
+ * that state, never appears and the test fails on working code. Measured on
+ * this form: selectOption -> 0 zone nodes, the setter below -> 1.
+ *
+ * A real user is unaffected: their gesture produces a trusted event React
+ * handles normally. This is a harness workaround, not a product defect.
+ */
+async function selectDistrict(page: Page, district: string) {
+  await expect(page.locator('select[name="district"]')).toBeVisible();
+  await page.evaluate((value) => {
+    const el = document.querySelector('select[name="district"]') as HTMLSelectElement;
+    const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")!.set!;
+    setter.call(el, value);
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }, district);
+  await expect(page.locator('select[name="district"]')).toHaveValue(district);
+}
+
 async function setOrderStatus(admin: Page, orderCode: string, status: string) {
   await admin.goto("/admin/orders");
   // Nearest ancestor of the order's heading that actually holds the controls —
@@ -87,20 +111,37 @@ test.describe("COD order lifecycle", () => {
 
       await page.goto("/checkout");
 
-      const subtotal = taka(await page.getByText(/^Subtotal$/).locator("xpath=../dd").innerText());
-      const deliveryText = await page.getByText(/^Delivery fee$/).locator("xpath=../dd").innerText();
-      const delivery = /free/i.test(deliveryText) ? 0 : taka(deliveryText);
-      const shownTotal = taka(await page.getByText(/estimated total/i).locator("xpath=..").innerText());
-
-      // 3. The quoted total is the sum of its parts, not an independent number.
-      expect(shownTotal).toBe(subtotal + delivery);
-
-      // 4. Place the order as COD.
+      // 3. Fill the order first, because the delivery quote depends on it.
+      //
+      // F6 moved the fee out of the server-rendered summary and into the form:
+      // it cannot be known before a district is chosen, and quoting one against
+      // the wrong zone is the defect F6 existed to fix. So the aside now shows
+      // the subtotal under "Estimated total" with the fee alongside the
+      // district picker, and this reads it from where it actually lives.
       await page.locator('input[name="customerName"]').fill(SMOKE_CUSTOMER);
       await page.locator('input[name="customerPhone"]').fill(SMOKE_PHONE);
-      await page.locator('input[name="district"]').fill("Dhaka");
+      // A <select>, not a text input, since H9. Free text let a typo land the
+      // order in the wrong delivery zone at the wrong price; the options now
+      // come from the same district list the fee is derived from.
+      await selectDistrict(page, "Dhaka");
       await page.locator('textarea[name="shippingAddress"]').fill("Smoke test address, do not dispatch");
       await page.locator('input[name="paymentMethod"][value="cod"]').check();
+
+      const subtotal = taka(await page.getByText(/^Subtotal$/).locator("xpath=../dd").innerText());
+
+      // The fee block only renders once a district is selected — which is the
+      // point, so assert it appeared rather than defaulting a missing fee to 0.
+      const feeRow = page.getByText(/^Delivery fee$/).locator("xpath=..");
+      await expect(feeRow).toBeVisible();
+      const deliveryText = await feeRow.innerText();
+      const delivery = /free/i.test(deliveryText) ? 0 : taka(deliveryText.replace(/^Delivery fee/i, ""));
+
+      // Dhaka is an inside_dhaka district, so the quote must be that zone's
+      // charge or free — never an outside-Dhaka price.
+      expect(await page.getByText(/Zone:/).innerText()).toMatch(/inside dhaka/i);
+
+      const shownTotal = taka(await page.getByText(/estimated total/i).locator("xpath=..").innerText());
+      expect(shownTotal).toBe(subtotal);
 
       const submit = page.getByRole("button", { name: /place order/i });
       await expect(submit).toBeEnabled();

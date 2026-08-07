@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { loginAction, type LoginState } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -10,7 +10,6 @@ const INITIAL: LoginState = {};
 
 export function LoginForm() {
   const [state, formAction] = useActionState(loginAction, INITIAL);
-  const [email, setEmail] = useState(state.email ?? "");
 
   return (
     <form action={formAction} className="mt-8 grid gap-4">
@@ -30,8 +29,18 @@ export function LoginForm() {
         inputMode="email"
         autoComplete="email"
         required
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
+        /*
+         * defaultValue, not value+useState. React resets a form once its
+         * action completes, and the old wiring seeded a useState initialiser
+         * from state.email — an initialiser only runs on mount, so the reset
+         * emptied the field and nothing put the address back. Every rejected
+         * login made you retype your email.
+         *
+         * loginAction has always echoed `email` back for exactly this; keying
+         * off it lets the post-action reset restore the submitted address.
+         * Same fix as F1 on the profile form.
+         */
+        defaultValue={state.email ?? ""}
       />
       <Field
         label="Password"
