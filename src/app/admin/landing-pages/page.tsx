@@ -14,7 +14,7 @@ export default async function AdminLandingPagesPage({
 }) {
   const { edit } = await searchParams;
   const pages = await listLandingPages();
-  const selected = pages.find((item) => item.id === edit) ?? pages[0];
+  const selected = pages.find((item) => item.id === edit);
   const sections = selected ? await getLandingPageSections(selected.id) : [];
   const products = await listProducts();
 
@@ -119,6 +119,12 @@ export default async function AdminLandingPagesPage({
       ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
+          <Button asChild variant="secondary" className="h-[138px] flex flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed border-[color:var(--border)] bg-white hover:border-[color:var(--brand)] hover:bg-[color:var(--brand)]/5 transition-colors">
+            <Link href={`/admin/landing-pages?edit=`}>
+              <span>New page</span>
+              <span className="text-xs text-[color:var(--muted)]">Create a new landing page</span>
+            </Link>
+          </Button>
           {pages.map((page) => (
             <div key={page.id} className="rounded-3xl border border-[color:var(--border)] bg-white p-5">
               <div className="flex items-start justify-between gap-3">

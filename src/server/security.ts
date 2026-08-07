@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { headers as getHeaders } from "next/headers";
 import type { PaymentProviderKey, PaymentStatus } from "@/lib/domain";
+import { getSiteOrigin } from "@/lib/site-url";
 
 type HeaderSource = Pick<Headers, "get">;
 
@@ -42,9 +43,11 @@ function normalizeOrigin(value: string | null | undefined) {
 }
 
 function getConfiguredOrigins() {
-  return [process.env.APP_URL, process.env.NEXT_PUBLIC_APP_URL]
+  const explicit = [process.env.APP_URL, process.env.NEXT_PUBLIC_APP_URL]
     .map(normalizeOrigin)
     .filter(Boolean);
+  if (explicit.length) return explicit;
+  return [normalizeOrigin(getSiteOrigin())].filter(Boolean);
 }
 
 function getExpectedOrigin(requestHeaders: HeaderSource) {

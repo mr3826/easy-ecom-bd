@@ -8,6 +8,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   addToCart,
+  CheckoutError,
   createAddressForUser,
   createOrderFromCart,
   createUser,
@@ -36,6 +37,7 @@ import {
   requireSameOrigin,
 } from "@/server/security";
 import { sendEmail, getPasswordResetEmail, getEmailVerificationEmail } from "@/server/email";
+import { getSiteOrigin } from "@/lib/site-url";
 
 const guestCookie = "easy_ecom_guest";
 
@@ -174,6 +176,17 @@ export type LoginState = {
   /** Echoed back so a rejected attempt does not blank out what was typed. */
   email?: string;
 };
+
+const checkoutSchema = z.object({
+  customerName: z.string().min(2, "Customer name must be at least 2 characters"),
+  customerPhone: z.string().min(7, "Customer phone must be at least 7 characters"),
+  customerEmail: z.string().email("Invalid email address").optional().or(z.literal("")),
+  district: z.string().min(2, "District must be at least 2 characters"),
+  shippingAddress: z.string().min(4, "Shipping address must be at least 4 characters"),
+  notes: z.string().optional(),
+  couponCode: z.string().optional(),
+  paymentMethod: z.enum(["cod", "bkash"]).optional(),
+});
 
 export type CheckoutState = {
   error?: string;
@@ -432,21 +445,49 @@ export async function checkoutAction(
   formData: FormData
 ): Promise<CheckoutState> {
   const requestHeaders = await requireActionOrigin("checkoutAction");
-  const rawPaymentMethod = asString(formData.get("paymentMethod")) || "cod";
-  if (rawPaymentMethod !== "cod" && rawPaymentMethod !== "bkash") {
-    return { error: "Unsupported payment method" };
+
+  const parsed = checkoutSchema.safeParse({
+    customerName: asString(formData.get("customerName")),
+    customerPhone: asString(formData.get("customerPhone")),
+    customerEmail: asString(formData.get("customerEmail")) || undefined,
+    district: asString(formData.get("district")),
+    shippingAddress: asString(formData.get("shippingAddress")),
+    notes: asString(formData.get("notes")) || undefined,
+    couponCode: asString(formData.get("couponCode")) || undefined,
+    paymentMethod: asString(formData.get("paymentMethod")) || undefined,
+  });
+
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return {
+      error: issue?.message || "Invalid checkout details",
+      customerName: asString(formData.get("customerName")),
+      customerPhone: asString(formData.get("customerPhone")),
+      customerEmail: asString(formData.get("customerEmail")) || undefined,
+      district: asString(formData.get("district")),
+      shippingAddress: asString(formData.get("shippingAddress")),
+      notes: asString(formData.get("notes")) || undefined,
+      couponCode: asString(formData.get("couponCode")) || undefined,
+      paymentMethod: (asString(formData.get("paymentMethod")) as "cod" | "bkash") || "cod",
+    };
   }
-  const paymentMethod = rawPaymentMethod as "cod" | "bkash";
-  const wantsBkash = paymentMethod === "bkash";
-  const customerName = asString(formData.get("customerName"));
-  const customerPhone = asString(formData.get("customerPhone"));
-  const customerEmail = asString(formData.get("customerEmail")) || undefined;
-  const district = asString(formData.get("district"));
-  const shippingAddress = asString(formData.get("shippingAddress"));
-  const notes = asString(formData.get("notes")) || undefined;
-  const couponCode = asString(formData.get("couponCode")) || undefined;
-  const guestKey = await getGuestKey();
-  const user = await getCurrentUser();
+
+  const { customerName, customerPhone, customerEmail, district, shippingAddress, notes, couponCode, paymentMethod } = parsed.data;
+  const rawPaymentMethod = paymentMethod || "cod";
+  if (rawPaymentMethod !== "cod" && rawPaymentMethod !== "bkash") {
+    return {
+      error: "Unsupported payment method",
+      customerName,
+      customerPhone,
+      customerEmail,
+      district,
+      shippingAddress,
+      notes,
+      couponCode,
+      paymentMethod: rawPaymentMethod as "cod" | "bkash",
+    };
+  }
+  const wantsBkash = rawPaymentMethod === "bkash";
 
   const echoedState: CheckoutState = {
     customerName,
@@ -456,8 +497,11 @@ export async function checkoutAction(
     shippingAddress,
     notes,
     couponCode,
-    paymentMethod,
+    paymentMethod: rawPaymentMethod as "cod" | "bkash",
   };
+
+  const guestKey = await getGuestKey();
+  const user = await getCurrentUser();
 
   let redirectDestination: string | null = null;
 
@@ -470,7 +514,7 @@ export async function checkoutAction(
         user?.id,
         customerEmail?.toLowerCase(),
         customerPhone,
-        paymentMethod,
+        rawPaymentMethod,
       ),
       limit: 20,
       windowMs: 10 * 60 * 1000,
@@ -499,7 +543,7 @@ export async function checkoutAction(
       district,
       shippingAddress,
       notes,
-      paymentProvider: paymentMethod,
+      paymentProvider: rawPaymentMethod,
       couponCode,
     });
 
@@ -523,7 +567,11 @@ export async function checkoutAction(
     }
   } catch (error) {
     console.error("checkoutAction failed", error);
-    return { ...echoedState, error: "Something went wrong. Please try again." };
+    const errorMessage =
+      error instanceof CheckoutError
+        ? error.message
+        : "Something went wrong. Please try again.";
+    return { ...echoedState, error: errorMessage };
   }
 
   if (redirectDestination) {
@@ -556,7 +604,7 @@ export async function forgotPasswordAction(_previous: ForgotPasswordState, formD
     return { email, error: "If an account exists for this email, a reset link has been sent." };
   }
 
-  const resetUrl = `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/reset-password?token=${token}`;
+  const resetUrl = `${getSiteOrigin()}/reset-password?token=${token}`;
   const emailResult = await sendEmail(email, getPasswordResetEmail(resetUrl, email));
 
   if (!emailResult.success) {
@@ -594,9 +642,13 @@ export async function resetPasswordAction(_previous: ResetPasswordState, formDat
   }
 
   const { hashSync } = await import("bcryptjs");
-  const { updateUserPassword } = await import("@/server/store");
+  const { updateUserPassword, deleteManySessions, deleteManyPasswordResetTokens } = await import("@/server/store");
 
-  await updateUserPassword(user.id, hashSync(password, 10));
+  await Promise.all([
+    updateUserPassword(user.id, hashSync(password, 10)),
+    deleteManySessions(user.id),
+    deleteManyPasswordResetTokens(user.id),
+  ]);
 
   return { success: "Password has been reset. You can now sign in." };
 }
@@ -630,7 +682,7 @@ export async function resendVerificationAction(_previous: ResendVerificationStat
     return { email, error: "Could not create verification token." };
   }
 
-  const verifyUrl = `${process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/verify-email?token=${token}`;
+  const verifyUrl = `${getSiteOrigin()}/verify-email?token=${token}`;
   const emailResult = await sendEmail(email, getEmailVerificationEmail(verifyUrl, user.name));
 
   if (!emailResult.success) {

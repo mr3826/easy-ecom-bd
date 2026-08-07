@@ -30,6 +30,8 @@ import {
   upsertProduct,
   replaceProductImages,
   clearCart,
+  getLandingPage,
+  upsertLandingPage,
 } from "@/server/store";
 import { getFileStorage, resetFileStorageForTests } from "@/server/storage";
 
@@ -59,7 +61,10 @@ function makeTestFile(name: string, content: string, type = "image/png") {
 }
 
 async function cleanupTestData() {
+  // order_items.productId has no onDelete: Cascade, so order rows must be
+  // removed first; otherwise the product deleteMany below trips the FK.
   await prisma.$transaction([
+    prisma.orderItem.deleteMany({ where: { product: { slug: { startsWith: "test-" } } } }),
     prisma.cartItem.deleteMany({
       where: {
         OR: [
@@ -785,4 +790,88 @@ test("C4: concurrent checkouts of the last unit produce one order, not two", asy
 
   const after = await prisma.product.findUniqueOrThrow({ where: { id: product.id } });
   expect(after.stock).toBe(0);
+});
+
+test("checkout delivery fee matches form quote for the same discounted subtotal", async () => {
+  const settings = await getSettings();
+  const { product } = await createCatalogItem(2);
+  const coupon = await upsertCoupon(
+    {
+      code: unique("TEST-F6").toUpperCase(),
+      description: "test coupon",
+      type: "percentage",
+      value: 10,
+      minOrderAmount: 0,
+      isActive: true,
+    },
+    undefined,
+  );
+  let orderId: string | undefined;
+  try {
+    const guestKey = unique("test-guest");
+    await addToCart(guestKey, product.id, 1);
+    const cart = await getOrCreateCart(guestKey);
+    await setCartCoupon(guestKey, coupon.code);
+    const summary = await getCartSummary(cart);
+    const subtotalAfterDiscount = summary.subtotal - summary.discountAmount;
+    const expectedFee = getDeliveryChargeForZone(settings, "inside_dhaka", subtotalAfterDiscount);
+    const order = await createOrderFromCart({
+      cart,
+      customerName: "F6 Test",
+      customerPhone: "01700000000",
+      district: "Dhaka",
+      shippingAddress: "F6 test address",
+      paymentProvider: "cod",
+    });
+    orderId = order.id;
+    expect(order.deliveryCharge).toBe(expectedFee);
+    expect(order.deliveryCharge).toBe(getDeliveryChargeForZone(settings, "inside_dhaka", summary.subtotal - summary.discountAmount));
+  } finally {
+    if (orderId) {
+      await prisma.orderItem.deleteMany({ where: { orderId } });
+      await prisma.orderStatusHistory.deleteMany({ where: { orderId } });
+      await prisma.payment.deleteMany({ where: { orderId } });
+      await prisma.order.delete({ where: { id: orderId } }).catch(() => {});
+    }
+    await prisma.coupon.delete({ where: { id: coupon.id } }).catch(() => {});
+  }
+});
+
+/*
+F3: /l/[slug] rendered any landing page whose slug matched, published or not, so
+a draft was public the moment it was saved. The `published: true` filter is the
+fix; this pins it, and pins that publishing still works — a filter that returned
+null for everything would have passed a one-sided test.
+*/
+test("F3: getLandingPage hides drafts and returns published pages", async () => {
+  const slug = unique("test-landing");
+  const draft = await upsertLandingPage({
+    slug,
+    title: "Draft landing page",
+    metaDescription: "Should not be reachable",
+    heroTitle: "Draft hero",
+    heroSubtitle: "Draft subtitle",
+    published: false,
+  });
+
+  try {
+    expect(await getLandingPage(draft.slug), "an unpublished landing page is reachable").toBeNull();
+
+    await upsertLandingPage({
+      id: draft.id,
+      slug,
+      title: "Draft landing page",
+      metaDescription: "Should not be reachable",
+      heroTitle: "Draft hero",
+      heroSubtitle: "Draft subtitle",
+      published: true,
+    });
+
+    const live = await getLandingPage(draft.slug);
+    expect(live, "a published landing page is not reachable").not.toBeNull();
+    expect(live?.slug).toBe(draft.slug);
+  } finally {
+    await prisma.landingPageSection.deleteMany({ where: { landingPageId: draft.id } });
+    await prisma.landingPage.delete({ where: { id: draft.id } }).catch(() => {});
+  }
 });

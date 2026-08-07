@@ -1,11 +1,22 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { ContentPage } from "@/components/content-page";
 import { storefrontPolicyPages } from "@/lib/bornohin-storefront";
 import { siteBrand } from "@/lib/site-brand";
 import { getSettings } from "@/server/store";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
+
+export function generateMetadata(): Metadata {
+  const page = storefrontPolicyPages["contact-us"];
+  return {
+    title: page.title,
+    description: page.intro,
+    alternates: { canonical: `${getSiteOrigin()}/contact-us` },
+  };
+}
 
 export default async function ContactPage() {
   const page = storefrontPolicyPages["contact-us"];

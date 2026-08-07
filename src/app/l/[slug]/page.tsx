@@ -5,8 +5,36 @@ import { HomeHeroSlider } from "@/components/home-hero-slider";
 import { ProductCard } from "@/components/product-card";
 import { slidesFromCarouselSection } from "@/lib/homepage-carousel";
 import { getLandingPage, getLandingPageSections, listCategories, listProducts } from "@/server/store";
+import { getSiteOrigin } from "@/lib/site-url";
+import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const landingPage = await getLandingPage(slug);
+  if (!landingPage) {
+    return { title: "Page not found" };
+  }
+
+  return {
+    title: landingPage.title,
+    description: landingPage.metaDescription,
+    alternates: {
+      canonical: `${getSiteOrigin()}/l/${landingPage.slug}`,
+    },
+    openGraph: {
+      title: landingPage.title,
+      description: landingPage.metaDescription,
+      type: "website",
+      images: landingPage.bannerImageUrl ? [{ url: landingPage.bannerImageUrl, alt: landingPage.title }] : [],
+    },
+  };
+}
 
 export async function generateStaticParams() {
   return [];

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { ContentPage } from "@/components/content-page";
@@ -5,8 +6,18 @@ import { StatusPill } from "@/components/status-pill";
 import { storefrontPolicyPages } from "@/lib/bornohin-storefront";
 import { money, shortDate } from "@/lib/utils";
 import { getOrderByCode, getSettings } from "@/server/store";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
+
+export function generateMetadata(): Metadata {
+  const page = storefrontPolicyPages["track-order"];
+  return {
+    title: page.title,
+    description: page.intro,
+    alternates: { canonical: `${getSiteOrigin()}/track-order` },
+  };
+}
 
 export default async function TrackOrderPage({
   searchParams,

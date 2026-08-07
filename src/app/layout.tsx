@@ -2,10 +2,27 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { siteBrand } from "@/lib/site-brand";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export const metadata: Metadata = {
-  title: siteBrand.name,
+  metadataBase: new URL(getSiteOrigin()),
+  title: {
+    default: siteBrand.name,
+    template: `%s | ${siteBrand.name}`,
+  },
   description: `${siteBrand.name} fashion, lifestyle, and everyday essentials in Bangladesh.`,
+  openGraph: {
+    siteName: siteBrand.name,
+    locale: "en_BD",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 // `viewportFit: "cover"` is what makes env(safe-area-inset-*) return non-zero.

@@ -1,11 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
 import { WishlistToggle } from "@/components/wishlist-toggle";
 import { money } from "@/lib/utils";
 import { addToCartAction } from "@/app/actions";
+import { getSiteOrigin } from "@/lib/site-url";
 import {
   getStorefrontCollectionBySlug,
   getStorefrontCollections,
@@ -14,6 +16,83 @@ import {
 } from "@/server/storefront-catalog";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const product = await getStorefrontProductBySlug(slug);
+  if (!product) {
+    return { title: "Product not found" };
+  }
+
+  const collection = await getStorefrontCollectionBySlug(product.collectionSlug);
+
+  return {
+    title: product.name,
+    description: product.description.slice(0, 160),
+    alternates: {
+      canonical: `${getSiteOrigin()}/product/${product.slug}`,
+    },
+    openGraph: {
+      title: product.name,
+      description: product.description.slice(0, 160),
+      images: product.imageUrl ? [{ url: product.imageUrl, alt: product.imageAlt ?? product.name }] : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.name,
+      description: product.description.slice(0, 160),
+      images: product.imageUrl ? [product.imageUrl] : [],
+    },
+    other: {
+      "product:price:amount": String(product.price),
+      "product:price:currency": "BDT",
+      "product:availability": product.soldOut ? "out of stock" : "in stock",
+      "product:brand": product.brandTitle ?? collection?.title ?? "Bornohin",
+    },
+  };
+}
+
+function ProductJsonLd({
+  product,
+  collection,
+}: {
+  product: Awaited<ReturnType<typeof getStorefrontProductBySlug>>;
+  collection: Awaited<ReturnType<typeof getStorefrontCollectionBySlug>>;
+}) {
+  if (!product) return null;
+
+  const siteOrigin = getSiteOrigin();
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description,
+    image: product.imageUrl ?? undefined,
+    brand: {
+      "@type": "Brand",
+      name: product.brandTitle ?? collection?.title ?? "Bornohin",
+    },
+    offers: {
+      "@type": "Offer",
+      url: `${siteOrigin}/product/${product.slug}`,
+      priceCurrency: "BDT",
+      price: product.price,
+      availability: product.soldOut ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+      seller: {
+        "@type": "Organization",
+        name: "Bornohin",
+        url: siteOrigin,
+      },
+    },
+  };
+
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />;
+}
 
 export async function generateStaticParams() {
   return [];
@@ -36,6 +115,7 @@ export default async function ProductPage({
 
   return (
     <PublicShell>
+      <ProductJsonLd product={product} collection={collection} />
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--muted)]">
           <Link href="/" className="transition hover:text-[color:var(--brand)]">

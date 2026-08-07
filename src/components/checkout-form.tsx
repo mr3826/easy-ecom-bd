@@ -1,21 +1,34 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useState, useMemo } from "react";
 import { checkoutAction, type CheckoutState } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { deliveryDistricts, deriveDeliveryZone, getDeliveryChargeForZone, type DeliverySettings } from "@/lib/delivery";
 
 const INITIAL: CheckoutState = {};
+
+interface CheckoutFormProps {
+  userName?: string;
+  userPhone?: string;
+  userEmail?: string;
+  codEnabled: boolean;
+  bkashEnabled: boolean;
+  deliverySettings: DeliverySettings;
+  subtotal: number;
+  discountAmount: number;
+}
 
 export function CheckoutForm({
   userName = "",
   userPhone = "",
   userEmail = "",
-}: {
-  userName?: string;
-  userPhone?: string;
-  userEmail?: string;
-}) {
+  codEnabled,
+  bkashEnabled,
+  deliverySettings,
+  subtotal,
+  discountAmount,
+}: CheckoutFormProps) {
   const [state, formAction] = useActionState(checkoutAction, INITIAL);
 
   const [customerName, setCustomerName] = useState(state.customerName ?? userName ?? "");
@@ -25,7 +38,30 @@ export function CheckoutForm({
   const [shippingAddress, setShippingAddress] = useState(state.shippingAddress ?? "");
   const [notes, setNotes] = useState(state.notes ?? "");
   const [couponCode, setCouponCode] = useState(state.couponCode ?? "");
-  const [paymentMethod, setPaymentMethod] = useState<"cod" | "bkash">(state.paymentMethod ?? "cod");
+  
+  const enabledPaymentMethods = useMemo(() => {
+    const methods: Array<"cod" | "bkash"> = [];
+    if (codEnabled) methods.push("cod");
+    if (bkashEnabled) methods.push("bkash");
+    return methods;
+  }, [codEnabled, bkashEnabled]);
+
+  // Compute default payment method from state or first enabled method
+  const defaultPaymentMethod = useMemo(() => {
+    if (state.paymentMethod && enabledPaymentMethods.includes(state.paymentMethod)) {
+      return state.paymentMethod;
+    }
+    return enabledPaymentMethods[0] ?? "cod";
+  }, [state.paymentMethod, enabledPaymentMethods]);
+
+  const [paymentMethod, setPaymentMethod] = useState<"cod" | "bkash">(defaultPaymentMethod);
+
+  const deliveryZone = useMemo(() => deriveDeliveryZone(district), [district]);
+  const subtotalAfterDiscount = Math.max(0, subtotal - discountAmount);
+  const deliveryFee = useMemo(
+    () => getDeliveryChargeForZone(deliverySettings, deliveryZone, subtotalAfterDiscount),
+    [deliverySettings, deliveryZone, subtotalAfterDiscount]
+  );
 
   return (
     <form action={formAction} className="mt-7 grid gap-5">
@@ -65,9 +101,25 @@ export function CheckoutForm({
           name="district"
           required
           autoComplete="address-level1"
-          placeholder="Dhaka"
-          value={district}
-          onChange={(event) => setDistrict(event.target.value)}
+          render={({ id, className, "aria-describedby": describedBy }) => (
+            <select
+              id={id}
+              name="district"
+              required
+              autoComplete="address-level1"
+              aria-describedby={describedBy}
+              className={className}
+              value={district}
+              onChange={(event) => setDistrict(event.target.value)}
+            >
+              <option value="">Select a district</option>
+              {deliveryDistricts.map((entry) => (
+                <option key={entry.name} value={entry.name}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+          )}
         />
         <Field
           label="Email"
@@ -131,43 +183,53 @@ export function CheckoutForm({
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
-        <label
-          className={`flex min-h-14 items-start gap-3 rounded-3xl border p-4 transition ${
-            paymentMethod === "cod" ? "border-[color:var(--brand)]/40 bg-[color:var(--brand-soft)]" : "border-[color:var(--border)] bg-[color:var(--surface-soft)]"
-          }`}
-        >
-          <input
-            type="radio"
-            name="paymentMethod"
-            value="cod"
-            checked={paymentMethod === "cod"}
-            onChange={() => setPaymentMethod("cod")}
-            className="mt-1 h-4 w-4 text-[color:var(--brand)] focus:ring-[color:var(--brand)]/40"
-          />
-          <span className="grid gap-1">
-            <span className="text-sm font-semibold text-[color:var(--foreground)]">Cash on Delivery</span>
-            <span className="text-xs leading-5 text-[color:var(--muted)]">Pay when the parcel arrives</span>
-          </span>
-        </label>
-        <label
-          className={`flex min-h-14 items-start gap-3 rounded-3xl border p-4 transition ${
-            paymentMethod === "bkash" ? "border-[color:var(--brand)]/40 bg-[color:var(--brand-soft)]" : "border-[color:var(--border)] bg-[color:var(--surface-soft)]"
-          }`}
-        >
-          <input
-            type="radio"
-            name="paymentMethod"
-            value="bkash"
-            checked={paymentMethod === "bkash"}
-            onChange={() => setPaymentMethod("bkash")}
-            className="mt-1 h-4 w-4 text-[color:var(--brand)] focus:ring-[color:var(--brand)]/40"
-          />
-          <span className="grid gap-1">
-            <span className="text-sm font-semibold text-[color:var(--foreground)]">bKash</span>
-            <span className="text-xs leading-5 text-[color:var(--muted)]">bKash checkout after order creation</span>
-          </span>
-        </label>
+        {enabledPaymentMethods.map((method) => (
+          <label
+            key={method}
+            className={`flex min-h-14 items-start gap-3 rounded-3xl border p-4 transition ${
+              paymentMethod === method
+                ? "border-[color:var(--brand)]/40 bg-[color:var(--brand-soft)]"
+                : "border-[color:var(--border)] bg-[color:var(--surface-soft)]"
+            }`}
+          >
+            <input
+              type="radio"
+              name="paymentMethod"
+              value={method}
+              checked={paymentMethod === method}
+              onChange={() => setPaymentMethod(method)}
+              className="mt-1 h-4 w-4 text-[color:var(--brand)] focus:ring-[color:var(--brand)]/40"
+            />
+            <span className="grid gap-1">
+              <span className="text-sm font-semibold text-[color:var(--foreground)]">
+                {method === "cod" ? "Cash on Delivery" : "bKash"}
+              </span>
+              <span className="text-xs leading-5 text-[color:var(--muted)]">
+                {method === "cod" ? "Pay when the parcel arrives" : "bKash checkout after order creation"}
+              </span>
+            </span>
+          </label>
+        ))}
+        {enabledPaymentMethods.length === 0 && (
+          <div className="col-span-2 rounded-3xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4 text-center text-sm text-[color:var(--muted)]">
+            No payment methods available. Please contact support.
+          </div>
+        )}
       </div>
+
+      {district && (
+        <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-soft)] p-4 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[color:var(--muted)]">Delivery fee</span>
+            <span className="font-medium text-[color:var(--foreground)]">
+              {deliveryFee === 0 ? "Free" : deliveryFee.toLocaleString("en-BD") + " BDT"}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-[color:var(--muted)]">
+            Zone: {deliveryZone.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())} · Free delivery over {deliverySettings.freeDeliveryThreshold.toLocaleString("en-BD")} BDT
+          </p>
+        </div>
+      )}
 
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 text-xs text-[color:var(--muted)] sm:mx-0 sm:grid sm:grid-cols-3 sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0">
         <span className="shrink-0 rounded-full bg-[color:var(--surface-soft)] px-3 py-2">COD depends on delivery zone</span>

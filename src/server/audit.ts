@@ -10,11 +10,12 @@ export async function recordAuditLog(input: {
   entityId: string;
   oldValue?: Prisma.JsonValue | null;
   newValue?: Prisma.JsonValue | null;
+  client?: Prisma.TransactionClient;
 }) {
   if (!isDatabaseConfigured()) {
     return;
   }
-  const prisma = getPrisma();
+  const prisma = input.client ?? getPrisma();
   await prisma.auditLog.create({
     data: {
       actorId: input.actor?.id,

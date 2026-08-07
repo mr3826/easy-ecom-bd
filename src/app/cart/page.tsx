@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { PublicShell } from "@/components/public-shell";
 import { StatusPill } from "@/components/status-pill";
 import { getCurrentUser } from "@/server/auth";
-import { getCartSummary, getOrCreateCart, getSettings, getDeliveryChargeForZone, deriveDeliveryZone } from "@/server/store";
+import { getCartSummary, getOrCreateCart, getSettings } from "@/server/store";
 import { money } from "@/lib/utils";
 import { clearCartAction, removeCartItemAction, updateCartQuantityAction } from "@/app/actions";
 
@@ -15,8 +15,6 @@ export default async function CartPage() {
   const user = await getCurrentUser();
   const [cart, settings] = await Promise.all([getOrCreateCart(guestKey, user?.id), getSettings()]);
   const summary = await getCartSummary(cart);
-  const deliveryZone = deriveDeliveryZone(settings.address ?? "Dhaka");
-  const deliveryCharge = summary.subtotal >= settings.freeDeliveryThreshold ? 0 : getDeliveryChargeForZone(settings, deliveryZone, summary.subtotal);
 
   return (
     <PublicShell>
@@ -77,15 +75,9 @@ export default async function CartPage() {
                 <dt className="text-[color:var(--muted)]">Subtotal</dt>
                 <dd className="font-medium text-[color:var(--foreground)]">{money(summary.subtotal)}</dd>
               </div>
-              <div className="flex items-center justify-between">
-                <dt className="text-[color:var(--muted)]">Delivery</dt>
-                <dd className="font-medium text-[color:var(--foreground)]">
-                  {deliveryCharge === 0 ? "Free" : money(deliveryCharge)}
-                </dd>
-              </div>
             </dl>
             <p className="mt-4 rounded-2xl bg-[color:var(--surface-soft)] px-4 py-3 text-sm text-[color:var(--muted)]">
-              Free delivery unlocks at {money(settings.freeDeliveryThreshold)}.
+              Free delivery unlocks at {money(settings.freeDeliveryThreshold)}. Delivery fee calculated at checkout based on your district.
             </p>
             <Link href="/checkout" className="mt-6 block rounded-full bg-[color:var(--accent)] px-5 py-3 text-center text-sm font-semibold uppercase tracking-[0.18em] text-white">
               Continue to checkout
@@ -103,4 +95,3 @@ export default async function CartPage() {
     </PublicShell>
   );
 }
-
