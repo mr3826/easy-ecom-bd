@@ -1,15 +1,66 @@
 import Link from "next/link";
 import { PublicShell } from "@/components/public-shell";
 import { StorefrontCard } from "@/components/storefront-card";
+import type { Metadata } from "next";
 import {
   filterStorefrontProducts,
   getStorefrontBrandBySlug,
   getStorefrontBrandRail,
   getStorefrontCollectionBySlug,
 } from "@/server/storefront-catalog";
+import { getSiteOrigin } from "@/lib/site-url";
 import type { StorefrontProduct } from "@/lib/bornohin-storefront";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ brand?: string; category?: string; query?: string; sort?: string }>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const query = params.query ?? "";
+  const category = params.category ?? "";
+  const brand = params.brand ?? "";
+
+  let title = "Shop";
+  let description = "Browse all products at Bornohin.";
+
+  if (category) {
+    const collection = await getStorefrontCollectionBySlug(category);
+    if (collection) {
+      title = collection.title;
+      description = collection.summary;
+    }
+  }
+  if (brand) {
+    const brandData = await getStorefrontBrandBySlug(brand);
+    if (brandData) {
+      title = brandData.label;
+      description = `Shop ${brandData.label} products at Bornohin.`;
+    }
+  }
+  if (query) {
+    title = `Search: ${query}`;
+    description = `Search results for "${query}" at Bornohin.`;
+  }
+
+  const canonicalParams = [category && `category=${category}`, brand && `brand=${brand}`, query && `query=${query}`].filter(Boolean).join("&");
+  const canonicalPath = canonicalParams ? `/shop?${canonicalParams}` : "/shop";
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+    },
+    alternates: {
+      canonical: `${getSiteOrigin()}${canonicalPath}`,
+    },
+  };
+}
 
 function sortProducts(
   products: StorefrontProduct[],

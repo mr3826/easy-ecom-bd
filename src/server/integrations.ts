@@ -9,6 +9,7 @@ import {
 import type { PaymentProviderKey, PaymentStatus } from "@/lib/domain";
 import { getBkashIntegrationConfig } from "@/server/integration-config";
 import { buildPaymentCallbackFingerprint } from "@/server/security";
+import { getSiteOrigin } from "@/lib/site-url";
 
 export { buildPaymentCallbackFingerprint } from "@/server/security";
 
@@ -37,11 +38,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function buildCallbackUrl(path: string) {
-  const baseUrl =
-    process.env.APP_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "http://localhost:3000";
-  return new URL(path, baseUrl).toString();
+  return new URL(path, getSiteOrigin()).toString();
 }
 
 async function postJson(url: string, body: Record<string, unknown>, headers: Record<string, string>) {

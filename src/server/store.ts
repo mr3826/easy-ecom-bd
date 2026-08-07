@@ -32,8 +32,16 @@ import { createSeedState } from "@/server/seed";
 import { siteBrand } from "@/lib/site-brand";
 import { deleteStoredUploadFile } from "@/server/storage";
 import { normalizeProductMetadata } from "@/lib/product-admin";
+import { deriveDeliveryZone as deriveDeliveryZoneShared, getDeliveryChargeForZone as getDeliveryChargeForZoneShared } from "@/lib/delivery";
 
 type Actor = Pick<SessionUser, "id" | "email"> | null | undefined;
+
+export class CheckoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CheckoutError";
+  }
+}
 
 let demoState: ReturnType<typeof createSeedState> | null = null;
 
@@ -188,7 +196,9 @@ export async function listCategories() {
     return getDemoState().categories as unknown as Category[];
   }
   const prisma = getPrisma();
-  return prisma.category.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Category[];
+  return prisma.category.findMany({
+    orderBy: { createdAt: "desc" },
+  }) as unknown as Category[];
 }
 
 export async function upsertCategory(
@@ -252,7 +262,9 @@ export async function listBrands() {
     return getDemoState().brands as unknown as Brand[];
   }
   const prisma = getPrisma();
-  return prisma.brand.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Brand[];
+  return prisma.brand.findMany({
+    orderBy: { createdAt: "desc" },
+  }) as unknown as Brand[];
 }
 
 export async function upsertBrand(input: Partial<Brand> & Pick<Brand, "name" | "description">, actor?: Actor) {
@@ -316,7 +328,9 @@ export async function listProducts() {
     return getDemoState().products as unknown as Product[];
   }
   const prisma = getPrisma();
-  return prisma.product.findMany({ orderBy: [{ featured: "desc" }, { createdAt: "desc" }] }) as unknown as Product[];
+  return prisma.product.findMany({
+    orderBy: [{ featured: "desc" }, { createdAt: "desc" }],
+  }) as unknown as Product[];
 }
 
 export async function listProductImages(productId?: string) {
@@ -637,6 +651,7 @@ export async function setProductStock(productId: string, change: number, reason:
       entityId: productId,
       oldValue: asJson({ stock: oldStock }),
       newValue: asJson({ stock: nextStock, change, reason }),
+      client: tx,
     });
     return updated as unknown as Product;
   });
@@ -647,7 +662,9 @@ export async function listCoupons() {
     return getDemoState().coupons as unknown as Coupon[];
   }
   const prisma = getPrisma();
-  return prisma.coupon.findMany({ orderBy: { createdAt: "desc" } }) as unknown as Coupon[];
+  return prisma.coupon.findMany({
+    orderBy: { createdAt: "desc" },
+  }) as unknown as Coupon[];
 }
 
 export async function upsertCoupon(input: Partial<Coupon> & Pick<Coupon, "code" | "description" | "type" | "value">, actor?: Actor) {
@@ -793,6 +810,22 @@ export async function updateUserPassword(userId: string, passwordHash: string) {
   });
 }
 
+export async function deleteManySessions(userId: string) {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+  const prisma = getPrisma();
+  await prisma.session.deleteMany({ where: { userId } });
+}
+
+export async function deleteManyPasswordResetTokens(userId: string) {
+  if (!isDatabaseConfigured()) {
+    return;
+  }
+  const prisma = getPrisma();
+  await prisma.passwordResetToken.deleteMany({ where: { userId } });
+}
+
 export async function updateUser(
   userId: string,
   input: { name?: string; email?: string; phone?: string | null },
@@ -928,6 +961,7 @@ export async function createAddressForUser(userId: string, input: AddressInput, 
       entityId: record.id,
       oldValue: null,
       newValue: asJson(record),
+      client: tx,
     });
     return record as unknown as Address;
   });
@@ -987,6 +1021,7 @@ export async function updateAddressForUser(
       entityId: addressId,
       oldValue: asJson(existing),
       newValue: asJson(record),
+      client: tx,
     });
     return record as unknown as Address;
   });
@@ -1016,6 +1051,7 @@ export async function deleteAddressForUser(userId: string, addressId: string, ac
       entityId: addressId,
       oldValue: asJson(existing),
       newValue: null,
+      client: tx,
     });
     if (existing.isDefault) {
       const next = await tx.address.findFirst({ where: { userId }, orderBy: { createdAt: "asc" } });
@@ -1050,6 +1086,7 @@ export async function setDefaultAddressForUser(userId: string, addressId: string
       entityId: addressId,
       oldValue: asJson(existing),
       newValue: asJson(record),
+      client: tx,
     });
     return record as unknown as Address;
   });
@@ -1327,6 +1364,7 @@ export async function addToCart(guestKey: string, productId: string, rawQuantity
       entityId: record.id,
       oldValue: existing ? asJson(existing) : null,
       newValue: asJson(record),
+      client: tx,
     });
     return record;
   });
@@ -1410,6 +1448,26 @@ type CartSummarySource = {
   couponCode?: string | null;
 };
 
+export function calculateCouponDiscount(subtotal: number, coupon: Coupon | null): number {
+  if (!coupon || subtotal < coupon.minOrderAmount) return 0;
+  const rawDiscount =
+    coupon.type === "percentage"
+      ? Math.round((subtotal * Math.min(100, Math.max(0, coupon.value))) / 100)
+      : coupon.value;
+  return Math.min(subtotal, Math.max(0, rawDiscount));
+}
+
+async function findActiveCoupon(code: string | null | undefined): Promise<Coupon | null> {
+  if (!code) return null;
+  const normalized = code.trim().toUpperCase();
+  if (!normalized) return null;
+  if (!isDatabaseConfigured()) {
+    return (getDemoState().coupons.find((coupon) => coupon.code === normalized && coupon.isActive) ?? null) as unknown as Coupon | null;
+  }
+  const prisma = getPrisma();
+  return (await prisma.coupon.findFirst({ where: { code: normalized, isActive: true } })) as unknown as Coupon | null;
+}
+
 export async function getCartSummary(cart: { id: string; items: Array<CartItem & { product?: Product }>; couponCode?: string | null }) {
   let source: CartSummarySource;
   if (!isDatabaseConfigured()) {
@@ -1432,9 +1490,12 @@ export async function getCartSummary(cart: { id: string; items: Array<CartItem &
   }
   const items = cartToSummaryItems(source.items.filter((item): item is CartSummaryItem => Boolean(item.product)));
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const coupon = await findActiveCoupon(source.couponCode);
+  const discountAmount = calculateCouponDiscount(subtotal, coupon);
   return {
     items,
     subtotal,
+    discountAmount,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
     formattedSubtotal: money(subtotal),
     couponCode: source.couponCode ?? null,
@@ -1474,17 +1535,11 @@ export async function getOrder(orderId: string) {
 }
 
 export function deriveDeliveryZone(district: string): DeliveryZone {
-  const normalized = district.trim().toLowerCase();
-  if (normalized.includes("dhaka city") || normalized === "dhaka") return "inside_dhaka";
-  if (normalized.includes("dhaka")) return "sub_dhaka";
-  return "outside_dhaka";
+  return deriveDeliveryZoneShared(district);
 }
 
 export function getDeliveryChargeForZone(settings: Settings, zone: DeliveryZone, subtotalAfterDiscount = 0) {
-  if (subtotalAfterDiscount >= settings.freeDeliveryThreshold) return 0;
-  if (zone === "inside_dhaka") return settings.insideDhakaDeliveryCharge;
-  if (zone === "sub_dhaka") return settings.subDhakaDeliveryCharge;
-  return settings.outsideDhakaDeliveryCharge;
+  return getDeliveryChargeForZoneShared(settings, zone, subtotalAfterDiscount);
 }
 
 function assertPaymentMethodAvailable(settings: Settings, provider: PaymentProviderKey, zone: DeliveryZone) {
@@ -1495,10 +1550,10 @@ function assertPaymentMethodAvailable(settings: Settings, provider: PaymentProvi
         : zone === "sub_dhaka"
           ? settings.subDhakaCodEnabled
           : settings.outsideDhakaCodEnabled;
-    if (!settings.codEnabled || !zoneCodEnabled) throw new Error("COD is not enabled for this delivery zone");
+    if (!settings.codEnabled || !zoneCodEnabled) throw new CheckoutError("COD is not enabled for this delivery zone");
     return;
   }
-  if (provider === "bkash" && !settings.bkashEnabled) throw new Error("bKash is disabled");
+  if (provider === "bkash" && !settings.bkashEnabled) throw new CheckoutError("bKash is disabled");
   if (provider !== "bkash") throw new Error("Unsupported payment provider");
 }
 
@@ -1591,11 +1646,11 @@ export async function createOrderFromCart(
       include: { items: { include: { product: true } } },
     });
     if (!cart || !cart.items.length) {
-      throw new Error("Your cart is empty");
+      throw new CheckoutError("Your cart is empty");
     }
 
     const settings = (await tx.setting.findFirst()) as unknown as Settings | null;
-    if (!settings) throw new Error("Store settings are missing");
+    if (!settings) throw new CheckoutError("Store settings are missing");
     const deliveryZone = input.deliveryZone ?? deriveDeliveryZone(input.district);
     const paymentProvider = input.paymentProvider ?? "cod";
     assertPaymentMethodAvailable(settings, paymentProvider, deliveryZone);
@@ -1611,21 +1666,12 @@ export async function createOrderFromCart(
     let subtotal = 0;
     for (const item of cart.items) {
       if (!item.product || item.product.archivedAt || !item.product.isActive) {
-        throw new Error(`Product ${item.productId} is unavailable`);
+        throw new CheckoutError(`Product ${item.productId} is unavailable`);
       }
       subtotal += item.product.price * normalizeQuantity(item.quantity);
     }
 
-    // Clamped to the subtotal: a fixed coupon worth more than the cart, or a
-    // percentage above 100, would otherwise produce a negative total and feed a
-    // negative value into the free-delivery threshold below.
-    const rawDiscount =
-      coupon && subtotal >= coupon.minOrderAmount
-        ? coupon.type === "percentage"
-          ? Math.round((subtotal * Math.min(100, Math.max(0, coupon.value))) / 100)
-          : coupon.value
-        : 0;
-    const discountAmount = Math.min(subtotal, Math.max(0, rawDiscount));
+    const discountAmount = calculateCouponDiscount(subtotal, coupon as Coupon | null);
 
     const deliveryCharge = getDeliveryChargeForZone(settings, deliveryZone, subtotal - discountAmount);
     const total = subtotal - discountAmount + deliveryCharge;
@@ -1677,25 +1723,32 @@ export async function createOrderFromCart(
 
     for (const item of cart.items) {
       const product = item.product!;
-      const { oldStock, newStock: nextStock } = await decrementStock(
-        tx,
-        item.productId,
-        normalizeQuantity(item.quantity),
-        product.name,
-      );
-      await tx.inventoryLog.create({
-        data: {
-          productId: item.productId,
-          orderId: order.id,
-          actorId: actor?.id ?? null,
-          change: -item.quantity,
-          oldStock,
-          newStock: nextStock,
-          reason: "order reservation",
-          referenceType: "order",
-          referenceId: order.id,
-        },
-      });
+      try {
+        const { oldStock, newStock: nextStock } = await decrementStock(
+          tx,
+          item.productId,
+          normalizeQuantity(item.quantity),
+          product.name,
+        );
+        await tx.inventoryLog.create({
+          data: {
+            productId: item.productId,
+            orderId: order.id,
+            actorId: actor?.id ?? null,
+            change: -item.quantity,
+            oldStock,
+            newStock: nextStock,
+            reason: "order reservation",
+            referenceType: "order",
+            referenceId: order.id,
+          },
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("Insufficient stock for ")) {
+          throw new CheckoutError(error.message);
+        }
+        throw error;
+      }
     }
 
     await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
@@ -1715,6 +1768,7 @@ export async function createOrderFromCart(
         total: order.total,
         paymentProvider: order.paymentProvider,
       }),
+      client: tx,
     });
 
     return order as unknown as Order;
@@ -1833,6 +1887,7 @@ export async function createManualOrder(
       entityId: order.id,
       oldValue: null,
       newValue: asJson({ orderCode: order.orderCode, status: order.status, total: order.total }),
+      client: tx,
     });
 
     return order as unknown as Order;
@@ -1898,6 +1953,7 @@ export async function updateOrderStatus(
       entityId: orderId,
       oldValue: asJson(existing),
       newValue: asJson(record),
+      client: tx,
     });
 
     return record as unknown as Order;
@@ -1946,6 +2002,7 @@ export async function updateOrderPayment(
       entityId: orderId,
       oldValue: asJson(existing),
       newValue: asJson(record),
+      client: tx,
     });
 
     return record as unknown as Order;
@@ -1975,6 +2032,7 @@ export async function updateOrderDelivery(orderId: string, deliveryStatus: Deliv
       entityId: orderId,
       oldValue: asJson(existing),
       newValue: asJson(record),
+      client: tx,
     });
     return record as unknown as Order;
   });
@@ -2063,10 +2121,10 @@ export async function listLandingPages() {
 
 export async function getLandingPage(slug: string) {
   if (!isDatabaseConfigured()) {
-    return (getDemoState().landingPages.find((page) => page.slug === slug) ?? null) as unknown as LandingPage | null;
+    return (getDemoState().landingPages.find((page) => page.slug === slug && page.published) ?? null) as unknown as LandingPage | null;
   }
   const prisma = getPrisma();
-  return prisma.landingPage.findUnique({ where: { slug } }) as unknown as LandingPage | null;
+  return prisma.landingPage.findUnique({ where: { slug, published: true } }) as unknown as LandingPage | null;
 }
 
 export async function getLandingPageSections(landingPageId: string) {

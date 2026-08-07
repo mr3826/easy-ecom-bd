@@ -10,28 +10,35 @@ extractor, disable TLS verification, delete domains, or delete databases.
 param(
     [string]$ProjectRoot,
     [string]$DeployDir,
-    [string]$CpanelHost = "bd10.exonhost.com",
-    [string]$CpanelUser = "bornohin",
-    [string]$CpanelHome = "/home/bornohin",
+    [string]$CpanelHost,
+    [string]$CpanelUser,
+    [string]$CpanelHome,
     [string]$CpanelApiToken = $env:CPANEL_API_TOKEN,
-    [string]$AppRoot = "bornohin_app",
-    [string]$AppUrl = "https://bornohin.com",
+    [string]$AppRoot,
+    [string]$AppUrl,
     [string]$ConfirmAppRoot,
     [string]$RestartToken = $env:DEPLOY_RESTART_TOKEN,
     [switch]$SkipBuild,
     [switch]$DryRun,
-    [switch]$SelfTestReaper
+    [switch]$SelfTestReaper,
+    [string]$Rollback
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+. (Join-Path $PSScriptRoot "deploy-settings.ps1")
+
 # A shell started before the variable was persisted keeps the old environment,
 # so fall back to the stored user value rather than silently deploying without
 # the ability to stop a stale process.
-if (-not $RestartToken -and $IsWindows) {
-    $RestartToken = [Environment]::GetEnvironmentVariable("DEPLOY_RESTART_TOKEN", "User")
-}
+if (-not $RestartToken) { $RestartToken = Get-PersistedEnv "DEPLOY_RESTART_TOKEN" }
+
+$CpanelHost = Resolve-DeploySetting $CpanelHost "CPANEL_HOST"
+$CpanelUser = Resolve-DeploySetting $CpanelUser "CPANEL_USER"
+$CpanelHome = Resolve-DeploySetting $CpanelHome "CPANEL_HOME"
+$AppRoot    = Resolve-DeploySetting $AppRoot    "APP_ROOT"
+$AppUrl     = Resolve-DeploySetting $AppUrl     "APP_URL"
 
 if (-not $ProjectRoot) {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -209,6 +216,101 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Stop-Deploy "Node.j
 if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { Stop-Deploy "npm is not available." }
 if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) { Stop-Deploy "curl.exe is not available." }
 
+# Defined here, above every early-exit block, because -Rollback runs long before
+# the deploy path would otherwise reach these. PowerShell resolves functions at
+# call time against what has already executed, so a rollback that referenced
+# definitions further down the file died on its first statement.
+$absoluteAppRoot = "$($CpanelHome.TrimEnd("/"))/$($AppRoot.Trim("/"))"
+
+function Invoke-CpanelFileOperation {
+    param(
+        [string]$Operation,
+        [string]$Source,
+        [string]$Destination = ""
+    )
+
+    $query = @{
+        cpanel_jsonapi_user = $CpanelUser
+        cpanel_jsonapi_apiversion = "2"
+        cpanel_jsonapi_module = "Fileman"
+        cpanel_jsonapi_func = "fileop"
+        filelist = "1"
+        multiform = "1"
+        doubledecode = "0"
+        op = $Operation
+        sourcefiles = $Source
+    }
+    if ($Destination) { $query.destfiles = $Destination }
+
+    $queryString = ($query.GetEnumerator() | ForEach-Object {
+        "$([Uri]::EscapeDataString($_.Key))=$([Uri]::EscapeDataString($_.Value))"
+    }) -join "&"
+    $response = Invoke-WebRequest `
+        -Uri "https://${CpanelHost}:2083/json-api/cpanel?$queryString" `
+        -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
+        -TimeoutSec 300
+
+    if ($response.StatusCode -notin 200..299 -or $response.Content -notmatch '"result"\s*:\s*1') {
+        Stop-Deploy "cPanel file operation '$Operation' failed."
+    }
+}
+
+# `releases/` holds one zip per deploy so a bad release can be rolled back to a
+# known-good build without rebuilding from source. Pruned to the two most recent
+# on every successful deploy — enough headroom for one rollback with the
+# previous archive as a fallback, small enough to not accumulate.
+$script:ReleasesDir = "$($CpanelHome.TrimEnd('/'))/releases"
+$script:ReleasesKeep = 2
+
+function Ensure-ReleasesDir {
+    try {
+        $probe = Invoke-RestMethod `
+            -Uri "https://${CpanelHost}:2083/execute/Fileman/list_files?dir=$([Uri]::EscapeDataString($script:ReleasesDir))" `
+            -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
+            -TimeoutSec 60
+        if ($probe.status -ne 1) { throw "list_files did not return status=1" }
+        return
+    } catch {
+        # Missing directory: Fileman has no mkdir verb. Saving any file into the
+        # path materializes it.
+        $placeholder = Invoke-RestMethod `
+            -Uri "https://${CpanelHost}:2083/execute/Fileman/save_file_content" `
+            -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
+            -Method Post `
+            -Body @{
+                dir = $script:ReleasesDir
+                file = ".keep"
+                content = ""
+            }
+        if ($placeholder.status -ne 1) {
+            Stop-Deploy "Could not create releases directory at $($script:ReleasesDir)."
+        }
+        Write-OK "Created releases directory at $($script:ReleasesDir)"
+    }
+}
+
+function Get-ReleasesList {
+    Ensure-ReleasesDir
+    $list = Invoke-RestMethod `
+        -Uri "https://${CpanelHost}:2083/execute/Fileman/list_files?dir=$([Uri]::EscapeDataString($script:ReleasesDir))" `
+        -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
+        -TimeoutSec 60
+    if ($list.status -ne 1) { return @() }
+    # Sorted on mtime, never on name: archives are named for their commit SHA,
+    # which orders lexically at random. Pruning by name would delete arbitrary
+    # releases — including, half the time, the newest one.
+    return @($list.data |
+        Where-Object { $_.PSObject.Properties['name'] -and "$($_.name)".StartsWith("bornohin-") -and "$($_.name)".EndsWith(".zip") } |
+        ForEach-Object {
+            [PSCustomObject]@{
+                Name  = $_.name
+                Path  = "$($script:ReleasesDir)/$($_.name)"
+                MTime = if ($_.PSObject.Properties['mtime']) { [int64]$_.mtime } else { 0 }
+            }
+        } |
+        Sort-Object MTime -Descending)
+}
+
 <#
 Exercises the cron install / detect / remove path with a command that touches
 nothing. That path has the worst failure mode in this script — a crash between
@@ -229,6 +331,97 @@ if ($SelfTestReaper) {
     if ($after) { Stop-Deploy "Self-test FAILED: $after reaper entr(y/ies) left behind. Remove them in cPanel > Cron Jobs." }
 
     Write-OK "Self-test passed: entry installed, detected, removed, and absence confirmed."
+    exit 0
+}
+
+<#
+Rolls back to a previously deployed release by extracting its archive from
+$CpanelHome/releases/ over the app root and asking Passenger to restart. The
+listed commit is whatever `releaseCommit` was set to at the time the archive
+was enrolled — RELEASE.json's releaseCommit, surfaced via `git rev-parse` on a
+checkout of the matching tag, or copied from deploy-log.jsonl.
+
+Extraction is an overlay, not a wipe. Files the newer release added and the
+older one lacks (notably stale .next/static chunks) survive the rollback — for
+a Next standalone bundle that is harmless, because the entrypoint resolves
+chunks from the new manifest before serving. A full wipe-and-restore would be
+safer for arbitrary web apps but is out of scope here.
+
+Database caveat (call out in the release notes, do not solve here): rolling
+back code does not roll back schema. This batch's only migration adds indexes
+that older code ignores, so it is safe. Future migrations that drop columns
+or change semantics will not be.
+#>
+if ($Rollback) {
+    Write-Step "Rollback to commit $Rollback"
+
+    $archives = @(Get-ReleasesList)
+    $targetName = "bornohin-$Rollback.zip"
+    $match = $archives | Where-Object { $_.Name -eq $targetName } | Select-Object -First 1
+    if (-not $match) {
+        Write-Host "    Available releases:" -ForegroundColor Yellow
+        foreach ($entry in $archives) { Write-Host "      $($entry.Name)" }
+        Stop-Deploy "No archive named $targetName in $($script:ReleasesDir)."
+    }
+
+    $archivePath = $match.Path
+    Write-OK "Found rollback archive at $archivePath"
+
+    $authorization = "Authorization: cpanel ${CpanelUser}:$CpanelApiToken"
+    $uploadUrl = "https://${CpanelHost}:2083/execute/Fileman/upload_files"
+
+    if ($DryRun) {
+        Write-Host "    [dry-run] extract $archivePath over $absoluteAppRoot"
+        Write-Host "    [dry-run] touch $absoluteAppRoot/tmp/restart.txt"
+        Write-Host "    [dry-run] confirm $($AppUrl.TrimEnd('/'))/api/version"
+        exit 0
+    }
+
+    Write-Step "Extracting rollback archive over the app root"
+    Invoke-CpanelFileOperation -Operation "extract" -Source $archivePath -Destination $absoluteAppRoot
+    Write-OK "Rollback archive extracted"
+
+    Write-Step "Restarting Passenger"
+    $restartFile = Join-Path $env:TEMP "restart.txt"
+    Set-Content -LiteralPath $restartFile -Value (Get-Date -Format o) -Encoding ASCII
+    $remoteRestartFile = "$absoluteAppRoot/tmp/restart.txt"
+    try {
+        Invoke-CpanelFileOperation -Operation "unlink" -Source $remoteRestartFile
+    } catch {
+        # Marker absent on first rollback attempt is normal.
+    }
+    $restartResponse = curl.exe --fail-with-body --silent --show-error `
+        -H $authorization `
+        -F "file-1=@$restartFile;filename=restart.txt" `
+        -F "dir=$AppRoot/tmp" `
+        $uploadUrl
+    if ($LASTEXITCODE -ne 0 -or $restartResponse -notmatch '"status"\s*:\s*1') {
+        Stop-Deploy "Passenger restart trigger failed."
+    }
+    Write-OK "Passenger restart requested"
+    Remove-Item -LiteralPath $restartFile -Force
+
+    Write-Step "Confirming the rolled-back build is serving"
+    $deadline = (Get-Date).AddMinutes(6)
+    $liveVersion = $null
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 5
+        $version = Get-LiveVersion
+        if ($version -and $version.commit -eq $Rollback -and $version.status -eq "ready") {
+            $liveVersion = $version
+            break
+        }
+    }
+    if (-not $liveVersion) {
+        Stop-Deploy @"
+Rollback extracted and Passenger was asked to restart, but /api/version is not
+reporting the rolled-back commit ($Rollback) yet. The app is restarting — give it
+another minute and re-check, or fall back to:
+
+  cPanel > Setup Node.js App > $AppRoot > Restart
+"@
+    }
+    Write-OK "Rolled back to $($liveVersion.commit) pid $($liveVersion.pid) up since $($liveVersion.startedAt)"
     exit 0
 }
 
@@ -397,8 +590,6 @@ if (Test-Path -LiteralPath (Join-Path $DeployDir "node_modules\sharp")) {
     Write-OK "Verified: linux sharp binary and libvips are in the bundle, win32 is not"
 }
 
-$absoluteAppRoot = "$($CpanelHome.TrimEnd("/"))/$($AppRoot.Trim("/"))"
-
 # RELEASE.json is not part of the standalone output, so without this it survives
 # every extraction untouched and keeps describing whatever shipped first. Write it
 # into the bundle so the rollback commit recorded on the server is real.
@@ -437,6 +628,7 @@ Write-OK "Release archive created at $archivePath"
 if ($DryRun) {
     Write-Host "    [dry-run] upload $archivePath to $absoluteAppRoot/bornohin-release.zip"
     Write-Host "    [dry-run] extract archive and touch $absoluteAppRoot/tmp/restart.txt"
+    Write-Host "    [dry-run] after verification, move archive to $($script:ReleasesDir)/bornohin-$releaseCommit.zip and prune releases/ to the last $script:ReleasesKeep"
     Remove-Item -LiteralPath $archivePath -Force
     Remove-Item -LiteralPath $DeployDir -Recurse -Force
     exit 0
@@ -475,36 +667,23 @@ if ($LASTEXITCODE -ne 0 -or $uploadResponse -notmatch '"status"\s*:\s*1') {
 }
 Write-OK "Release uploaded"
 
-function Invoke-CpanelFileOperation {
-    param(
-        [string]$Operation,
-        [string]$Source,
-        [string]$Destination = ""
-    )
+function Move-CurrentArchiveIntoReleases {
+    $existing = "$absoluteAppRoot/bornohin-release.zip"
+    $archived = "$($script:ReleasesDir)/bornohin-$releaseCommit.zip"
+    Invoke-CpanelFileOperation -Operation "move" -Source $existing -Destination $archived
+    Write-OK "Archived current release to $archived"
+    Add-DeployLog "current_release_archived" @{ path = $archived; commit = $releaseCommit }
+}
 
-    $query = @{
-        cpanel_jsonapi_user = $CpanelUser
-        cpanel_jsonapi_apiversion = "2"
-        cpanel_jsonapi_module = "Fileman"
-        cpanel_jsonapi_func = "fileop"
-        filelist = "1"
-        multiform = "1"
-        doubledecode = "0"
-        op = $Operation
-        sourcefiles = $Source
-    }
-    if ($Destination) { $query.destfiles = $Destination }
-
-    $queryString = ($query.GetEnumerator() | ForEach-Object {
-        "$([Uri]::EscapeDataString($_.Key))=$([Uri]::EscapeDataString($_.Value))"
-    }) -join "&"
-    $response = Invoke-WebRequest `
-        -Uri "https://${CpanelHost}:2083/json-api/cpanel?$queryString" `
-        -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
-        -TimeoutSec 300
-
-    if ($response.StatusCode -notin 200..299 -or $response.Content -notmatch '"result"\s*:\s*1') {
-        Stop-Deploy "cPanel file operation '$Operation' failed."
+function Prune-Releases {
+    # Get-ReleasesList already orders newest-first by mtime.
+    $archives = @(Get-ReleasesList)
+    if ($archives.Count -le $script:ReleasesKeep) { return }
+    $excess = $archives[$script:ReleasesKeep..($archives.Count - 1)]
+    foreach ($entry in $excess) {
+        Invoke-CpanelFileOperation -Operation "unlink" -Source $entry.Path
+        Write-OK "Pruned old release archive $($entry.Name)"
+        Add-DeployLog "release_pruned" @{ name = $entry.Name }
     }
 }
 
@@ -514,7 +693,7 @@ function Sync-CpanelAppPassengerConfig {
         [string]$DesiredAppRoot
     )
 
-    $htaccessDir = "/home/bornohin/public_html"
+    $htaccessDir = "$($CpanelHome.TrimEnd('/'))/public_html"
     $readResponse = Invoke-RestMethod `
         -Uri "https://${CpanelHost}:2083/execute/Fileman/get_file_content?dir=$([Uri]::EscapeDataString($htaccessDir))&file=.htaccess" `
         -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
@@ -574,7 +753,7 @@ function Sync-CpanelAppPassengerConfig {
 }
 
 function Sync-CpanelReadinessFallback {
-    $publicHtmlDir = "/home/bornohin/public_html"
+    $publicHtmlDir = "$($CpanelHome.TrimEnd('/'))/public_html"
 
     $readinessPhp = @'
 <?php
@@ -697,10 +876,12 @@ respond(200, true, 'ready');
 Write-Step "Extracting release into the confirmed Passenger app root"
 $remoteArchive = "$absoluteAppRoot/bornohin-release.zip"
 Invoke-CpanelFileOperation -Operation "extract" -Source $remoteArchive -Destination $absoluteAppRoot
-Invoke-CpanelFileOperation -Operation "unlink" -Source $remoteArchive
-Write-OK "Release extracted and archive removed"
+# The archive is left in place on purpose: after the new build is verified, the
+# final step moves it into releases/ for retention. Unlinking it here would
+# leave no on-host fallback to re-extract if a later verification step fails.
+Write-OK "Release extracted; archive will be moved into releases/ after verification"
 
-Sync-CpanelAppPassengerConfig -DesiredApiUrl "https://bornohin.com/api" -DesiredAppRoot $absoluteAppRoot
+Sync-CpanelAppPassengerConfig -DesiredApiUrl "$($AppUrl.TrimEnd('/'))/api" -DesiredAppRoot $absoluteAppRoot
 Sync-CpanelReadinessFallback
 
 Write-Step "Restarting Passenger"
@@ -875,6 +1056,20 @@ restart the application and re-run the verification before announcing the releas
 "@
     }
     Write-OK "New build is serving ($probeAssetName)"
+}
+
+# A successful deploy is the right time to enroll this build in the retention
+# set. Doing it after every other check means a deploy that aborts before this
+# point leaves the archive at the app root, where the rollback script can still
+# use it.
+Write-Step "Archiving this release for rollback"
+try {
+    Move-CurrentArchiveIntoReleases
+    Prune-Releases
+} catch {
+    Write-Warn "Archive retention failed: $($_.Exception.Message)"
+    Write-Warn "The deploy itself succeeded; the archive just did not move into releases/. The rollback script will not be able to find this commit."
+    Add-DeployLog "archive_retention_failed" @{ error = $_.Exception.Message }
 }
 
 $logPath = Join-Path $ProjectRoot "deploy-log.jsonl"

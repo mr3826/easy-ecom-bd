@@ -123,7 +123,7 @@ export async function sendEmail(to: string, template: EmailTemplate): Promise<{ 
 
   if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
     console.warn("SMTP not configured; email would be sent to:", to, template.subject);
-    return { success: true };
+    return { success: false, error: "SMTP not configured" };
   }
 
   try {

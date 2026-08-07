@@ -145,6 +145,8 @@ model Product {
   orderItems    OrderItem[]
   inventoryLogs InventoryLog[]
 
+  @@index([categoryId])
+  @@index([brandId])
   @@map("products")
 }
 
@@ -187,6 +189,7 @@ model CartItem {
   cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
 
+  @@index([cartId])
   @@map("cart_items")
 }
 
@@ -222,6 +225,7 @@ model Order {
   inventoryLogs InventoryLog[]
   statusHistory OrderStatusHistory[]
 
+  @@index([customerId])
   @@map("orders")
 }
 
@@ -237,6 +241,7 @@ model OrderStatusHistory {
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
+  @@index([orderId])
   @@map("order_status_history")
 }
 
@@ -253,6 +258,7 @@ model OrderItem {
   order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product @relation(fields: [productId], references: [id])
 
+  @@index([orderId])
   @@map("order_items")
 }
 
@@ -270,6 +276,7 @@ model Payment {
   order Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
   logs  PaymentLog[]
 
+  @@index([orderId])
   @@map("payments")
 }
 
@@ -356,6 +363,7 @@ model InventoryLog {
   order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
   actor   User?   @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
+  @@index([productId])
   @@map("inventory_logs")
 }
 

@@ -12,7 +12,7 @@ Passenger restart (a new row is visible on the next query - no in-process cache
 to invalidate for a user that doesn't exist yet).
 
 DATABASE_URL is read from the Passenger configuration in public_html/.htaccess,
-never from bornohin_app/.env, and never leaves the server or this process's
+never from the app root's .env, and never leaves the server or this process's
 memory in printable form. The password is hashed locally with bcryptjs; only
 the digest is uploaded.
 
@@ -23,11 +23,11 @@ $env:NEW_ADMIN_PASSWORD = "<strong password>"
 #>
 param(
     [string]$ProjectRoot,
-    [string]$CpanelHost = "bd10.exonhost.com",
-    [string]$CpanelUser = "bornohin",
-    [string]$CpanelHome = "/home/bornohin",
+    [string]$CpanelHost,
+    [string]$CpanelUser,
+    [string]$CpanelHome,
     [string]$CpanelApiToken = $env:CPANEL_API_TOKEN,
-    [string]$AppUrl = "https://bornohin.com",
+    [string]$AppUrl,
     # Typed back by the operator. Nothing runs until it matches the live database.
     [Parameter(Mandatory = $true)][string]$ConfirmDatabase,
     [Parameter(Mandatory = $true)][string]$AdminEmail,
@@ -40,6 +40,12 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot "deploy-settings.ps1")
+$CpanelHost = Resolve-DeploySetting $CpanelHost "CPANEL_HOST"
+$CpanelUser = Resolve-DeploySetting $CpanelUser "CPANEL_USER"
+$CpanelHome = Resolve-DeploySetting $CpanelHome "CPANEL_HOME"
+$AppUrl     = Resolve-DeploySetting $AppUrl     "APP_URL"
 
 if (-not $ProjectRoot) { $ProjectRoot = Split-Path -Parent $PSScriptRoot }
 if (-not $CpanelApiToken) { throw "Set CPANEL_API_TOKEN locally. Do not put the token in source control or chat." }
@@ -211,7 +217,7 @@ Write-OK "New administrator: $adminEmail"
 Write-Step "Confirming the email is not already in use"
 # Fails loudly rather than silently overwriting an existing account -
 # ON CONFLICT DO NOTHING below is the second layer of the same guard.
-$passengerConf = "/home/bornohin/public_html/.htaccess"
+$passengerConf = "$($CpanelHome.TrimEnd('/'))/public_html/.htaccess"
 $loadEnv = (@(
     "DATABASE_URL=`$(sed -nE 's/^[[:space:]]*SetEnv[[:space:]]+DATABASE_URL[[:space:]]+`"?([^`"]+)`"?[[:space:]]*`$/\1/p' $passengerConf | head -1)"
     "[ -n `"`$DATABASE_URL`" ] || { echo 'DATABASE_URL not found in $passengerConf'; exit 1; }"

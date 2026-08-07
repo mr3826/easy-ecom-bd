@@ -4,8 +4,8 @@ Read-only cPanel inventory with an optional full-account backup request.
 #>
 
 param(
-    [string]$CpanelHost = "bd10.exonhost.com",
-    [string]$CpanelUser = "bornohin",
+    [string]$CpanelHost,
+    [string]$CpanelUser,
     [string]$CpanelApiToken = $env:CPANEL_API_TOKEN,
     [string]$OutputPath = (Join-Path $PWD "cpanel-preflight.json"),
     [switch]$StartFullBackup
@@ -13,6 +13,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot "deploy-settings.ps1")
+$CpanelHost = Resolve-DeploySetting $CpanelHost "CPANEL_HOST"
+$CpanelUser = Resolve-DeploySetting $CpanelUser "CPANEL_USER"
 
 if (-not $CpanelApiToken) {
     throw "Set CPANEL_API_TOKEN locally. Do not put the token in source control or chat."

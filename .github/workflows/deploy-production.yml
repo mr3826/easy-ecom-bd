@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_app_root:
-        description: 'Type the Passenger app root exactly (bornohin_app) to confirm the deploy target'
+        description: 'Type the Passenger app root exactly to confirm the deploy target (it must match the APP_ROOT secret)'
         required: true
       dry_run:
         description: 'Build and assemble the release bundle but upload nothing. Run this first after any change to the deploy path.'
@@ -30,6 +30,14 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
       CPANEL_API_TOKEN: ${{ secrets.CPANEL_API_TOKEN }}
       DEPLOY_RESTART_TOKEN: ${{ secrets.DEPLOY_RESTART_TOKEN }}
+      # This repository is public, so no script here ships a topology default —
+      # every ops script resolves these through scripts/deploy-settings.ps1 and
+      # fails loudly when one is missing.
+      CPANEL_HOST: ${{ secrets.CPANEL_HOST }}
+      CPANEL_USER: ${{ secrets.CPANEL_USER }}
+      CPANEL_HOME: ${{ secrets.CPANEL_HOME }}
+      APP_ROOT: ${{ secrets.APP_ROOT }}
+      APP_URL: ${{ secrets.APP_URL }}
 
     steps:
       - name: Checkout
@@ -79,8 +87,10 @@ jobs:
           # a dry run would have performed a real deploy had the ConfirmAppRoot
           # guard not caught the mangled value first. Not $args either — that is
           # an automatic variable in PowerShell.
+          # AppRoot is left unset on purpose: deploy-cpanel.ps1 resolves it from
+          # the APP_ROOT secret exported above. Passing it here would reintroduce
+          # the literal this repo no longer publishes.
           $deployArgs = @{
-            AppRoot        = 'bornohin_app'
             ConfirmAppRoot = '${{ github.event.inputs.confirm_app_root }}'
           }
           if ('${{ github.event.inputs.dry_run }}' -eq 'true') {

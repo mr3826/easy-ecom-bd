@@ -3,7 +3,7 @@ import { PublicShell } from "@/components/public-shell";
 import { StatusPill } from "@/components/status-pill";
 import { cookies } from "next/headers";
 import { getCurrentUser } from "@/server/auth";
-import { getOrCreateCart, getCartSummary, getSettings, getDeliveryChargeForZone, deriveDeliveryZone } from "@/server/store";
+import { getOrCreateCart, getCartSummary, getSettings } from "@/server/store";
 import { CheckoutForm } from "@/components/checkout-form";
 import { money } from "@/lib/utils";
 
@@ -18,8 +18,6 @@ export default async function CheckoutPage() {
     getSettings(),
   ]);
   const summary = await getCartSummary(cart);
-  const deliveryZone = deriveDeliveryZone(settings.address ?? "Dhaka");
-  const deliveryFee = summary.subtotal >= settings.freeDeliveryThreshold ? 0 : getDeliveryChargeForZone(settings, deliveryZone, summary.subtotal);
   const supportDigits = settings.contactNumber.replace(/\D/g, "");
   const paymentsAvailable = settings.codEnabled || settings.bkashEnabled;
 
@@ -42,6 +40,16 @@ export default async function CheckoutPage() {
             userName={user?.name ?? ""}
             userPhone={user?.phone ?? ""}
             userEmail={user?.email ?? ""}
+            codEnabled={settings.codEnabled}
+            bkashEnabled={settings.bkashEnabled}
+            deliverySettings={{
+              freeDeliveryThreshold: settings.freeDeliveryThreshold,
+              insideDhakaDeliveryCharge: settings.insideDhakaDeliveryCharge,
+              subDhakaDeliveryCharge: settings.subDhakaDeliveryCharge,
+              outsideDhakaDeliveryCharge: settings.outsideDhakaDeliveryCharge,
+            }}
+            subtotal={summary.subtotal}
+            discountAmount={summary.discountAmount}
           />
         </div>
 
@@ -53,10 +61,6 @@ export default async function CheckoutPage() {
               <dd className="font-medium text-[color:var(--foreground)]">{money(summary.subtotal)}</dd>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <dt className="text-[color:var(--muted)]">Delivery fee</dt>
-              <dd className="font-medium text-[color:var(--foreground)]">{deliveryFee === 0 ? "Free" : money(deliveryFee)}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-3">
               <dt className="text-[color:var(--muted)]">Free over</dt>
               <dd className="font-medium text-[color:var(--foreground)]">{money(settings.freeDeliveryThreshold)}</dd>
             </div>
@@ -64,7 +68,8 @@ export default async function CheckoutPage() {
 
           <div className="mt-5 rounded-3xl bg-[color:var(--brand)] p-5 text-white">
             <p className="text-[11px] uppercase tracking-[0.3em] text-white/75">Estimated total</p>
-            <p className="mt-3 text-2xl font-black sm:text-3xl">{money(summary.subtotal + deliveryFee)}</p>
+            <p className="mt-3 text-2xl font-black sm:text-3xl">{money(summary.subtotal)}</p>
+            <p className="mt-2 text-xs text-white/75">Delivery fee calculated in form based on district</p>
           </div>
 
           <div className="mt-5 grid gap-3">

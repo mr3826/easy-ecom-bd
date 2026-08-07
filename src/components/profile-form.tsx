@@ -29,7 +29,7 @@ export function ProfileForm({ initialData }: { initialData: { name: string; emai
         label="Full name"
         name="name"
         required
-        value={state.name ?? initialData.name}
+        defaultValue={state.name ?? initialData.name}
         autoComplete="name"
       />
 
@@ -38,7 +38,7 @@ export function ProfileForm({ initialData }: { initialData: { name: string; emai
         name="email"
         type="email"
         required
-        value={state.email ?? initialData.email}
+        defaultValue={state.email ?? initialData.email}
         autoComplete="email"
         inputMode="email"
       />
@@ -47,7 +47,7 @@ export function ProfileForm({ initialData }: { initialData: { name: string; emai
         label="Phone"
         name="phone"
         type="tel"
-        value={state.phone ?? initialData.phone ?? ""}
+        defaultValue={state.phone ?? initialData.phone ?? ""}
         autoComplete="tel"
         hint="Optional"
       />
@@ -58,3 +58,4 @@ export function ProfileForm({ initialData }: { initialData: { name: string; emai
     </form>
   );
 }
+
