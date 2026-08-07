@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { getPrisma } from "@/server/db";
 import {
   addPaymentLog,
   getPaymentById,
@@ -199,24 +200,48 @@ export async function confirmPayment(
     return payment;
   }
 
-  const updated = await upsertPayment({
-    id: payment.id,
-    orderId: payment.orderId,
-    provider: payment.provider,
-    transactionId: payment.transactionId,
-    amount: payment.amount,
-    status,
-    rawResponse: {
-      ...(payment.rawResponse as Record<string, unknown>),
-      verificationPayload,
-      verificationState: {
-        fingerprint,
+  /*
+  H6. These three writes used to run on three separate connections and commit
+  independently. A failure after the first left the payment row reading `paid`
+  while its order still read `pending` — the gateway had taken the money and
+  nothing downstream knew. A failure after the second additionally left a
+  verification log for a state the order never reached.
+
+  They are one transaction now. Each store function takes the same optional
+  `client` that recordAuditLog already took, so this passes `tx` down rather
+  than reimplementing their bodies — updateOrderPayment in particular also
+  releases inventory and writes an audit row, and a copy here would drift from
+  the original the first time either changed.
+  */
+  return getPrisma().$transaction(async (tx) => {
+    const updated = await upsertPayment(
+      {
+        id: payment.id,
+        orderId: payment.orderId,
+        provider: payment.provider,
+        transactionId: payment.transactionId,
+        amount: payment.amount,
         status,
-        confirmedAt: new Date().toISOString(),
+        rawResponse: {
+          ...(payment.rawResponse as Record<string, unknown>),
+          verificationPayload,
+          verificationState: {
+            fingerprint,
+            status,
+            confirmedAt: new Date().toISOString(),
+          },
+        },
       },
-    },
+      undefined,
+      tx,
+    );
+    await addPaymentLog(updated.id, "verification", verificationPayload, tx);
+    await updateOrderPayment(
+      updated.orderId,
+      { paymentStatus: status, paymentProvider: updated.provider },
+      undefined,
+      tx,
+    );
+    return updated;
   });
-  await addPaymentLog(updated.id, "verification", verificationPayload);
-  await updateOrderPayment(updated.orderId, { paymentStatus: status, paymentProvider: updated.provider });
-  return updated;
 }

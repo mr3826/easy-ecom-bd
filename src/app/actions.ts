@@ -540,6 +540,8 @@ export async function checkoutAction(
       customerName,
       customerPhone,
       customerEmail,
+      // H2: the only place the signed-in customer is known. Guests stay null.
+      customerId: user?.id ?? null,
       district,
       shippingAddress,
       notes,

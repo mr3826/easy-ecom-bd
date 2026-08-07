@@ -1625,6 +1625,12 @@ export async function createOrderFromCart(
     customerName: string;
     customerPhone: string;
     customerEmail?: string;
+    // H2. Order.customerId exists and is indexed, and /account reads it, but
+    // nothing ever wrote it — so a signed-in customer's order linked to their
+    // account only when the checkout email happened to match, and that field is
+    // optional. Passed explicitly rather than taken from `actor`: an admin
+    // creating an order on someone's behalf is the actor, never the customer.
+    customerId?: string | null;
     district: string;
     shippingAddress: string;
     notes?: string;
@@ -1681,13 +1687,14 @@ export async function createOrderFromCart(
     const order = await tx.order.create({
       data: {
         orderCode,
-          customerName: input.customerName,
-          customerPhone: input.customerPhone,
-          customerEmail: input.customerEmail ?? null,
-          district: input.district,
-          shippingAddress: input.shippingAddress,
-          deliveryCharge,
-          discountAmount,
+        customerId: input.customerId ?? null,
+        customerName: input.customerName,
+        customerPhone: input.customerPhone,
+        customerEmail: input.customerEmail ?? null,
+        district: input.district,
+        shippingAddress: input.shippingAddress,
+        deliveryCharge,
+        discountAmount,
         couponCode: couponCode ?? null,
         subtotal,
         total,
@@ -1971,20 +1978,60 @@ export async function listOrderStatusHistory(orderId?: string) {
   }) as unknown as OrderStatusHistory[];
 }
 
+/*
+H7. updateOrderStatus has guarded its transitions against allowedOrderTransitions
+since it was written; payment status had no equivalent, so any value could be
+written over any other and a settled order could silently move back to pending —
+from the admin screen or from a replayed gateway callback.
+
+Money only moves one way once it has landed: a paid order can be refunded and
+nothing else. The remaining states are still working states, so they stay open
+to each other; pinning them down harder would break the retry paths the gateway
+depends on.
+*/
+const allowedPaymentTransitions: Record<Payment["status"], Array<Payment["status"]>> = {
+  pending: ["pending", "processing", "paid", "failed", "cancelled"],
+  processing: ["processing", "paid", "failed", "cancelled"],
+  paid: ["paid", "refunded"],
+  failed: ["failed", "pending", "processing", "paid", "cancelled"],
+  cancelled: ["cancelled", "pending", "processing"],
+  refunded: ["refunded"],
+};
+
+export class PaymentTransitionError extends Error {
+  constructor(from: Payment["status"], to: Payment["status"]) {
+    super(`Cannot move payment status from ${from} to ${to}`);
+    this.name = "PaymentTransitionError";
+  }
+}
+
 export async function updateOrderPayment(
   orderId: string,
   patch: { paymentStatus?: Payment["status"]; paymentProvider?: Payment["provider"] },
   actor?: Actor,
+  // Supplied when the caller already owns a transaction — confirmPayment writes
+  // the payment row, its log and this order update as one unit. Same pattern as
+  // recordAuditLog's `client`: without it this opened a second connection and
+  // committed independently of the writes it belongs with.
+  client?: Prisma.TransactionClient,
 ) {
-  const prisma = getPrisma();
-  return prisma.$transaction(async (tx) => {
+  const run = async (tx: Prisma.TransactionClient) => {
     const existing = await tx.order.findUnique({ where: { id: orderId } });
     if (!existing) return null;
+
+    const nextPaymentStatus = patch.paymentStatus ?? existing.paymentStatus;
+    const currentPaymentStatus = existing.paymentStatus as Payment["status"];
+    if (nextPaymentStatus !== currentPaymentStatus) {
+      const allowed = allowedPaymentTransitions[currentPaymentStatus] ?? [];
+      if (!allowed.includes(nextPaymentStatus as Payment["status"])) {
+        throw new PaymentTransitionError(currentPaymentStatus, nextPaymentStatus as Payment["status"]);
+      }
+    }
 
     const record = await tx.order.update({
       where: { id: orderId },
       data: {
-        paymentStatus: patch.paymentStatus ?? existing.paymentStatus,
+        paymentStatus: nextPaymentStatus,
         paymentProvider: patch.paymentProvider ?? existing.paymentProvider,
       },
       include: { items: true },
@@ -2006,7 +2053,10 @@ export async function updateOrderPayment(
     });
 
     return record as unknown as Order;
-  });
+  };
+
+  if (client) return run(client);
+  return getPrisma().$transaction(run);
 }
 
 export async function updateOrderDelivery(orderId: string, deliveryStatus: DeliveryStatus, actor?: Actor) {
@@ -2062,8 +2112,9 @@ export async function getPaymentByTransactionId(transactionId: string) {
 export async function upsertPayment(
   input: Omit<Payment, "id" | "createdAt" | "updatedAt"> & { id?: string; createdAt?: string; updatedAt?: string },
   actor?: Actor,
+  client?: Prisma.TransactionClient,
 ) {
-  const prisma = getPrisma();
+  const prisma = client ?? getPrisma();
   const existing = input.id ? await prisma.payment.findUnique({ where: { id: input.id } }) : null;
   const record = existing
     ? await prisma.payment.update({
@@ -2095,13 +2146,19 @@ export async function upsertPayment(
     entityId: record.id,
     oldValue: existing ? asJson(existing) : null,
     newValue: asJson(record),
+    client,
   });
 
   return record as unknown as Payment;
 }
 
-export async function addPaymentLog(paymentId: string, stage: PaymentLog["stage"], payload: Record<string, unknown>) {
-  const prisma = getPrisma();
+export async function addPaymentLog(
+  paymentId: string,
+  stage: PaymentLog["stage"],
+  payload: Record<string, unknown>,
+  client?: Prisma.TransactionClient,
+) {
+  const prisma = client ?? getPrisma();
   return prisma.paymentLog.create({
     data: {
       paymentId,
