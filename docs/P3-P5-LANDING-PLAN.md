@@ -1,5 +1,24 @@
 # Land the uncommitted P3/P4/P5 batch
 
+> **Executed 2026-08-07.** Everything below shipped across PRs #14–#17 and is
+> live on production as `ff686b9`. This document is kept as the record of what
+> the working tree contained and how it was classified — correct, inert, or
+> wrong. Current status lives in [REMEDIATION_PLAN.md](REMEDIATION_PLAN.md).
+>
+> Three things it did not anticipate, all found by *running* rather than reading:
+>
+> - `robots.ts` needed `force-dynamic` too, not just `sitemap.ts`. The build
+>   shipped `Host: http://localhost:3000` until it was added.
+> - The rollback net in the tree could not work: its `-Rollback` block ran above
+>   every definition it referenced, pruning sorted archives by commit SHA
+>   (lexically random), the releases directory could never be created, and
+>   `Get-ReleasesList` filtered on a field the cPanel API does not return.
+> - The batch broke two existing e2e specs, and one of those specs had only
+>   ever passed *because* of the bug F5 fixed.
+>
+> The deferred list below is still accurate except for H2, H6 and H7, which
+> shipped in PR #15, and the P2 rollback item, which shipped in PR #16.
+
 ## Context
 
 Production is at `b7fd334` and healthy — the server-action body-limit fix is live.
