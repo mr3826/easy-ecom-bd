@@ -64,11 +64,43 @@ Write-Host "    Values are sent straight to 'gh secret set' on this machine and 
 
 $reader = if ($UseGuiPrompt) { Get-Item Function:\Read-SecretGui } else { Get-Item Function:\Read-SecretConsole }
 
+function Read-OptionalSecret {
+    param([string]$Title, [string]$Current)
+    $prompt = if ($Current) {
+        "Enter value for $Title (press Enter to keep the existing value)"
+    } else {
+        "Enter value for $Title (input hidden)"
+    }
+    $secure = Read-Host -Prompt $prompt -AsSecureString
+    if ($secure.Length -eq 0) { return $null }
+    return $secure
+}
+
 $cpanelToken = & $reader "CPANEL_API_TOKEN"
 Set-GhSecret -Name "CPANEL_API_TOKEN" -SecureValue $cpanelToken
 
 $restartToken = & $reader "DEPLOY_RESTART_TOKEN"
 Set-GhSecret -Name "DEPLOY_RESTART_TOKEN" -SecureValue $restartToken
+
+$existingHost = gh secret list --env $EnvironmentName --repo $Repo 2>$null | Select-String -Pattern "^CPANEL_HOST\b" | ForEach-Object { ($_ -split "\s+")[1] }
+$cpanelHost = Read-OptionalSecret -Title "CPANEL_HOST" -Current $existingHost
+if ($cpanelHost) { Set-GhSecret -Name "CPANEL_HOST" -SecureValue $cpanelHost }
+
+$existingUser = gh secret list --env $EnvironmentName --repo $Repo 2>$null | Select-String -Pattern "^CPANEL_USER\b" | ForEach-Object { ($_ -split "\s+")[1] }
+$cpanelUser = Read-OptionalSecret -Title "CPANEL_USER" -Current $existingUser
+if ($cpanelUser) { Set-GhSecret -Name "CPANEL_USER" -SecureValue $cpanelUser }
+
+$existingHome = gh secret list --env $EnvironmentName --repo $Repo 2>$null | Select-String -Pattern "^CPANEL_HOME\b" | ForEach-Object { ($_ -split "\s+")[1] }
+$cpanelHome = Read-OptionalSecret -Title "CPANEL_HOME" -Current $existingHome
+if ($cpanelHome) { Set-GhSecret -Name "CPANEL_HOME" -SecureValue $cpanelHome }
+
+$existingAppRoot = gh secret list --env $EnvironmentName --repo $Repo 2>$null | Select-String -Pattern "^APP_ROOT\b" | ForEach-Object { ($_ -split "\s+")[1] }
+$appRoot = Read-OptionalSecret -Title "APP_ROOT" -Current $existingAppRoot
+if ($appRoot) { Set-GhSecret -Name "APP_ROOT" -SecureValue $appRoot }
+
+$existingAppUrl = gh secret list --env $EnvironmentName --repo $Repo 2>$null | Select-String -Pattern "^APP_URL\b" | ForEach-Object { ($_ -split "\s+")[1] }
+$appUrl = Read-OptionalSecret -Title "APP_URL" -Current $existingAppUrl
+if ($appUrl) { Set-GhSecret -Name "APP_URL" -SecureValue $appUrl }
 
 Write-Host "`nDone. Verify with:" -ForegroundColor Cyan
 Write-Host "  gh secret list --env $EnvironmentName --repo $Repo"

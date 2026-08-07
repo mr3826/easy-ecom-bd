@@ -11,7 +11,7 @@ them with the host's own psql from a one-shot cron entry that removes itself.
 
 DATABASE_URL never leaves the server - the cron command reads it from the
 Passenger configuration in public_html/.htaccess, which is where the running
-application gets it. It deliberately does NOT read bornohin_app/.env: that file
+application gets it. It deliberately does NOT read the app root's .env: that file
 is a stale copy of a development .env pointing at localhost/ecommerce. The
 administrator password is hashed locally and only its bcrypt digest is uploaded.
 
@@ -24,12 +24,12 @@ $env:CPANEL_API_TOKEN = "<short-lived token>"
 #>
 param(
     [string]$ProjectRoot,
-    [string]$CpanelHost = "bd10.exonhost.com",
-    [string]$CpanelUser = "bornohin",
-    [string]$CpanelHome = "/home/bornohin",
+    [string]$CpanelHost,
+    [string]$CpanelUser,
+    [string]$CpanelHome,
     [string]$CpanelApiToken = $env:CPANEL_API_TOKEN,
-    [string]$AppRoot = "bornohin_app",
-    [string]$AppUrl = "https://bornohin.com",
+    [string]$AppRoot,
+    [string]$AppUrl,
     # Typed back by the operator. Nothing runs until it matches the live database.
     [Parameter(Mandatory = $true)][string]$ConfirmDatabase,
     [switch]$SkipBackup
@@ -37,6 +37,13 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot "deploy-settings.ps1")
+$CpanelHost = Resolve-DeploySetting $CpanelHost "CPANEL_HOST"
+$CpanelUser = Resolve-DeploySetting $CpanelUser "CPANEL_USER"
+$CpanelHome = Resolve-DeploySetting $CpanelHome "CPANEL_HOME"
+$AppRoot    = Resolve-DeploySetting $AppRoot    "APP_ROOT"
+$AppUrl     = Resolve-DeploySetting $AppUrl     "APP_URL"
 
 if (-not $ProjectRoot) { $ProjectRoot = Split-Path -Parent $PSScriptRoot }
 if (-not $CpanelApiToken) { throw "Set CPANEL_API_TOKEN locally. Do not put the token in source control or chat." }
@@ -258,7 +265,7 @@ pg_hba.conf stopped it. The value is never echoed.
 The second line is the guard that failure earned: the URL must name the database
 the operator confirmed, or nothing runs.
 #>
-$passengerConf = "/home/bornohin/public_html/.htaccess"
+$passengerConf = "$($CpanelHome.TrimEnd('/'))/public_html/.htaccess"
 # Built as one line on purpose: a crontab command cannot contain a newline, and
 # a here-string that still holds them makes Cron::add_line fail with no detail.
 $loadEnv = (@(
