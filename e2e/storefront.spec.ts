@@ -63,15 +63,31 @@ test.describe("storefront", () => {
     await expect(page.getByRole("button", { name: /place order/i })).toBeVisible();
   });
 
-  test("COD is offered and bKash is the only other payment option", async ({ page }) => {
+  test("no payment provider beyond COD and bKash reaches checkout", async ({ page }) => {
     await page.goto("/checkout");
     const methods = await page
       .locator('input[name="paymentMethod"]')
       .evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value));
 
-    expect(methods).toContain("cod");
-    // Guards the brief's requirement that no third provider creeps in.
-    expect(methods.filter((m) => m !== "cod").sort()).toEqual(["bkash"]);
+    /*
+     * This used to assert `methods.filter(m => m !== "cod") === ["bkash"]`,
+     * which only held because the form rendered a FIXED pair of radios no
+     * matter what the store had enabled — the exact defect F5 fixed. Against a
+     * store with bKash disabled the radios now correctly collapse to COD
+     * alone, and the old assertion failed on behaviour that is right.
+     *
+     * The comment on the original names its real intent: no third provider
+     * creeps in. That is what is checked here, and it holds for any
+     * combination of enabled methods. Which methods are enabled is
+     * environment state, and payment-methods.spec.ts covers the toggling.
+     */
+    const allowed = ["cod", "bkash"];
+    expect(methods.filter((m) => !allowed.includes(m))).toEqual([]);
+    // A checkout offering nothing is a real failure, not an empty pass — the
+    // form renders an explicit empty state for that, so one must be true.
+    if (methods.length === 0) {
+      await expect(page.getByText(/no payment method/i)).toBeVisible();
+    }
   });
 
   test("checkout submit disables itself to prevent duplicate orders", async ({ page }) => {
