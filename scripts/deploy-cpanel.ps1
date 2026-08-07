@@ -271,18 +271,29 @@ function Ensure-ReleasesDir {
         if ($probe.status -ne 1) { throw "list_files did not return status=1" }
         return
     } catch {
-        # Missing directory: Fileman has no mkdir verb. Saving any file into the
-        # path materializes it.
-        $placeholder = Invoke-RestMethod `
-            -Uri "https://${CpanelHost}:2083/execute/Fileman/save_file_content" `
+        # UAPI Fileman genuinely has no mkdir verb, but API2 Fileman does, and
+        # this host exposes it. The previous attempt used save_file_content to
+        # materialize the path, which cannot work here: on this host that call
+        # only overwrites files that ALREADY exist (the same quirk documented in
+        # wipe-production-db.ps1's Save-RemoteFile). It failed on the first real
+        # deploy and took the whole retention step with it.
+        $parent = Split-Path -Path $script:ReleasesDir -Parent
+        $leaf = Split-Path -Path $script:ReleasesDir -Leaf
+        # Split-Path returns a Windows-shaped path; the host is Linux.
+        $parent = $parent -replace '\\', '/'
+
+        Invoke-CpanelApi2 -Module "Fileman" -Function "mkdir" -Arguments @{
+            path = $parent
+            name = $leaf
+        } | Out-Null
+
+        # API2 reports result=1 for a mkdir that did nothing, so confirm by
+        # reading the directory back rather than trusting the response.
+        $confirm = Invoke-RestMethod `
+            -Uri "https://${CpanelHost}:2083/execute/Fileman/list_files?dir=$([Uri]::EscapeDataString($script:ReleasesDir))" `
             -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
-            -Method Post `
-            -Body @{
-                dir = $script:ReleasesDir
-                file = ".keep"
-                content = ""
-            }
-        if ($placeholder.status -ne 1) {
+            -TimeoutSec 60
+        if ($confirm.status -ne 1) {
             Stop-Deploy "Could not create releases directory at $($script:ReleasesDir)."
         }
         Write-OK "Created releases directory at $($script:ReleasesDir)"
@@ -296,15 +307,20 @@ function Get-ReleasesList {
         -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
         -TimeoutSec 60
     if ($list.status -ne 1) { return @() }
-    # Sorted on mtime, never on name: archives are named for their commit SHA,
-    # which orders lexically at random. Pruning by name would delete arbitrary
-    # releases — including, half the time, the newest one.
+    # UAPI list_files names the entry `file`, not `name`. Filtering on `name`
+    # matched nothing, so this returned an empty list however many archives were
+    # on disk — which made -Rollback report "no archive named ..." for a file
+    # sitting right there, and made pruning a no-op.
+    #
+    # Sorted on mtime, never on filename: archives are named for their commit
+    # SHA, which orders lexically at random. Pruning by name would delete
+    # arbitrary releases — including, half the time, the newest one.
     return @($list.data |
-        Where-Object { $_.PSObject.Properties['name'] -and "$($_.name)".StartsWith("bornohin-") -and "$($_.name)".EndsWith(".zip") } |
+        Where-Object { $_.PSObject.Properties['file'] -and "$($_.file)".StartsWith("bornohin-") -and "$($_.file)".EndsWith(".zip") } |
         ForEach-Object {
             [PSCustomObject]@{
-                Name  = $_.name
-                Path  = "$($script:ReleasesDir)/$($_.name)"
+                Name  = $_.file
+                Path  = "$($script:ReleasesDir)/$($_.file)"
                 MTime = if ($_.PSObject.Properties['mtime']) { [int64]$_.mtime } else { 0 }
             }
         } |
@@ -668,9 +684,34 @@ if ($LASTEXITCODE -ne 0 -or $uploadResponse -notmatch '"status"\s*:\s*1') {
 Write-OK "Release uploaded"
 
 function Move-CurrentArchiveIntoReleases {
+    # Ensure the destination FIRST. Without this the move ran against a
+    # directory that did not exist, cPanel's fileop still answered result=1,
+    # and the deploy reported "Archived current release to ..." while the 47 MB
+    # archive sat untouched at the app root. The first real deploy did exactly
+    # that; only the prune step afterwards surfaced it.
+    Ensure-ReleasesDir
+
     $existing = "$absoluteAppRoot/bornohin-release.zip"
-    $archived = "$($script:ReleasesDir)/bornohin-$releaseCommit.zip"
-    Invoke-CpanelFileOperation -Operation "move" -Source $existing -Destination $archived
+    $expected = "bornohin-$releaseCommit.zip"
+
+    # Two operations, not one. fileop's "move" treats destfiles as a DIRECTORY
+    # and keeps the source filename, so passing a full target path silently
+    # produced releases/bornohin-release.zip — a name -Rollback <sha> can never
+    # match. The rename is what actually stamps the commit onto the archive.
+    Invoke-CpanelFileOperation -Operation "move" -Source $existing -Destination $script:ReleasesDir
+    Invoke-CpanelFileOperation -Operation "rename" `
+        -Source "$($script:ReleasesDir)/bornohin-release.zip" -Destination $expected
+
+    # fileop answers result=1 for operations that did nothing, so read the
+    # destination back. A retention step that lies is worse than one that
+    # fails: it leaves the operator believing there is something to roll back
+    # to. This is exactly how the first real deploy reported success while the
+    # archive sat untouched at the app root.
+    $archived = "$($script:ReleasesDir)/$expected"
+    if (-not (@(Get-ReleasesList) | Where-Object { $_.Name -eq $expected })) {
+        Stop-Deploy "The release archive is not in $($script:ReleasesDir) as $expected after the move; there is nothing to roll back to."
+    }
+
     Write-OK "Archived current release to $archived"
     Add-DeployLog "current_release_archived" @{ path = $archived; commit = $releaseCommit }
 }
