@@ -67,6 +67,20 @@ test("the reported commit comes from the running bundle, never from disk", async
   expect(body.commit).not.toBe("def456");
 });
 
+test("a BOM-prefixed RELEASE.json is still parsed", async () => {
+  // Windows PowerShell 5.1's `Set-Content -Encoding UTF8` emits a UTF-8 BOM, and all
+  // four deploy scripts write RELEASE.json that way (deploy-cpanel.ps1:632,
+  // manual-deploy{,-v2,-v3}.ps1). readFileSync(..., "utf8") does not strip it, so
+  // JSON.parse threw into the bare catch and extractedCommit read null forever —
+  // which made this endpoint's whole reason for existing inert on production, and
+  // let a stale process serve replaced files for 14 hours undetected on 2026-08-07.
+  const { response, body } = await callVersion("abc123", `﻿${releaseJson("def456")}`);
+
+  expect(response.status).toBe(409);
+  expect(body.status).toBe("stale");
+  expect(body.extractedCommit).toBe("def456");
+});
+
 test("a missing RELEASE.json cannot make a healthy process look stale", async () => {
   const { response, body } = await callVersion("abc123", new Error("ENOENT"));
 

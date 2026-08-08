@@ -36,7 +36,14 @@ import {
   getClientIp,
   requireSameOrigin,
 } from "@/server/security";
-import { sendEmail, getPasswordResetEmail, getEmailVerificationEmail } from "@/server/email";
+import {
+  sendEmail,
+  getPasswordResetEmail,
+  getEmailVerificationEmail,
+  getOrderConfirmationEmail,
+  type OrderConfirmationItem,
+  type OrderConfirmationOrder,
+} from "@/server/email";
 import { getSiteOrigin } from "@/lib/site-url";
 
 const guestCookie = "easy_ecom_guest";
@@ -504,6 +511,15 @@ export async function checkoutAction(
   const user = await getCurrentUser();
 
   let redirectDestination: string | null = null;
+  // Captured inside the try, sent after it. The order is already committed by
+  // then, so nothing about the email can turn a placed order into a checkout
+  // error and prompt the customer to order again.
+  let confirmation: {
+    to: string;
+    order: OrderConfirmationOrder;
+    items: OrderConfirmationItem[];
+    trackUrl: string;
+  } | null = null;
 
   try {
     const rateLimit = consumeRateLimit({
@@ -554,6 +570,18 @@ export async function checkoutAction(
       revalidatePath("/checkout");
       revalidatePath("/admin");
       redirectDestination = `/track-order?code=${order.orderCode}`;
+      // The email is optional at checkout, so a guest who left it blank simply
+      // gets no confirmation. resolvedSummary is read rather than the order's
+      // own items because OrderItem carries productId but no product name, and
+      // the cart it came from has already been emptied by createOrderFromCart.
+      if (customerEmail) {
+        confirmation = {
+          to: customerEmail,
+          order,
+          items: resolvedSummary.items,
+          trackUrl: `${getSiteOrigin()}${redirectDestination}`,
+        };
+      }
     } else {
       const providerReady = await initiateBkashPayment({
         orderId: order.id,
@@ -574,6 +602,25 @@ export async function checkoutAction(
         ? error.message
         : "Something went wrong. Please try again.";
     return { ...echoedState, error: errorMessage };
+  }
+
+  if (confirmation) {
+    try {
+      // ponytail: awaited, so it delays the redirect by one SMTP round-trip.
+      // The mail server is the same host, so that is ~100-300ms; move to a
+      // queue only if it shows up in checkout latency.
+      const emailResult = await sendEmail(
+        confirmation.to,
+        getOrderConfirmationEmail(confirmation.order, confirmation.items, confirmation.trackUrl),
+      );
+      if (!emailResult.success) {
+        console.error("Failed to send order confirmation email:", emailResult.error);
+      }
+    } catch (error) {
+      // sendEmail already swallows transport errors, so reaching here means
+      // template rendering threw. The order still stands either way.
+      console.error("Failed to build the order confirmation email", error);
+    }
   }
 
   if (redirectDestination) {

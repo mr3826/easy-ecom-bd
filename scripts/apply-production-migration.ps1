@@ -408,22 +408,20 @@ deploy-cpanel.ps1 asks the app to exit over HTTP instead.
 if (-not $SkipRestart) {
     Write-Step "Restarting the application"
     $restartToken = $env:DEPLOY_RESTART_TOKEN
-    if (-not $restartToken) { $restartToken = [Environment]::GetEnvironmentVariable("DEPLOY_RESTART_TOKEN", "User") }
+    if (-not $restartToken) { $restartToken = Get-PersistedEnv "DEPLOY_RESTART_TOKEN" }
 
     $pidBefore = $null
     try { $pidBefore = (Invoke-RestMethod -Uri "$($AppUrl.TrimEnd('/'))/api/version" -TimeoutSec 30).pid } catch { }
 
     Invoke-RemoteCommand -Command "touch $absoluteAppRoot/tmp/restart.txt && echo touched" -OutputName "restart.log" -TimeoutSeconds 300 | Out-Null
 
-    if ($restartToken) {
-        try {
-            # A dead connection here means the process exited before replying,
-            # which is the outcome being asked for.
-            Invoke-WebRequest -Uri "$($AppUrl.TrimEnd('/'))/api/deploy/restart" -Method Post `
-                -Headers @{ "x-deploy-token" = $restartToken } -TimeoutSec 20 -SkipHttpErrorCheck | Out-Null
-        } catch { }
-    } else {
-        Write-Warn "DEPLOY_RESTART_TOKEN is not set; the old process cannot be asked to exit."
+    $restart = Request-AppRestart -AppUrl $AppUrl -RestartToken $restartToken
+    switch ($restart.Outcome) {
+        "restarted"   { Write-OK $restart.Message }
+        # Undecided, not good news — the pid poll immediately below is what
+        # actually establishes whether a new process is serving.
+        "no_response" { Write-Host "    $($restart.Message)" }
+        default       { Write-Warn $restart.Message }
     }
 
     $restarted = $false
@@ -436,6 +434,9 @@ if (-not $SkipRestart) {
     }
     if (-not $restarted) {
         Write-Warn "The process did not change. It may still hold prepared statements for the old schema."
+        # Without this the operator sees only "did not change" and has no way to
+        # tell a refused token from a process that ignored the request.
+        Write-Warn "Restart outcome was '$($restart.Outcome)': $($restart.Message)"
         Write-Warn "Restart the application from cPanel > Setup Node.js App."
     }
 }
