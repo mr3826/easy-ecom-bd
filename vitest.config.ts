@@ -20,5 +20,16 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts", "tests/**/*.spec.ts"],
     exclude: ["**/node_modules/**", ".next/**", ".kilo/**"],
+    // Vitest defaults to 5s, which is too tight for this suite. The integration
+    // tests hit a real database, and the auth ones additionally run bcrypt at
+    // cost 10 synchronously, which blocks a worker for as long as it takes. On
+    // an idle machine reset-password-action.test.ts finishes in under 2s, but
+    // running all 19 files in parallel on a loaded machine pushed it to 5521ms
+    // and failed a deploy on a timeout rather than on anything being wrong.
+    //
+    // Raised rather than applied per-test: the same contention reaches every
+    // bcrypt-bound test, so pinning one of them just moves the flake. 20s is
+    // still far below any genuine hang.
+    testTimeout: 20_000,
   },
 });
