@@ -67,8 +67,31 @@ if ($readResponse.status -ne 1) { throw "cPanel refused the read: $($readRespons
 if (-not $readResponse.data.content) { throw "The .htaccess read came back empty. Refusing to write over the live file." }
 
 $original = [string]$readResponse.data.content
-$updated = $original
 Write-OK "Read $($original.Length) bytes"
+
+<#
+Edited as a list of lines rather than with regex replacement over the whole
+file. The regex version inserted a new key with
+
+    [regex]::Replace($text, $anchor, { ... }, 1)
+
+intending the 1 to cap the replacement count. No such overload exists: the
+four-argument form is Replace(String, String, MatchEvaluator, RegexOptions), so
+the 1 was read as RegexOptions.IgnoreCase and every SetEnv line in the file
+matched. Each added key was appended after all of them, doubling the count per
+key and growing a 1.4 KB file to 16 KB. Indexing lines cannot over-match.
+#>
+$newline = if ($original -match "`r`n") { "`r`n" } else { "`n" }
+$lines = [System.Collections.Generic.List[string]]::new()
+foreach ($line in ($original -split "`r?`n")) { $lines.Add($line) | Out-Null }
+
+function Find-SetEnvIndex {
+    param([System.Collections.Generic.List[string]]$Lines, [string]$Name)
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        if ($Lines[$i] -match "^\s*SetEnv\s+$([regex]::Escape($Name))(\s|$)") { return $i }
+    }
+    return -1
+}
 
 Write-Step "Applying $($Values.Count) SetEnv value(s)"
 foreach ($name in $Values.Keys) {
@@ -79,22 +102,27 @@ foreach ($name in $Values.Keys) {
     if ($value -match '[\r\n]') { throw "The value for $name contains a line break, which cannot go in a SetEnv directive." }
 
     $line = "SetEnv $name $value"
-    $pattern = "(?m)^SetEnv\s+$([regex]::Escape($name))\s+.*$"
-    if ($updated -match $pattern) {
-        $updated = [regex]::Replace($updated, $pattern, { $line })
+    $index = Find-SetEnvIndex -Lines $lines -Name $name
+
+    if ($index -ge 0) {
+        $lines[$index] = $line
+        # A key already present more than once would otherwise keep whichever
+        # stale copy sits last, which is the value Passenger actually reads.
+        for ($i = $lines.Count - 1; $i -gt $index; $i--) {
+            if ($lines[$i] -match "^\s*SetEnv\s+$([regex]::Escape($name))(\s|$)") { $lines.RemoveAt($i) }
+        }
         Write-OK "update $name ($($value.Length) chars)"
     } else {
-        # Placed beside the existing SetEnv block rather than appended, matching
-        # where deploy-cpanel.ps1 inserts DEPLOY_RESTART_TOKEN.
-        $anchor = '(?m)^SetEnv\s+\S+\s+.*$'
-        if ($updated -match $anchor) {
-            $updated = [regex]::Replace($updated, $anchor, { param($m) "$($m.Value)`n$line" }, 1)
-        } else {
-            $updated = $updated.TrimEnd() + "`n$line`n"
-        }
+        # Placed directly after the last existing SetEnv so the block stays
+        # together, matching where deploy-cpanel.ps1 inserts DEPLOY_RESTART_TOKEN.
+        $last = -1
+        for ($i = 0; $i -lt $lines.Count; $i++) { if ($lines[$i] -match '^\s*SetEnv\s+\S+') { $last = $i } }
+        if ($last -ge 0) { $lines.Insert($last + 1, $line) } else { $lines.Add($line) | Out-Null }
         Write-OK "add    $name ($($value.Length) chars)"
     }
 }
+
+$updated = $lines -join $newline
 
 if ($updated -eq $original) {
     Write-OK "No change needed; every value already matches."
