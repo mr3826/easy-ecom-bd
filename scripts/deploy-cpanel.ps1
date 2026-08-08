@@ -686,6 +686,31 @@ if (-not $RestartToken) {
     Write-Warn "DEPLOY_RESTART_TOKEN is not set; the deploy cannot stop a stale process itself."
 }
 
+<#
+cPanel's upload API refuses to overwrite, answering "The file ... you uploaded
+already exists" and failing the whole deploy. bornohin-release.zip is only ever
+a staging name: it is uploaded here and moved to releases/bornohin-<commit>.zip
+seconds later, so a copy still sitting at the app root means an earlier deploy
+died between those two steps, or a manual script uploaded one and never ran the
+retention move. Either way it is debris, and leaving it there blocks every future
+deploy through the sanctioned path — which is a large part of why manual deploys
+kept being written to work around this one.
+
+Removed rather than reported, because there is nothing in it worth keeping: it is
+a byte-identical copy of an archive that either reached releases/ already or
+belongs to a build nobody finished shipping.
+#>
+$appRootListing = Invoke-RestMethod `
+    -Uri "https://${CpanelHost}:2083/execute/Fileman/list_files?dir=$([Uri]::EscapeDataString($absoluteAppRoot))" `
+    -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } `
+    -TimeoutSec 60
+# UAPI list_files names the entry `file`, not `name` — see Get-ReleasesList.
+if ($appRootListing.status -eq 1 -and (@($appRootListing.data) | Where-Object { $_.file -eq "bornohin-release.zip" })) {
+    Write-Warn "A stale bornohin-release.zip is at the app root; an earlier deploy did not finish its retention move."
+    Invoke-CpanelFileOperation -Operation "unlink" -Source "$absoluteAppRoot/bornohin-release.zip"
+    Write-OK "Removed the stale staging archive"
+}
+
 Write-Step "Uploading release through cPanel UAPI"
 $uploadResponse = curl.exe --fail-with-body --silent --show-error `
     -H $authorization `

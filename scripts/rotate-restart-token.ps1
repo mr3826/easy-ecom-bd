@@ -179,6 +179,13 @@ if (Test-OnWindows) {
     # about to be used for a deploy.
     $env:DEPLOY_RESTART_TOKEN = $newToken
     Write-OK "User environment updated, and this session now holds it too."
+    # deploy-cpanel.ps1 resolves the token as parameter, then process environment,
+    # then persisted value. Any shell opened before this rotation still carries the
+    # OLD token in its process environment, and that stale copy outranks the fresh
+    # persisted one — so the next deploy from such a shell is answered 401 and falls
+    # back to the reaper, which is exactly the drift this script just repaired.
+    Write-Warn "Shells opened before now still hold the old token in their environment."
+    Write-Warn "Deploy from a new shell, or pass -RestartToken explicitly."
 } else {
     $env:DEPLOY_RESTART_TOKEN = $newToken
     Write-Warn "Only this session was updated; persist DEPLOY_RESTART_TOKEN yourself on this platform."

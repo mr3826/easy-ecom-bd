@@ -64,6 +64,75 @@ $env:CPANEL_API_TOKEN     = "<short-lived cPanel API token>"
 $env:DEPLOY_RESTART_TOKEN = "<same value as the server's>"
 ```
 
+### Outgoing email
+
+Mail goes through the account's own cPanel mailbox. No third-party provider and
+no WHM access is needed — the mail stack is part of the shared hosting account.
+
+```text
+SMTP_HOST   the cPanel server's own hostname
+SMTP_PORT   465
+SMTP_USER   noreply@bornohin.com
+SMTP_PASS   the mailbox password
+FROM_EMAIL  noreply@bornohin.com   (must equal SMTP_USER)
+FROM_NAME   Bornohin
+```
+
+Three of those are not free choices:
+
+- **`SMTP_HOST` must be the server's own hostname, not `localhost` and not
+  `mail.bornohin.com`.** The mail server presents a Let's Encrypt certificate
+  whose only SAN is that hostname, so port 465 — which is implicit TLS, verified
+  before any credential is sent — fails validation against any other name.
+  `mail.bornohin.com` additionally does not resolve at all.
+- **`FROM_EMAIL` must equal `SMTP_USER`.** cPanel's Exim rejects or rewrites a
+  From address the authenticated account does not own, which shows up as silent
+  non-delivery rather than an error.
+- **Port 465, not 587.** `sendEmail` derives `secure` from the port number, so
+  465 is the only value that negotiates TLS from the start.
+
+SPF and DKIM are already published for the domain. DMARC is not; add
+`_dmarc.bornohin.com TXT "v=DMARC1; p=none; rua=mailto:..."` when convenient,
+starting at `p=none` to observe before enforcing.
+
+Nothing verifies these at boot. `sendEmail` returns
+`{success:false, error:"SMTP not configured"}` if any of the four SMTP values is
+missing, and callers only log that — so a broken mail configuration looks exactly
+like a working one from the outside. Confirm with a real password reset after
+changing any of it.
+
+### Rotating DEPLOY_RESTART_TOKEN
+
+The token lives in three places and none of them owns it: your workstation, the
+`SetEnv` line in the server's `public_html/.htaccess`, and the repository's
+`DEPLOY_RESTART_TOKEN` Actions secret. Both deploy paths overwrite the server's
+copy from their own, so whichever deploys last wins and the other is answered
+401 from then on. Change one and the drift comes straight back.
+
+```powershell
+pwsh scripts/rotate-restart-token.ps1 -Confirm
+```
+
+It writes all three and restarts using the **old** token, because the running
+process holds the value it was spawned with and only that value can stop it.
+Rotating by running a deploy instead would deliberately provoke the 401 and fall
+through to the orphan reaper.
+
+**Deploy from a new shell afterwards.** `deploy-cpanel.ps1` resolves the token as
+parameter, then process environment, then persisted value — and a shell opened
+before the rotation still carries the old token in its process environment, where
+it outranks the fresh persisted one. Either open a new shell or pass
+`-RestartToken` explicitly.
+
+To change any other Passenger variable without a full deploy:
+
+```powershell
+pwsh scripts/set-passenger-env.ps1 -Values @{ SMTP_PORT = "465" } -Confirm
+```
+
+Passenger reads `.htaccess` at process start, so the running process keeps the
+old values until it is restarted.
+
 ---
 
 ## 2. Deployment

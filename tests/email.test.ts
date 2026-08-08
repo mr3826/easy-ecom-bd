@@ -15,7 +15,10 @@ on the strength of those two being empty.
 */
 
 const sendMail = vi.fn();
-const createTransport = vi.fn((_options: unknown) => ({ sendMail }));
+// Typed rather than given a named parameter: the mock needs a one-argument
+// signature so the wrapper below type-checks, but binding that argument would
+// leave it unused and trip no-unused-vars.
+const createTransport = vi.fn<(options: unknown) => { sendMail: typeof sendMail }>(() => ({ sendMail }));
 // Wrapped rather than passed directly: vi.mock factories are hoisted above the
 // declarations above, so the reference has to be deferred to call time.
 vi.mock("nodemailer", () => ({ default: { createTransport: (options: unknown) => createTransport(options) } }));
