@@ -1,7 +1,30 @@
+// Imported statically, not via `await import()`. Next's file tracer did not
+// follow the dynamic form, so nodemailer never reached .next/standalone and
+// every production send threw MODULE_NOT_FOUND into the catch below — reported
+// as {success:false}, indistinguishable from a wrong password. A static import
+// cannot be missed by tracing and needs no next.config entry to stay in sync.
+import type { Order } from "@/lib/domain";
+import { money } from "@/lib/utils";
+
 export interface EmailTemplate {
   subject: string;
   html: string;
   text: string;
+}
+
+/**
+ * Every value interpolated into an email body is attacker-supplied somewhere:
+ * `name` comes from the signup form, product names from the admin, and the
+ * checkout name field from an anonymous guest. An unescaped `<` here is markup
+ * in the recipient's mail client, not text.
+ */
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function getEmailBaseTemplate(content: string): string {
@@ -33,7 +56,7 @@ export function getPasswordResetEmail(resetUrl: string, userName: string): Email
   const htmlContent = `
     <h1 style="font-size: 24px; font-weight: 800; color: #1f2937; margin: 0 0 16px;">Reset your password</h1>
     <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
-      Hi ${userName},
+      Hi ${escapeHtml(userName)},
     </p>
     <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
       We received a request to reset your password. Click the button below to create a new password:
@@ -75,7 +98,7 @@ export function getEmailVerificationEmail(verifyUrl: string, userName: string): 
   const htmlContent = `
     <h1 style="font-size: 24px; font-weight: 800; color: #1f2937; margin: 0 0 16px;">Verify your email address</h1>
     <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
-      Hi ${userName},
+      Hi ${escapeHtml(userName)},
     </p>
     <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
       Thanks for signing up! Please verify your email address by clicking the button below:
@@ -108,6 +131,126 @@ This link will expire in 24 hours.
 
   return {
     subject: "Verify your Bornohin email address",
+    html: getEmailBaseTemplate(htmlContent),
+    text: textContent,
+  };
+}
+
+/**
+ * The order row carries the money, but OrderItem holds only productId — the
+ * readable names live on the cart summary captured before createOrderFromCart
+ * empties the cart. Both are passed rather than re-read so this cannot fire a
+ * query on a cart that no longer has items.
+ */
+export type OrderConfirmationOrder = Pick<
+  Order,
+  "orderCode" | "customerName" | "district" | "shippingAddress" | "subtotal" | "deliveryCharge" | "discountAmount" | "total"
+>;
+
+export type OrderConfirmationItem = {
+  quantity: number;
+  lineTotal: number;
+  product: { name: string };
+};
+
+export function getOrderConfirmationEmail(
+  order: OrderConfirmationOrder,
+  items: OrderConfirmationItem[],
+  trackUrl: string,
+): EmailTemplate {
+  const rows = items
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; color: #1f2937;">
+          ${escapeHtml(item.product.name)}
+          <span style="color: #9ca3af;">&times; ${item.quantity}</span>
+        </td>
+        <td style="padding: 10px 0; border-bottom: 1px solid #f3f4f6; font-size: 14px; color: #1f2937; text-align: right; white-space: nowrap;">
+          ${money(item.lineTotal)}
+        </td>
+      </tr>`,
+    )
+    .join("");
+
+  // Only rendered when non-zero: a "Discount -৳0" line reads like a bug to a
+  // customer, and this table is the receipt they will compare against delivery.
+  const discountRow =
+    order.discountAmount > 0
+      ? `<tr>
+        <td style="padding: 4px 0; font-size: 14px; color: #4b5563;">Discount</td>
+        <td style="padding: 4px 0; font-size: 14px; color: #16a34a; text-align: right;">-${money(order.discountAmount)}</td>
+      </tr>`
+      : "";
+
+  const htmlContent = `
+    <h1 style="font-size: 24px; font-weight: 800; color: #1f2937; margin: 0 0 16px;">Thanks for your order</h1>
+    <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 8px;">
+      Hi ${escapeHtml(order.customerName)},
+    </p>
+    <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 24px;">
+      We have received your order <strong style="color: #1f2937;">${escapeHtml(order.orderCode)}</strong> and are
+      getting it ready. You will pay on delivery.
+    </p>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 8px;">
+      ${rows}
+    </table>
+
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 32px;">
+      <tr>
+        <td style="padding: 4px 0; font-size: 14px; color: #4b5563;">Subtotal</td>
+        <td style="padding: 4px 0; font-size: 14px; color: #1f2937; text-align: right;">${money(order.subtotal)}</td>
+      </tr>
+      ${discountRow}
+      <tr>
+        <td style="padding: 4px 0; font-size: 14px; color: #4b5563;">Delivery</td>
+        <td style="padding: 4px 0; font-size: 14px; color: #1f2937; text-align: right;">${money(order.deliveryCharge)}</td>
+      </tr>
+      <tr>
+        <td style="padding: 12px 0 0; font-size: 16px; font-weight: 700; color: #1f2937; border-top: 2px solid #e5e7eb;">Total</td>
+        <td style="padding: 12px 0 0; font-size: 16px; font-weight: 700; color: #1f2937; text-align: right; border-top: 2px solid #e5e7eb;">${money(order.total)}</td>
+      </tr>
+    </table>
+
+    <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin: 0 0 4px;"><strong>Delivering to</strong></p>
+    <p style="font-size: 14px; color: #4b5563; line-height: 1.6; margin: 0 0 32px;">
+      ${escapeHtml(order.shippingAddress)}<br>${escapeHtml(order.district)}
+    </p>
+
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${escapeHtml(trackUrl)}" style="display: inline-block; background-color: #0f172a; color: #ffffff; padding: 14px 32px; border-radius: 8px; font-size: 16px; font-weight: 600; text-decoration: none;">
+        Track your order
+      </a>
+    </div>
+    <p style="font-size: 14px; color: #9ca3af; line-height: 1.6; margin: 0;">
+      Or copy and paste this link into your browser:<br>
+      <a href="${escapeHtml(trackUrl)}" style="color: #6366f1; word-break: break-all;">${escapeHtml(trackUrl)}</a>
+    </p>
+  `;
+
+  const textContent = `
+Thanks for your order
+
+Hi ${order.customerName},
+
+We have received your order ${order.orderCode} and are getting it ready. You will pay on delivery.
+
+${items.map((item) => `  ${item.product.name} x ${item.quantity}  ${money(item.lineTotal)}`).join("\n")}
+
+  Subtotal   ${money(order.subtotal)}${order.discountAmount > 0 ? `\n  Discount   -${money(order.discountAmount)}` : ""}
+  Delivery   ${money(order.deliveryCharge)}
+  Total      ${money(order.total)}
+
+Delivering to:
+${order.shippingAddress}
+${order.district}
+
+Track your order: ${trackUrl}
+  `.trim();
+
+  return {
+    subject: `Order ${order.orderCode} confirmed`,
     html: getEmailBaseTemplate(htmlContent),
     text: textContent,
   };

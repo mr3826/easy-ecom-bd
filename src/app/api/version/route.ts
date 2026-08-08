@@ -17,7 +17,12 @@ const RUNNING_COMMIT = process.env.NEXT_PUBLIC_RELEASE_COMMIT || null;
 function readExtractedRelease() {
   try {
     const raw = readFileSync(path.join(process.cwd(), "RELEASE.json"), "utf8");
-    const parsed = JSON.parse(raw) as { releaseCommit?: string; deployedAt?: string };
+    // Strip a UTF-8 BOM before parsing. Windows PowerShell 5.1's `Set-Content
+    // -Encoding UTF8` writes one, and every deploy script uses it, so the file is
+    // valid JSON with one leading byte that JSON.parse rejects. Without this the
+    // catch below swallowed the SyntaxError and reported extractedCommit: null on a
+    // present, correct file — leaving the stale-release check permanently inert.
+    const parsed = JSON.parse(raw.replace(/^﻿/, "")) as { releaseCommit?: string; deployedAt?: string };
     return { commit: parsed.releaseCommit || null, deployedAt: parsed.deployedAt || null };
   } catch {
     return { commit: null, deployedAt: null };

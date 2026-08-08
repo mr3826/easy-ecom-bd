@@ -316,22 +316,19 @@ over HTTP instead. Same approach here, with the touch kept as a nudge.
 #>
 Write-Step "Restarting the application so no request reuses cached rows"
 $restartToken = $env:DEPLOY_RESTART_TOKEN
-if (-not $restartToken) { $restartToken = [Environment]::GetEnvironmentVariable("DEPLOY_RESTART_TOKEN", "User") }
+if (-not $restartToken) { $restartToken = Get-PersistedEnv "DEPLOY_RESTART_TOKEN" }
 
 $pidBefore = $null
 try { $pidBefore = (Invoke-RestMethod -Uri "$($AppUrl.TrimEnd('/'))/api/version" -TimeoutSec 30).pid } catch { }
 
 Invoke-RemoteCommand -Command "touch $absoluteAppRoot/tmp/restart.txt && echo touched" -OutputName "restart.log" -TimeoutSeconds 300 | Out-Null
 
-if ($restartToken) {
-    try {
-        # A dead connection here means the process exited before replying, which
-        # is the outcome being asked for.
-        Invoke-WebRequest -Uri "$($AppUrl.TrimEnd('/'))/api/deploy/restart" -Method Post `
-            -Headers @{ "x-deploy-token" = $restartToken } -TimeoutSec 20 -SkipHttpErrorCheck | Out-Null
-    } catch { }
-} else {
-    Write-Warn "DEPLOY_RESTART_TOKEN is not set; the old process cannot be asked to exit."
+$restart = Request-AppRestart -AppUrl $AppUrl -RestartToken $restartToken
+switch ($restart.Outcome) {
+    "restarted"   { Write-OK $restart.Message }
+    # Undecided, not good news — the pid poll below establishes the truth.
+    "no_response" { Write-Host "    $($restart.Message)" }
+    default       { Write-Warn $restart.Message }
 }
 
 $restarted = $false
@@ -344,6 +341,7 @@ foreach ($attempt in 1..12) {
 }
 if (-not $restarted) {
     Write-Warn "The process did not change. It is still serving pre-wipe cached data."
+    Write-Warn "Restart outcome was '$($restart.Outcome)': $($restart.Message)"
     Write-Warn "Restart the application from cPanel > Setup Node.js App, then re-check $AppUrl/shop."
 }
 

@@ -191,21 +191,6 @@ function Invoke-OrphanReaper {
     return $live
 }
 
-# Asks the process that answers this request to exit. It is the only restart
-# path that still reaches a process orphaned to PPID 1.
-function Request-AppRestart {
-    if (-not $RestartToken) { return 0 }
-    try {
-        $response = Invoke-WebRequest -Uri "$($AppUrl.TrimEnd('/'))/api/deploy/restart" `
-            -Method Post -Headers @{ "x-deploy-token" = $RestartToken } `
-            -TimeoutSec 20 -SkipHttpErrorCheck
-        return [int]$response.StatusCode
-    } catch {
-        # The process can die before the response is written, which is a success.
-        return 0
-    }
-}
-
 if ($ConfirmAppRoot -ne $AppRoot) {
     Stop-Deploy "Pass -ConfirmAppRoot '$AppRoot' after verifying the Passenger app root in cPanel."
 }
@@ -606,6 +591,31 @@ if (Test-Path -LiteralPath (Join-Path $DeployDir "node_modules\sharp")) {
     Write-OK "Verified: linux sharp binary and libvips are in the bundle, win32 is not"
 }
 
+<#
+Writes RELEASE.json as UTF-8 with NO byte-order mark.
+
+`Set-Content -Encoding UTF8` was used here, and under Windows PowerShell 5.1 that
+emits a BOM. JSON.parse in src/app/api/version/route.ts then rejected the leading
+byte, the bare catch swallowed the SyntaxError, and /api/version reported
+extractedCommit: null on a file that was present and correct — leaving the
+stale-release check inert. On 2026-08-07 that let a stale process serve replaced
+files for 14 hours with the endpoint reporting "ready".
+
+-Encoding utf8NoBOM would be the obvious fix but is PowerShell 6+ only, and these
+scripts must still run under 5.1 (see the compatibility note in deploy-settings.ps1).
+WriteAllText with an explicit BOM-less encoder behaves identically on both, and is
+the same idiom scripts/inspect-production-db.ps1 already uses for psql input.
+#>
+function Set-ReleaseJson {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)][string]$Json
+    )
+    process {
+        [System.IO.File]::WriteAllText($Path, $Json, (New-Object System.Text.UTF8Encoding $false))
+    }
+}
+
 # RELEASE.json is not part of the standalone output, so without this it survives
 # every extraction untouched and keeps describing whatever shipped first. Write it
 # into the bundle so the rollback commit recorded on the server is real.
@@ -617,7 +627,11 @@ if (-not $DryRun) {
             "?dir=$([Uri]::EscapeDataString($absoluteAppRoot))&file=RELEASE.json"
         $existing = Invoke-RestMethod -Uri $releaseUri -Headers @{ Authorization = "cpanel ${CpanelUser}:$CpanelApiToken" } -TimeoutSec 60
         if ($existing.status -eq 1 -and $existing.data.content) {
-            $previousRelease = ($existing.data.content | ConvertFrom-Json).releaseCommit
+            # Trim a UTF-8 BOM: releases written by Set-Content -Encoding UTF8 under
+            # Windows PowerShell 5.1 carry one, and ConvertFrom-Json rejects it. That
+            # threw into the catch below and silently nulled rollbackCommit on every
+            # deploy, which is why the live RELEASE.json records no rollback target.
+            $previousRelease = (([string]$existing.data.content).TrimStart([char]0xFEFF) | ConvertFrom-Json).releaseCommit
         }
     } catch {
         Write-Host "    Could not read the previous RELEASE.json; rollbackCommit will be null." -ForegroundColor Yellow
@@ -629,7 +643,7 @@ if (-not $DryRun) {
     buildId        = if (Test-Path -LiteralPath $buildIdPath) { (Get-Content -LiteralPath $buildIdPath -Raw).Trim() } else { $null }
     nextVersion    = (Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw | ConvertFrom-Json).dependencies.next
     deployedAt     = (Get-Date).ToUniversalTime().ToString("o")
-} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $DeployDir "RELEASE.json") -Encoding UTF8
+} | ConvertTo-Json | Set-ReleaseJson -Path (Join-Path $DeployDir "RELEASE.json")
 
 # Remembered before the bundle is cleaned up, to probe after the restart.
 $probeAsset = Get-ChildItem -LiteralPath (Join-Path $DeployDir ".next\static\chunks") -Filter "*.css" -File -ErrorAction SilentlyContinue |
@@ -986,18 +1000,16 @@ while ((Get-Date) -lt $deadline) {
     if (-not $RestartToken -or $restartRequests -ge 6) { continue }
 
     $restartRequests += 1
-    $status = Request-AppRestart
-    Add-DeployLog "self_restart_requested" @{ attempt = $restartRequests; httpStatus = $status; targetPid = $version.pid }
-    Write-Warn "asked pid $($version.pid) to exit (attempt $restartRequests, http $status)"
-
-    if ($status -eq 404) {
-        # The running build has no restart endpoint — retrying cannot help, and
-        # waiting out the deadline only delays the reaper that will fix it.
-        Write-Warn "That build has no restart endpoint; going straight to the reaper."
-        break
+    $restart = Request-AppRestart -AppUrl $AppUrl -RestartToken $RestartToken
+    Add-DeployLog "self_restart_requested" @{
+        attempt = $restartRequests; httpStatus = $restart.StatusCode; outcome = $restart.Outcome; targetPid = $version.pid
     }
-    if ($status -eq 401) {
-        Write-Warn "Restart rejected: the running build holds a different DEPLOY_RESTART_TOKEN."
+    Write-Warn "asked pid $($version.pid) to exit (attempt $restartRequests, http $($restart.StatusCode))"
+
+    # Neither a missing endpoint nor a refused token can be fixed by retrying,
+    # and waiting out the deadline only delays the reaper that will fix it.
+    if ($restart.Outcome -in @("not_configured", "rejected")) {
+        Write-Warn $restart.Message
         break
     }
     Start-Sleep -Seconds 5
